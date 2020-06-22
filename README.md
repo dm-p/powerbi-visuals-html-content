@@ -12,9 +12,9 @@ By Daniel Marsh-Patrick
 
 This custom visual is intended to be a spiritual successor to the HTML Viewer custom visual, which has recently been removed from the Power BI Marketplace.
 
-I didn't write the original, but as there seems to be some requests for something similar to be available, hopefully this will fill the gap.
+I didn't write the original, but as there seems to be some requests for something similar to be available, hopefully this will fill the gap for people missing out.
 
-The visual is in beta - you can download the latest version from the [Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases).
+The visual is currently in beta - you can download the latest version from the [Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases).
 
 I'm intending to publish this to the Power BI Marketplace shortly, once I've done the necessary work required to list it and will update with details when available.
 
@@ -28,9 +28,7 @@ For example, you can't embed content that tries to access sites with <a href ="h
 
 ### So, Why Use this One?
 
-As the original visual was last updated a long, long time ago this one has been written using the latest version of the Power BI Visuals SDK.
-
-There are also some additional features:
+There are some additional features:
 
 * If you prefer, you can use HTML generated via a measure rather than just being able to use a column.
 * You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in, e.g.:
@@ -48,7 +46,7 @@ There are also some additional features:
 
 ### Is there A Roadmap?
 
-Maybe. Right now, my intention was to provide something to fill the current gap left by the original visual for makers and end-users.
+Maybe. For the moment, my intention has been to provide something to fill the current gap left by the original visual for makers and end-users.
 
 If there is an appetite for something specific - **that can be implemented within the current custom visual security constraints**  - feel free to create an issue for it and I'll see if I can accomodate.
 
