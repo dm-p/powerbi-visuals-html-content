@@ -21,5 +21,5 @@
     "Status_Invalid_View_Model": "No data available to display.",
     "Status_No_Data": "No data available to display.",
     "Enum_Separation_None": "None",
-    "Enum_Separation_HR": "Horizontal Rule (HR)"
+    "Enum_Separation_HR": "Horizontal Rule (<hr/>)"
 }
