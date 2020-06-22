@@ -18,7 +18,7 @@
     "Objects_ContentFormatting_Hyperlinks": "Allow Opening URLs",
     "Objects_ContentFormatting_Hyperlinks_Description": "For security reasons, custom visuals cannot directly open hyperlinks that redirect to a URL.\n\nBy setting this option, the visual will 𝗱𝗲𝗹𝗲𝗴𝗮𝘁𝗲 𝘁𝗵𝗲 𝘂𝘀𝗲𝗿'𝘀 𝗿𝗲𝗾𝘂𝗲𝘀𝘁 𝘁𝗼 𝗻𝗮𝘃𝗶𝗴𝗮𝘁𝗲 𝘁𝗼 𝗮 𝗨𝗥𝗟 𝘁𝗼 𝗣𝗼𝘄𝗲𝗿 𝗕𝗜, which if permitted, will prompt the user for their approval for any remote navigation.",
     "Status_Mapping_DataView": "Parsing HTML...",
-    "Status_Invalid_View_Model": "The visual wasn't able to parse your data correctly :(",
+    "Status_Invalid_View_Model": "No data available to display.",
     "Status_No_Data": "No data available to display.",
     "Enum_Separation_None": "None",
     "Enum_Separation_HR": "Horizontal Rule (HR)"

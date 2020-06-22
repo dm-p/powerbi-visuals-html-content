@@ -16,7 +16,6 @@
 
 // External dependencies
     import * as d3Select from 'd3-selection';
-    import * as OverlayScrollbars from 'overlayscrollbars';
 
 // Internal Dependencies
     import {
@@ -28,6 +27,7 @@
     import {
         ViewModelHandler
     } from './ViewModel';
+    import DomainUtils from './DomainUtils';
 
     export class Visual implements IVisual {
 
@@ -50,6 +50,7 @@
 
         // Runs when the visual is initialised
             constructor(options: VisualConstructorOptions) {
+
                 this.container = d3Select.select(options.element)
                     .append('div')
                         .attr('id', VisualConstants.dom.viewerIdSelector);
@@ -63,6 +64,7 @@
                 this.localisationManager = this.host.createLocalizationManager();
                 this.events = this.host.eventService;
                 this.viewModelHandler.reset();
+
             }
 
         // Runs when data roles added or something changes
@@ -85,7 +87,7 @@
                                 case VisualUpdateType.Data:
                                 case VisualUpdateType.All: {
                                     this.updateStatus(this.localisationManager.getDisplayName('Status_Mapping_DataView'));
-                                    this.viewModelHandler.validateDataView(options.dataViews);
+                                    this.viewModelHandler.validateDataView(options);
                                     viewModel.isValid && this.viewModelHandler.mapDataView(
                                         options.dataViews,
                                         this.settings
@@ -104,62 +106,20 @@
                             }
 
                         // Render our content
-                            let entries = this.contentContainer
-                                .selectAll(`.${VisualConstants.dom.entryClassSelector}`)
-                                .data(viewModel.htmlEntries)
-                                .join(
-                                        (enter) => enter
-                                                    .append('div')
-                                                        .classed(VisualConstants.dom.entryClassSelector, true)
-                                    );
-
-                                // Handle correct descendant node type based on properties
-                                    entries.selectAll('*')
-                                        .remove();
-                                    if (viewModel.contentFormatting.showRawHtml) {
-                                        entries
-                                            .append('code')
-                                                .text((d) => d);
-                                    } else {
-                                        entries
-                                            .append('div')
-                                                .html((d) => d);
-                                    }
-
-                                // Handle separation, if needed
-                                    if (viewModel.contentFormatting.separation !== 'none') {
-                                        let eligible = entries.filter((e, i) => i < entries.data().length - 1)
-                                        switch (viewModel.contentFormatting.separation) {
-                                            case 'hr': {
-                                                eligible.append('hr');
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                // Apply body formatting
-                                    this.container
-                                        .style('font-family', viewModel.contentFormatting.fontFamily)
-                                        .style('font-size', `${viewModel.contentFormatting.fontSize}pt`)
-                                        .style('color', viewModel.contentFormatting.fontColour)
-                                        .style('text-align', viewModel.contentFormatting.align);
-                                
-                                // Add link handling
-                                    this.container
-                                        .selectAll('a')
-                                            .on('click', (d, i, e) => {
-                                                d3Select.event.preventDefault();
-                                                if (viewModel.contentFormatting.hyperlinks) {
-                                                    this.host.launchUrl(d3Select.select(e[i]).attr('href'));
-                                                }
-                                            });
-
-                        // Add overlayscrollbars for nicer scrollable content
-                            OverlayScrollbars(this.container.node(), {
-                                scrollbars: {
-                                    clickScrolling: true
-                                }
+                            let dataElements = DomainUtils.bindVisualDataToDom(
+                                    this.contentContainer,
+                                    viewModel.htmlEntries
+                                );
+                            DomainUtils.resolveHtmlGroupElement(dataElements, viewModel.contentFormatting.showRawHtml);
+                            DomainUtils.resolveGroupSeparation(viewModel.contentFormatting.separation, dataElements);
+                            DomainUtils.resolveBodyStyling(this.container, {
+                                fontFamily: viewModel.contentFormatting.fontFamily,
+                                fontSize: viewModel.contentFormatting.fontSize,
+                                colour: viewModel.contentFormatting.fontColour,
+                                textAlign: viewModel.contentFormatting.align
                             });
+                            DomainUtils.resolveHyperlinkHandling(this.host, this.container, viewModel.contentFormatting.hyperlinks);
+                            DomainUtils.resolveScrollableContent(this.container.node());
 
                         // Signal that we've finished rendering
                             this.events.renderingFinished(options);
@@ -169,6 +129,7 @@
 
                         // Signal that we've encountered an error
                             this.events.renderingFailed(options, e);
+                            this.contentContainer.selectAll('*').remove();
                             this.updateStatus(this.localisationManager.getDisplayName('Status_Invalid_View_Model'));
 
                     }
@@ -194,7 +155,12 @@
          *
          */
             public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): VisualObjectInstance[] | VisualObjectInstanceEnumerationObject {
-                const instances: VisualObjectInstance[] = (VisualSettings.enumerateObjectInstances(this.settings || VisualSettings.getDefault(), options) as VisualObjectInstanceEnumerationObject).instances;
+                const instances: VisualObjectInstance[] = (
+                        <VisualObjectInstanceEnumerationObject>VisualSettings.enumerateObjectInstances(
+                            this.settings || VisualSettings.getDefault(),
+                            options
+                        )
+                    ).instances;
                 let objectName = options.objectName;
 
                 switch (objectName) {

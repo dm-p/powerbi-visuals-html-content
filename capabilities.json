@@ -126,5 +126,6 @@
                 }
             }
         }
-    ]
+    ],
+    "supportsLandingPage": true
 }

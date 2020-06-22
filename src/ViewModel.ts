@@ -1,6 +1,7 @@
 // Power BI API Dependencies
     import powerbi from 'powerbi-visuals-api';
     import DataView = powerbi.DataView;
+    import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 
 import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
 
@@ -43,16 +44,13 @@ import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
          * @param dataViews     - Data views from the visual's update method.
          */
             validateDataView(
-                dataViews: DataView[]
+                options: VisualUpdateOptions
             ) {
                 this.viewModel.isValid = 
-                    dataViews &&
-                    dataViews[0] &&
-                    // dataViews[0].table &&
-                    // dataViews[0].table.columns &&
-                    // dataViews[0].table.columns[0] &&
-                    // dataViews[0].table.rows &&
-                    // dataViews[0].table.rows[0] &&
+                    options &&
+                    options.dataViews &&
+                    options.dataViews[0] &&
+                    options.dataViews[0].table &&
                     true;
             }
 
