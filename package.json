@@ -4,7 +4,8 @@
         "pbiviz": "pbiviz",
         "start": "pbiviz start",
         "package": "pbiviz package",
-        "lint": "tslint -c tslint.json -p tsconfig.json"
+        "lint": "tslint -c tslint.json -p tsconfig.json",
+        "unit": "karma start"
     },
     "devDependencies": {
         "@babel/runtime": "7.6.0",
