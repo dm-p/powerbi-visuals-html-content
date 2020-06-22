@@ -1,0 +1,25 @@
+{
+    "visual": {
+        "name": "htmlDisplay",
+        "displayName": "HTML Display",
+        "guid": "htmlDisplay443BE3AD55E043BF878BED274D3A6855",
+        "visualClassName": "Visual",
+        "version": "1.0.0.1",
+        "description": "A replacement Power BI custom visual for the HTML Viewer, which has recently been removed from the marketplace.",
+        "supportUrl": "https://github.com/dm-p/powerbi-visuals-html-display",
+        "gitHubUrl": "https://github.com/dm-p/powerbi-visuals-html-display"
+    },
+    "apiVersion": "2.6.0",
+    "author": {
+        "name": "Daniel Marsh-Patrick",
+        "email": "daniel@coacervo.co"
+    },
+    "assets": {
+        "icon": "assets/palette_icon.png"
+    },
+    "externalJS": [],
+    "style": "style/visual.less",
+    "capabilities": "capabilities.json",
+    "dependencies": null,
+    "stringResources": []
+}

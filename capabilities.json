@@ -1,0 +1,130 @@
+{
+    "dataRoles": [
+        {
+            "displayNameKey": "Roles_HTML_Content",
+            "descriptionKey": "Roles_HTML_Content_Description",
+            "displayName": "HTML Content",
+            "description": "HTML Content description.",
+            "name": "content",
+            "kind": "GroupingOrMeasure"
+        }
+    ],
+    "objects": {
+        "contentFormatting": {
+            "displayNameKey": "Objects_ContentFormatting",
+            "descriptionKey": "Objects_ContentFormatting_Description",
+            "displayName": "Content Formatting",
+            "properties": {
+                "separation": {
+                    "displayNameKey": "Objects_ContentFormatting_Separation",
+                    "descriptionKey": "Objects_ContentFormatting_Separation_Description",
+                    "displayName": "Separation",
+                    "description": "Separation description.",
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayName": "None",
+                                "displayNameKey": "Enum_Separation_None",
+                                "value": "none"
+                            },
+                            {
+                                "displayName": "HR",
+                                "displayNameKey": "Enum_Separation_HR",
+                                "value": "hr"
+                            }
+                        ]
+                    }
+                },
+                "showRawHtml": {
+                    "displayNameKey": "Objects_ContentFormatting_ShowRawHTML",
+                    "descriptionKey": "Objects_ContentFormatting_ShowRawHTML_Description",
+                    "displayName": "Show Raw HTML",
+                    "description": "Show Raw HTML description.",
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "fontFamily": {
+                    "displayNameKey": "Objects_ContentFormatting_FontFamily",
+                    "descriptionKey": "Objects_ContentFormatting_FontFamily_Description",
+                    "displayName": "Default Font Family",
+                    "description": "Default Font Family description.",
+                    "type": {
+                        "formatting": {
+                            "fontFamily": true
+                        }
+                    }
+                },
+                "fontSize": {
+                    "displayNameKey": "Objects_ContentFormatting_FontSize",
+                    "descriptionKey": "Objects_ContentFormatting_FontSize_Description",
+                    "displayName": "Default Font Size",
+                    "description": "Default Font Size description.",
+                    "type": {
+                        "formatting": {
+                            "fontSize": true
+                        }
+                    }
+                },
+                "fontColour": {
+                    "displayNameKey": "Objects_ContentFormatting_FontColour",
+                    "descriptionKey": "Objects_ContentFormatting_FontColour_Description",
+                    "displayName": "Default Font Color",
+                    "description": "Default Font Color description.",
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "align": {
+                    "displayNameKey": "Objects_ContentFormatting_Align",
+                    "descriptionKey": "Objects_ContentFormatting_Align_Description",
+                    "displayName": "Default Text Alignment",
+                    "description": "Default Text Alignment description.",
+                    "type": {
+                        "formatting": {
+                            "alignment": true
+                        }
+                    }
+                },
+                "hyperlinks": {
+                    "displayNameKey": "Objects_ContentFormatting_Hyperlinks",
+                    "descriptionKey": "Objects_ContentFormatting_Hyperlinks_Description",
+                    "displayName": "Hyperlinks",
+                    "description": "Hyperlinks description.",
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "content": {
+                        "max": 1
+                    }
+                }
+            ],
+            "table": {
+                "rows": {
+                    "select": [
+                        {
+                            "for": {
+                                "in": "content"
+                            }
+                        }
+                    ],
+                    "dataReductionAlgorithm": {
+                        "top": {}
+                    }
+                }
+            }
+        }
+    ]
+}
