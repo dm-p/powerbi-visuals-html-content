@@ -87,7 +87,7 @@
                                 case VisualUpdateType.Data:
                                 case VisualUpdateType.All: {
                                     this.updateStatus(this.localisationManager.getDisplayName('Status_Mapping_DataView'));
-                                    this.viewModelHandler.validateDataView(options);
+                                    this.viewModelHandler.validateDataView(options.dataViews);
                                     viewModel.isValid && this.viewModelHandler.mapDataView(
                                         options.dataViews,
                                         this.settings

@@ -44,14 +44,14 @@ import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
          * @param dataViews     - Data views from the visual's update method.
          */
             validateDataView(
-                options: VisualUpdateOptions
+                dataViews: DataView[]
             ) {
                 this.viewModel.isValid = 
-                    options &&
-                    options.dataViews &&
-                    options.dataViews[0] &&
-                    options.dataViews[0].table &&
-                    true;
+                    dataViews &&
+                    dataViews[0] &&
+                    dataViews[0].table &&
+                    true ||
+                    false;
             }
 
         /**
@@ -64,10 +64,12 @@ import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
                 dataViews: DataView[],
                 settings: VisualSettings
             ) {
-                const htmlEntries = dataViews[0].table.rows.map((v) => v.toString());
-                this.viewModel.contentFormatting = settings.contentFormatting;
-                this.viewModel.htmlEntries = htmlEntries;
-                this.viewModel.isEmpty = htmlEntries.length <= 0;
+                if (this.viewModel.isValid) {
+                    const htmlEntries = dataViews[0].table.rows.map((v) => v.toString());
+                    this.viewModel.contentFormatting = settings.contentFormatting;
+                    this.viewModel.htmlEntries = htmlEntries;
+                    this.viewModel.isEmpty = htmlEntries.length <= 0;
+                }
             }
 
     }
