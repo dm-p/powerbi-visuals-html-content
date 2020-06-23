@@ -28,11 +28,14 @@
         ViewModelHandler
     } from './ViewModel';
     import DomainUtils from './DomainUtils';
+    import LandingPageHandler from './LandingPageHandler';
 
     export class Visual implements IVisual {
 
         // The root element for the entire visual
             private container: d3.Selection<HTMLDivElement, any, any, any>;
+        // Used for displaying landing page
+            private landingContainer: d3.Selection<HTMLDivElement, any, any, any>;
         // Used for handling issues in the visual
             private statusContainer: d3.Selection<HTMLDivElement, any, any, any>;
         // USed for HTML content from data model
@@ -47,6 +50,8 @@
             private localisationManager: ILocalizationManager;
         // Visual view model
             private viewModelHandler = new ViewModelHandler();
+        // Handles landing page
+            private landingPageHandler: LandingPageHandler;
 
         // Runs when the visual is initialised
             constructor(options: VisualConstructorOptions) {
@@ -54,14 +59,18 @@
                 this.container = d3Select.select(options.element)
                     .append('div')
                         .attr('id', VisualConstants.dom.viewerIdSelector);
+                this.host = options.host;
+                this.localisationManager = this.host.createLocalizationManager();
+                this.landingContainer = this.container
+                    .append('div')
+                        .attr('id', VisualConstants.dom.landingIdSelector);
                 this.statusContainer = this.container
                     .append('div')
                         .attr('id', VisualConstants.dom.statusIdSelector);
                 this.contentContainer = this.container
                     .append('div')
                         .attr('id', VisualConstants.dom.contentIdSelector);
-                this.host = options.host;
-                this.localisationManager = this.host.createLocalizationManager();
+                this.landingPageHandler = new LandingPageHandler(this.landingContainer, this.localisationManager);
                 this.events = this.host.eventService;
                 this.viewModelHandler.reset();
 
@@ -97,6 +106,8 @@
                                 }
                             }
 
+                            this.landingPageHandler.handleLandingPage(this.viewModelHandler.viewModel.isValid, this.host);
+
                         // Do checks on potential outcomes and handle accordingly
                             if (!viewModel.isValid) {
                                 throw new Error('View model mapping error');
@@ -130,7 +141,7 @@
                         // Signal that we've encountered an error
                             this.events.renderingFailed(options, e);
                             this.contentContainer.selectAll('*').remove();
-                            this.updateStatus(this.localisationManager.getDisplayName('Status_Invalid_View_Model'));
+                            this.updateStatus();
 
                     }
 

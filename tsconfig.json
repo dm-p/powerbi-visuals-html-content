@@ -13,7 +13,8 @@
             "es2015",
             "dom"
         ],
-        "alwaysStrict": true
+        "alwaysStrict": true,
+        "resolveJsonModule": true
     },
     "files": [
         "./src/visual.ts"

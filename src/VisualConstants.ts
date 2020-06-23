@@ -1,4 +1,8 @@
+// Internal dependencies
+    import * as pbivizMetadata from '../pbiviz.json';
+    
 export const VisualConstants = {
+    pbiviz: pbivizMetadata,
     contentFormatting: {
         showRawHtml: false,
         font: {
@@ -14,6 +18,8 @@ export const VisualConstants = {
         viewerIdSelector: 'htmlViewer',
         entryClassSelector: 'htmlViewerEntry',
         statusIdSelector: 'statusMessage',
-        contentIdSelector: 'htmlContent'
+        contentIdSelector: 'htmlContent',
+        landingIdSelector: 'landingPage',
+        landingPageClassPrefix: 'html-display'
     }
 }

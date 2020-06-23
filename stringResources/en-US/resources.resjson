@@ -1,4 +1,8 @@
 {
+    "Landing_Page_Overview_1": "Thanks very much for using this visual!",
+    "Landing_Page_Overview_2": "To get started you simply need to add a measure or field that contains your HTML to the HTML Content field in the properties pane, and the visual will attempt to render it for you.",
+    "Landing_Page_Overview_3": "Please note that there are some limitations to this, due to the security limitations imposed upon Power BI custom visuals.",
+    "Landing_Page_Overview_4": "You can visit the visual's home page by clicking the question mark icon in the top-right of this page.",
     "Roles_HTML_Content": "HTML Content",
     "Roles_HTML_Content_Description": "Field values or measures containing the desired HTML data to render.",
     "Objects_ContentFormatting": "Content Formatting",
