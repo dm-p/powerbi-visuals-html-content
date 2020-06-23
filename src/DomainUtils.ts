@@ -1,6 +1,7 @@
 // Power BI API Dependencies
     import powerbi from 'powerbi-visuals-api';
     import IVisualHost = powerbi.extensibility.visual.IVisualHost;
+    import ISelectionManager = powerbi.extensibility.ISelectionManager;
 
 // External dependencies
     import * as d3Select from 'd3-selection';
@@ -110,6 +111,27 @@
                         clickScrolling: true
                     }
                 });
+            }
+
+        /**
+         * Add Power BI context menu suppor to the selected container
+         *
+         * @param container         - The container to process.
+         * @param selectionManager  - Power BI host services selection manager instance.
+         */
+            export function resolveContextMenu(
+                container: d3.Selection<any, any, any, any>,
+                selectionManager: ISelectionManager
+            ) {
+                container.on('contextmenu', () => {
+                    const mouseEvent: MouseEvent = d3Select.event as MouseEvent;
+                    selectionManager.showContextMenu({}, {
+                        x: mouseEvent.x,
+                        y: mouseEvent.y
+                    });
+                    mouseEvent.preventDefault();
+                })
+
             }
 
         /**

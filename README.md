@@ -12,7 +12,7 @@ By Daniel Marsh-Patrick
 
 This custom visual is intended to be a spiritual successor to the HTML Viewer custom visual, which has recently been removed from the Power BI Marketplace.
 
-I didn't write the original, but as there seems to be some requests for something similar to be available, hopefully this will fill the gap for people missing out.
+I didn't write the original, but as there seems to be some requests out there for something similar to be available, hopefully this will fill the gap for people missing out.
 
 The visual is currently in beta - you can download the latest version from the [Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases).
 
@@ -22,15 +22,15 @@ I'm intending to publish this to the Power BI Marketplace shortly, once I've don
 
 Yes.
 
-A lot of the current limitations that the original HTML Viewer visual had will still exist in this one; this is specifically to do with a number of restrictions imposed upon custom visual permissions by Power BI. 
+A lot of the limitations that the original HTML Viewer visual had will still exist in this one; this is specifically to do with a number of restrictions imposed upon custom visual permissions by Power BI. 
 
 For example, you can't embed content that tries to access sites with <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> configuration that will explicitly block content served from an empty domain (such as YouTube videos). Also, some stuff won't work in Desktop but will in the Service.
 
 ### So, Why Use this One?
 
-There are some additional features:
+There are some additional features that the original doesn't have:
 
-* If you prefer, you can use HTML generated via a measure rather than just being able to use a column.
+* The previous visual was limited to columns only - if you prefer, you can use HTML generated via a measure.
 * You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in, e.g.:
 \
 \
@@ -39,14 +39,21 @@ There are some additional features:
 \
 \
 ![rar_html.png](./doc/assets/png/raw_html.png "Displaying raw HTML for debugging purposes")
-* By default, hyperlinks are non-functioning due to custom visual limitations, but you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval, e.g.:
+
+* By default, hyperlinks don't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval, e.g.:
 \
 \
 ![open_url.png](./doc/assets/png/open_url.png "Opening URLs with Power BI delegation")
+\
+Please note that if in the Service, URLs will open in a new tab. This is how URLs need to work inside custom visuals.
+
+### Is there A Privacy Policy?
+
+[Yes](./doc/privacy_policy.md).
 
 ### Is there A Roadmap?
 
-Maybe. For the moment, my intention has been to provide something to fill the current gap left by the original visual for makers and end-users.
+Not a firm one. For the moment, my intention has been to provide something to fill the current gap left by the original visual for makers and end-users.
 
 If there is an appetite for something specific - **that can be implemented within the current custom visual security constraints**  - feel free to create an issue for it and I'll see if I can accomodate.
 

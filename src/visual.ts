@@ -130,6 +130,7 @@
                                 textAlign: viewModel.contentFormatting.align
                             });
                             DomainUtils.resolveHyperlinkHandling(this.host, this.container, viewModel.contentFormatting.hyperlinks);
+                            DomainUtils.resolveContextMenu(this.container, this.host.createSelectionManager());
                             DomainUtils.resolveScrollableContent(this.container.node());
 
                         // Signal that we've finished rendering
