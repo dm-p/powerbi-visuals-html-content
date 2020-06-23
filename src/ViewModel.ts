@@ -1,9 +1,12 @@
 // Power BI API Dependencies
     import powerbi from 'powerbi-visuals-api';
     import DataView = powerbi.DataView;
-    import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 
-import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
+// Internal dependencies
+    import {
+        ContentFormattingSettings,
+         VisualSettings
+    } from './VisualSettings';
 
 /**
  * View model structure

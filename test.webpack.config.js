@@ -17,7 +17,8 @@ module.exports = {
             },
             {
                 test: /\.json$/,
-                loader: 'json-loader'
+                loader: 'json-loader',
+                exclude: /(pbiviz.json)/
             },
             {
                 test: /\.tsx?$/i,

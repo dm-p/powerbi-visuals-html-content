@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   sodipodi:docname="background_greyscale.svg"
+   id="svg20"
+   version="1.1"
+   viewBox="0 0 512 512">
+  <metadata
+     id="metadata26">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>HTML5 Logo Badge</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs24">
+    <filter
+       id="filter584"
+       style="color-interpolation-filters:sRGB;"
+       inkscape:label="Greyscale">
+      <feColorMatrix
+         id="feColorMatrix580"
+         result="colormatrix"
+         in="SourceGraphic"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -1 0.5 0.5 0.89 0 " />
+      <feComposite
+         id="feComposite582"
+         result="fbSourceGraphic"
+         operator="in"
+         in2="SourceGraphic"
+         in="colormatrix" />
+      <feColorMatrix
+         id="feColorMatrix764"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         in="fbSourceGraphic"
+         result="fbSourceGraphicAlpha" />
+      <feColorMatrix
+         in="fbSourceGraphic"
+         values="0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0 0 0 1 0 "
+         id="feColorMatrix766" />
+    </filter>
+    <filter
+       id="filter590"
+       style="color-interpolation-filters:sRGB;"
+       inkscape:label="Greyscale">
+      <feColorMatrix
+         id="feColorMatrix586"
+         result="colormatrix"
+         in="SourceGraphic"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -1 0.5 0.5 0.89 0 " />
+      <feComposite
+         id="feComposite588"
+         result="fbSourceGraphic"
+         operator="in"
+         in2="SourceGraphic"
+         in="colormatrix" />
+      <feColorMatrix
+         id="feColorMatrix768"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         in="fbSourceGraphic"
+         result="fbSourceGraphicAlpha" />
+      <feColorMatrix
+         in="fbSourceGraphic"
+         values="0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0 0 0 1 0 "
+         id="feColorMatrix770" />
+    </filter>
+    <filter
+       id="filter596"
+       style="color-interpolation-filters:sRGB;"
+       inkscape:label="Greyscale">
+      <feColorMatrix
+         id="feColorMatrix592"
+         result="colormatrix"
+         in="SourceGraphic"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -1 0.5 0.5 0.89 0 " />
+      <feComposite
+         id="feComposite594"
+         result="fbSourceGraphic"
+         operator="in"
+         in2="SourceGraphic"
+         in="colormatrix" />
+      <feColorMatrix
+         id="feColorMatrix772"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         in="fbSourceGraphic"
+         result="fbSourceGraphicAlpha" />
+      <feColorMatrix
+         in="fbSourceGraphic"
+         values="0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0 0 0 1 0 "
+         id="feColorMatrix774" />
+    </filter>
+    <filter
+       id="filter602"
+       style="color-interpolation-filters:sRGB;"
+       inkscape:label="Greyscale">
+      <feColorMatrix
+         id="feColorMatrix598"
+         result="colormatrix"
+         in="SourceGraphic"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -1 0.5 0.5 0.89 0 " />
+      <feComposite
+         id="feComposite600"
+         result="fbSourceGraphic"
+         operator="in"
+         in2="SourceGraphic"
+         in="colormatrix" />
+      <feColorMatrix
+         id="feColorMatrix776"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         in="fbSourceGraphic"
+         result="fbSourceGraphicAlpha" />
+      <feColorMatrix
+         in="fbSourceGraphic"
+         values="0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0.21 0.72 0.072 1.6 0 0 0 0 1 0 "
+         id="feColorMatrix778" />
+    </filter>
+  </defs>
+  <sodipodi:namedview
+     inkscape:current-layer="svg20"
+     inkscape:window-maximized="0"
+     inkscape:window-y="0"
+     inkscape:window-x="3840"
+     inkscape:cy="256"
+     inkscape:cx="256"
+     inkscape:zoom="1.359375"
+     showgrid="false"
+     id="namedview22"
+     inkscape:window-height="2081"
+     inkscape:window-width="1904"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
+  <title
+     id="title10">HTML5 Logo Badge</title>
+  <path
+     style="filter:url(#filter602)"
+     id="path12"
+     d="M71,460 L30,0 481,0 440,460 255,512"
+     fill="#E34F26" />
+  <path
+     style="filter:url(#filter596)"
+     id="path14"
+     d="M256,472 L405,431 440,37 256,37"
+     fill="#EF652A" />
+  <path
+     style="filter:url(#filter590)"
+     id="path16"
+     d="M256,208 L181,208 176,150 256,150 256,94 255,94 114,94 115,109 129,265 256,265zM256,355 L255,355 192,338 188,293 158,293 132,293 139,382 255,414 256,414z"
+     fill="#EBEBEB" />
+  <path
+     style="filter:url(#filter584)"
+     id="path18"
+     d="M255,208 L255,265 325,265 318,338 255,355 255,414 371,382 372,372 385,223 387,208 371,208zM255,94 L255,129 255,150 255,150 392,150 392,150 392,150 393,138 396,109 397,94z"
+     fill="#FFF" />
+</svg>

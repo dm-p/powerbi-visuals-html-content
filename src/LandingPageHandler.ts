@@ -100,11 +100,11 @@
                 // Add title
                     heading
                         .append('h5')
-                            .text(VisualConstants.pbiviz.visual.displayName);
+                            .text(VisualConstants.visual.displayName);
 
                 // Add version number
                     version
-                        .text(VisualConstants.pbiviz.visual.version);
+                        .text(VisualConstants.visual.version);
 
                 // Help box content
 
@@ -117,7 +117,7 @@
                                 .style('position', 'fixed')
                                 .style('top', '24px')
                                 .style('right', '12px')
-                                .on('click', () => host.launchUrl(VisualConstants.pbiviz.visual.supportUrl))
+                                .on('click', () => host.launchUrl(VisualConstants.visual.supportUrl))
                                 .text('?');
 
                     // Overview

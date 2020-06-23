@@ -1,8 +1,8 @@
 // Internal dependencies
-    import * as pbivizMetadata from '../pbiviz.json';
+    import { visual } from '../pbiviz.json';
     
 export const VisualConstants = {
-    pbiviz: pbivizMetadata,
+    visual: visual,
     contentFormatting: {
         showRawHtml: false,
         font: {
