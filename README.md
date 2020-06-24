@@ -18,6 +18,8 @@ The visual is currently in beta - you can download the latest version from the [
 
 I'm intending to publish this to the Power BI Marketplace shortly, once I've done the necessary work required to list it and will update with details when available.
 
+There's a worked example of how to approach this visual if you haven't used the previous on on the [Usage](./doc/usage.md) page.
+
 ### Are there Still Limitations to What I Can Do with HTML in this Visual?
 
 Yes.
@@ -40,7 +42,7 @@ There are some additional features that the original doesn't have:
 \
 ![rar_html.png](./doc/assets/png/raw_html.png "Displaying raw HTML for debugging purposes")
 
-* By default, hyperlinks don't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval, e.g.:
+* By default, hyperlinks wouldn't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval, e.g.:
 \
 \
 ![open_url.png](./doc/assets/png/open_url.png "Opening URLs with Power BI delegation")
