@@ -182,7 +182,6 @@
 
             it('| Valid data view with sampling and some results', () => {
                 const vm = newVmValidateMap(dataViewSimpleValuesWithSampling);
-                console.log(vm);
                 expect(vm.viewModel.isEmpty).toBeFalse();
                 expect(vm.viewModel.htmlEntries.length).toEqual(3);
             });
