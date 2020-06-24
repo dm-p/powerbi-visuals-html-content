@@ -1,7 +1,7 @@
 # Usage
 
 ---
-[Home](../readme.md) | **Usage** | [Privacy Policy](./privacy_policy.md)
+[Home](../README.md) | **Usage** | [Privacy Policy](./privacy_policy.md)
 
 ---
 ## Getting Started
