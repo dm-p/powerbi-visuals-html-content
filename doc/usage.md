@@ -118,9 +118,51 @@ The reason for this is that custom visuals are protected from opening hyperlinks
 
 However, custom visuals can request that Power BI open a URL on their behalf. The visual has an **Allow Opening URLs** property, which if set to **On**, will delegate the request to open the hyperlink to Power BI. If permitted, this will prompt the user for confirmation, e.g.:
 
-![html_hyperlink_delegation.png](./assets/png/html_hyperlink_delegation.png "HTML hyperlink delegation example.")
+![html_hyperlink_delegation.png](./assets/png/html_hyperlink_delegation.png "Hyperlink URL delegation example.")
 
 While this is the raw URL, the user should still exercise caution on navigating to unknown sources.
+
+## Further Examples with Measures
+
+We could then, for example mix in some SVG that scales according to measures in our current context. This will draw a rectangle under each entry with a width proportional to percentage of total sales:
+
+```
+<HTML> Sales Summary by Country with Hyperlink and Bars = 
+    VAR Sales = FORMAT([$ Sales], "$#,##0")
+    VAR AllSales = CALCULATE([$ Sales], ALL('Financials'))
+    VAR SalesPercent = DIVIDE(Sales, AllSales)
+    VAR MaxBarWidth = 1000
+    VAR BarHeight = 16
+    VAR BarColour = "#12239E"
+    VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
+    VAR CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
+    VAR CountryContent = SWITCH(
+            TRUE(),
+            CountryFlag = "", "All:", 
+            CountryFlag
+        )
+    VAR Hyperlink = SWITCH(
+            TRUE(),
+            CountryContent <> "" && CountryInformationURL <> "",
+                "<a href=""" & CountryInformationURL & """>" & CountryContent & "</a>",
+            CountryContent
+        )
+    VAR Bar = "
+            <svg style=""height: " & BarHeight & "px"">
+                <rect width=""" 
+                    & MaxBarWidth * SalesPercent 
+                    & """ height =""" & BarHeight & """ & fill="""
+                    & BarColour & """/>
+            </svg>
+        "
+    RETURN
+        Hyperlink & " <b>" & Sales & "</b><br/>" & Bar
+```
+
+![html_measure_data_bars.png](./assets/png/html_measure_data_bars.png "Adding SVG to our visual to show data bars.")
+
+As you can see, we can start to construct some very rich output based on our data 😀
+
 
 ## Handling Advanced Use Cases
 

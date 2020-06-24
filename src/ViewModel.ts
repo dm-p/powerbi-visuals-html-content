@@ -80,7 +80,6 @@
                 settings: VisualSettings
             ) {
                 if (this.viewModel.isValid) {
-                    // const htmlEntriesIndex = this.getContentMetadataIndex(dataViews[0].metadata.columns)[0].index;
                     const 
                         rows = dataViews[0].table.rows,
                         htmlEntries = rows.map((v) => v[this.viewModel.contentIndex].toString());
@@ -88,7 +87,6 @@
                     this.viewModel.htmlEntries = htmlEntries;
                     this.viewModel.isEmpty = rows.length === 0;
                 }
-                console.log(this.viewModel);
             }
 
 

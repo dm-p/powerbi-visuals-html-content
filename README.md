@@ -32,22 +32,12 @@ For example, you can't embed content that tries to access sites with <a href ="h
 
 There are some additional features that the original doesn't have:
 
-* The previous visual was limited to columns only - if you prefer, you can use HTML generated via a measure.
-* You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in, e.g.:
-\
-\
-![hr_separator.png](./doc/assets/png/hr_separator.png "Separating values with a HR element")
-* You can opt to see the raw HTML rather than rendered HTML for debugging purposes, e.g.:
-\
-\
-![rar_html.png](./doc/assets/png/raw_html.png "Displaying raw HTML for debugging purposes")
+* The previous visual was limited to columns only - if you prefer, you can use HTML generated via measures.
+* You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in.
+* You can opt to see the raw HTML rather than rendered HTML for debugging purposes.
+* By default, hyperlinks wouldn't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval. Please note that if in the Service, URLs will open in a new tab. This is how URLs need to work inside custom visuals.
 
-* By default, hyperlinks wouldn't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval, e.g.:
-\
-\
-![open_url.png](./doc/assets/png/open_url.png "Opening URLs with Power BI delegation")
-\
-Please note that if in the Service, URLs will open in a new tab. This is how URLs need to work inside custom visuals.
+Refer to the [Usage](./doc/usage.md) page for a guided example using these new features.
 
 ### Is there A Privacy Policy?
 
