@@ -6,26 +6,30 @@
 ---
 ## Getting Started
 
-To use the visual, you need to either create a column or measure in your data model that contains valid HTML. When this is added to the **HTML Content** field, the visual will attempt to render the supplied HTML in the current row context.
+To use the visual, you need to either create a column or measure in your data model that contains valid HTML. When this is added to the **HTML Content** data role, the visual will attempt to render the supplied HTML in the current row context.
 
-Let's work through this with an example. Consider the following data:
+Let's work through this with an example. Consider the following data - I'm using the [Financial Sample workbook](https://docs.microsoft.com/en-us/power-bi/create-reports/sample-financial-download) data model:
 
 ![html_sample_data.png](./assets/png/html_sample_data.png "Sample data, showing country, two-digit code and a total sales measure.")
 
-The `[Country]` and `[Country Code]` columns are fields from our data model and `[$ Sales]` is a measure that calculates total sales for the current row context.
+The `[Country]` and `[Country Code]` columns are fields from our data model and `[$ Sales]` is a simple `SUM()` measure that calculates total sales for the current row context.
 
 ### Columns
 
 Let's say we want to represent the country with its flag using the [Country Flags API](https://www.countryflags.io/). We can create a calculated column as follows:
 
-```
-Country Flag HTML = "<img src=""https://www.countryflags.io/" & Financials[Country Code] & "/flat/24.png"">"
-```
- > Note that because HTML code can contain double-quotes, we escape them in DAX using `""`
-
+ ```
+Country Flag HTML = "<img src='https://www.countryflags.io/" & Financials[Country Code] & "/flat/24.png'>"
+ ```
 We can now add this to the HTML Display visual's **HTML Content** data role and we'll see a flag for each value of `Financials[Country Code]`, e.g.:
 
 ![html_country_flag_column.png](./assets/png/html_country_flag_column.png "A HTML column that generates a flag from a remote API, rendered in our visual.")
+
+> Note that while conventional HTML code snippets might use double quotes (`"`) for attribute values, these need to be escaped in DAX by using `""` for every occurrence of a double quote character. This can be tricky to keep track of in more advanced use cases.
+>
+> Because single quotes are valid in the W3C HTML specification, I'll be using this format going forward to keep my example DAX code a bit easier to manage. If you do want to use double quotes, the above could also be written as:
+>
+>`Country Flag HTML = "<img src=""https://www.countryflags.io/" & Financials[Country Code] & "/flat/24.png"">"`
 
 ### Measures
 
@@ -43,29 +47,35 @@ Like before, we can add this to the visual's **HTML Content** data role and this
 
 ![html_simple_measure.png](./assets/png/html_simple_measure.png "Using a measure to create another, HTML-based one.")
 
-As the **HTML Content** field renders the output and our measure has no additional context, we just get the total. If we want to split our measure for the distinct `[Country  Code]`, we can add our column to the **Granularity** data role and this will create the necessary context in the visual, e.g.:
+### Providing Additional Row Context
 
-![html_simple_measure_with_context.png](./assets/png/html_simple_measure_with_context.png "Using the Granularity field to give a measure row context within the visual.")
+As the **HTML Content** data role contains the HTML we want to render and our measure has no additional context, we just get the total.
 
-Now, we could re-write the measure to be context-aware, e.g.:
+If we want to split our measure for the distinct `[Country  Code]`, we can add our column to the **Granularity** data role and this will create the necessary context in the visual, e.g.:
+
+![html_simple_measure_with_context.png](./assets/png/html_simple_measure_with_context.png "Using the Granularity data role to give a measure row context within the visual.")
+
+The initial measure we built looks a little ambiguous, so it could be changed to be context-aware if the **Granularity** data role is not present, e.g.:
 
 ```
 <HTML> Sales Summary by Country = 
-    VAR 
-        Sales = FORMAT([$ Sales], "$#,##0")
-    VAR
-        Country = SELECTEDVALUE(Financials[Country Flag HTML])
-    VAR
-        Context = SWITCH(
+    VAR Sales = FORMAT([$ Sales], "$#,##0")
+    VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
+    VAR HasGranularity = INT(CountryFlag <> "")
+    VAR Context = SWITCH(
             TRUE(),
-            Country = "", "All:", 
-            Country
+            HasGranularity = 0, "All:", 
+            CountryFlag
         )
     RETURN
         Context & " <b>" & Sales & "</b>"
 ```
 
 ![html_measure_with_context_handling.gif](./assets/gif/html_measure_with_context_handling.gif "Observation of measure context-awareness when a column is added to the Granularity data role.")
+
+Any value that matches the desired grain can be added - in the example above, unique values of `[Country Code]` will match the unique values of `[Country Flag]`, but we could just have easily used `[Country]` also.
+
+You can add multiple fields to **Granularity** to produce the necessary row context if your measure requires a further level of uniquness.
 
 ## Value Separation
 
@@ -81,7 +91,7 @@ The **Show Raw HTML** property can be used to debug your generated HTML output, 
 
 ![html_raw_view.png](./assets/png/html_raw_view.png "Viewing raw generated HTML.")
 
-Note that the **Value Separation Method** can also be used to bettwe distinguide generated HTML for each value.
+Note that the **Value Separation Method** can also be used to better distiguish generated HTML for each value.
 
 ## Handling Hyperlinks to External URLs
 
@@ -89,27 +99,24 @@ Let's say that we want to direct our user to a page about the country when they 
 
 ```
 <HTML> Sales Summary by Country with Hyperlink = 
-    VAR 
-        Sales = FORMAT([$ Sales], "$#,##0")
-    VAR
-        CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
-    VAR
-        CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
-    VAR
-        CountryContent = SWITCH(
+    VAR Sales = FORMAT([$ Sales], "$#,##0")
+    VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
+    VAR CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
+    VAR HasGranularity = INT(CountryFlag <> "")
+    VAR CountryContent = SWITCH(
             TRUE(),
-            CountryFlag = "", "All:", 
+            HasGranularity = 0, "All:", 
             CountryFlag
         )
-    VAR
-        Hyperlink = SWITCH(
+    VAR Context = SWITCH(
             TRUE(),
-            CountryContent <> "" && CountryInformationURL <> "",
-                "<a href=""" & CountryInformationURL & """>" & CountryContent & "</a>",
+            // We might have granularity, but we might not have a URL
+            HasGranularity = 1 && CountryInformationURL <> "",
+                "<a href='" & CountryInformationURL & "'>" & CountryContent & "</a>",
             CountryContent
         )
     RETURN
-        Hyperlink & " <b>" & Sales & "</b>"
+        Context & " <b>" & Sales & "</b>"
 ```
 
 This will render the same output as before, and the flag is clickable, but nothing happens 😖
@@ -122,44 +129,167 @@ However, custom visuals can request that Power BI open a URL on their behalf. Th
 
 While this is the raw URL, the user should still exercise caution on navigating to unknown sources.
 
-## Further Examples with Measures
+## Further Examples with Measures and SVG
 
-We could then, for example mix in some SVG that scales according to measures in our current context. This will draw a rectangle under each entry with a width proportional to percentage of total sales:
+We could then, for example mix in some SVG that scales according to measures in our current context. As the measures are getting a bit larger in their scope, I've opted to break up the DAX with comments to make them a bit easier to follow.
 
-```
-<HTML> Sales Summary by Country with Hyperlink and Bars = 
-    VAR Sales = FORMAT([$ Sales], "$#,##0")
-    VAR AllSales = CALCULATE([$ Sales], ALL('Financials'))
-    VAR SalesPercent = DIVIDE(Sales, AllSales)
-    VAR MaxBarWidth = 1000
-    VAR BarHeight = 16
-    VAR BarColour = "#12239E"
-    VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
-    VAR CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
-    VAR CountryContent = SWITCH(
-            TRUE(),
-            CountryFlag = "", "All:", 
-            CountryFlag
-        )
-    VAR Hyperlink = SWITCH(
-            TRUE(),
-            CountryContent <> "" && CountryInformationURL <> "",
-                "<a href=""" & CountryInformationURL & """>" & CountryContent & "</a>",
-            CountryContent
-        )
-    VAR Bar = "
-            <svg style=""height: " & BarHeight & "px"">
-                <rect width=""" 
-                    & MaxBarWidth * SalesPercent 
-                    & """ height =""" & BarHeight & """ & fill="""
-                    & BarColour & """/>
-            </svg>
-        "
-    RETURN
-        Hyperlink & " <b>" & Sales & "</b><br/>" & Bar
-```
+### Simple Data Bars
+
+This will draw a rectangle under each entry with a width proportional to percentage of the highest selling country:
 
 ![html_measure_data_bars.png](./assets/png/html_measure_data_bars.png "Adding SVG to our visual to show data bars.")
+
+```
+<HTML> Sales Summary by Country - Data Bars = 
+    // Define the measures we need for calculations
+
+        // Formatted sales measure for current context
+            VAR Sales = FORMAT([$ Sales], "$#,##0")
+
+        // Summary of sales by country - makes more sense to have this as a separate measure
+        // in our model, but I've added here so that the complete code is visible to the reader
+            VAR SummaryByCountry = 
+                    SUMMARIZE(
+                        ALLSELECTED(Financials),
+                        Financials[Country],
+                        "Total Sales", [$ Sales]
+                    )
+
+        // Highest country sales, so that we can scale our bars, and resulting percentage
+            VAR MaxSales = MAXX(SummaryByCountry, [Total Sales])
+            VAR SalesBarPercent = DIVIDE(Sales, MaxSales)
+
+        // Resolved measures, as for previous examples
+            VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
+            VAR CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
+            VAR HasGranularity = INT(CountryFlag <> "")
+    
+    // Attributes that we want to make easier to modify later
+            
+        // Intended width of my visual
+            VAR VisualWidth = 350
+
+        // Max width of data bars, adjusted down to provide some padding
+            VAR MaxBarWidth = VisualWidth * 0.95
+
+        // Bar attributes - we could potentially drive these through measures also
+            VAR BarHeight = 16
+            VAR BarColour = "#12239E"
+
+    // Contextual country value
+        VAR CountryContent = SWITCH(
+                TRUE(),
+                HasGranularity = 0, "All:", 
+                CountryFlag
+            )
+    // Additional formatting of hyperlink, if we have suitable context and a URL
+        VAR Context = SWITCH(
+                TRUE(),
+                // We might have granularity, but we might not have a URL
+                HasGranularity = 1 && CountryInformationURL <> "",
+                    "<a href='" & CountryInformationURL & "'>" & CountryContent & "</a>",
+                CountryContent
+            )
+    // SVG for data bar
+        VAR Bar = "<svg style='height:" & BarHeight & "px; width:" & VisualWidth & "px'>
+                    <rect width='" & (MaxBarWidth * SalesBarPercent)
+                        & "' height='" & BarHeight
+                        & "' fill='" & BarColour & "'/>
+                </svg>"
+                
+    RETURN
+        Context & " <b>" & Sales & "</b><br/>" & Bar
+```
+
+### Sparklines
+
+We could also take [David Eldersveld's excellent sparkline concept](https://community.powerbi.com/t5/Quick-Measures-Gallery/SVG-Sparklines-Line/td-p/486271) and apply the logic behind it to our example:
+
+![html_measure_sparklines.png](./assets/png/html_measure_sparklines.png "Adding SVG to our visual to show sparklines.")
+
+```
+<HTML> Sales Summary by Country - Sparkline = 
+
+    // Define the measures we need for calculations
+
+        // Formatted sales measure for current context
+            VAR Sales = FORMAT([$ Sales], "$#,##0")
+
+        // Our dates
+            VAR XMinDate = MIN('Financials'[Date])
+            VAR XMaxDate = MAX('Financials'[Date])
+            
+        // Obtain overall min and overall max measure values when evaluated for each date
+            VAR YMinValue = MINX(VALUES('Financials'[Date]),CALCULATE([$ Sales]))
+            VAR YMaxValue = MAXX(VALUES('Financials'[Date]),CALCULATE([$ Sales]))
+
+        // Resolved measures, as for previous examples
+            VAR CountryFlag = SELECTEDVALUE(Financials[Country Flag HTML])
+            VAR CountryInformationURL = SELECTEDVALUE(Financials[Country Information URL])
+            VAR HasGranularity = INT(CountryFlag <> "")
+    
+    // Attributes that we want to make easier to modify later
+            
+        // Intended width of my visual
+            VAR VisualWidth = 350
+
+        // Intended dimensions of SVG view box
+            VAR ViewboxWidth = VisualWidth * 0.5
+            VAR ViewboxHeight = 20
+            VAR SparklineScaleFactor = 0.9
+
+        // Sparkline attributes - we could potentially drive these through measures also
+            VAR SparklineHeight = ViewboxHeight * SparklineScaleFactor
+            VAR SparklineWidth = ViewboxWidth * SparklineScaleFactor
+            VAR SparklineStrokeWidth = 2
+            VAR SparklineColour = "#12239E"
+            
+    // Sparkline calculations WRT attributes
+
+        // Build table of X & Y coordinates and fit to viewbox
+            VAR SparklineTable = ADDCOLUMNS(
+                SUMMARIZE(
+                    'Financials',
+                    'Financials'[Date]
+                ),
+                "X", INT(SparklineWidth * DIVIDE('Financials'[Date] - XMinDate, XMaxDate - XMinDate)),
+                "Y", INT(SparklineHeight * DIVIDE([$ Sales] - YMinValue,YMaxValue - YMinValue))
+            )
+
+        // Concatenate X & Y coordinates to build the sparkline
+            VAR Lines = CONCATENATEX(SparklineTable, [X] & "," & SparklineHeight - [Y], " ", [Date])
+
+    // Contextual country value
+        VAR CountryContent = SWITCH(
+                TRUE(),
+                HasGranularity = 0, "All:", 
+                CountryFlag
+            )
+    // Additional formatting of hyperlink, if we have suitable context and a URL
+        VAR Context = SWITCH(
+                TRUE(),
+                // We might have granularity, but we might not have a URL
+                HasGranularity = 1 && CountryInformationURL <> "",
+                    "<a href='" & CountryInformationURL & "'>" & CountryContent & "</a>",
+                CountryContent
+            )
+    // SVG for sparkline
+        VAR Sparkline = "<svg style='height:" & ViewboxHeight & "px; width:" & ViewboxWidth & "px'>
+                    <g transform='translate(" 
+                            // Adjust X/Y for padding
+                                & DIVIDE(ViewboxWidth - SparklineWidth, 2) & ", " 
+                                & DIVIDE(ViewboxHeight - SparklineHeight, 2) & ")'>
+                        <polyline fill='none' stroke='" 
+                            & SparklineColour & "' stroke-width='"
+                            & SparklineStrokeWidth & "' points='" 
+                            & Lines 
+                            & "'/>
+                    </g>
+                </svg>"
+                
+    RETURN
+        Context & " <b>" & Sales & "</b> " & Sparkline & "<br/>"
+```
 
 As you can see, we can start to construct some very rich output based on our data 😀
 
@@ -176,4 +306,4 @@ While the visual will have a good go at rendering the HTML content you supply, i
     * Custom visuals run in a [sandbox](https://www.w3schools.com/tags/att_iframe_sandbox.asp) with the least amount of privilege.
     * Any content hosted inside the visual that needs elevated privileges will likely not work correctly.
     * This sandboxing also removes the domain from any custom visuals, so they can't impersonate powerbi.com.
-    * Therefore, accessing services or embedding content from sites that have <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> restrictions will not work inside the visual. These restrictions are set by the destination website
+    * Therefore, accessing services or embedding content from sites that have <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> restrictions will not work inside the visual. These restrictions are set by the target server and cannot be overriden from the client (our visual).
