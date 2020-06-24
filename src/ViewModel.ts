@@ -1,6 +1,7 @@
 // Power BI API Dependencies
     import powerbi from 'powerbi-visuals-api';
     import DataView = powerbi.DataView;
+    import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
 
 // Internal dependencies
     import {
@@ -14,6 +15,7 @@
     export interface IViewModel {
         isValid: boolean;
         isEmpty: boolean;
+        contentIndex: number;
         contentFormatting?: ContentFormattingSettings;
         htmlEntries: string[];
     }
@@ -36,6 +38,7 @@
                 this.viewModel = {
                     isValid: false,
                     isEmpty: true,
+                    contentIndex: -1,
                     htmlEntries: []
                 };
             }
@@ -49,12 +52,21 @@
             validateDataView(
                 dataViews: DataView[]
             ) {
+                const
+                    hasBasicDataView = 
+                        dataViews &&
+                        dataViews[0] &&
+                        dataViews[0].table &&
+                        dataViews[0].metadata &&
+                        dataViews[0].metadata.columns &&
+                        true ||
+                        false;
+                this.viewModel.contentIndex = hasBasicDataView
+                    ?   this.getContentMetadataIndex(dataViews[0].metadata.columns)
+                    :   -1;
                 this.viewModel.isValid = 
-                    dataViews &&
-                    dataViews[0] &&
-                    dataViews[0].table &&
-                    true ||
-                    false;
+                    hasBasicDataView &&
+                    this.viewModel.contentIndex > -1;
             }
 
         /**
@@ -68,11 +80,25 @@
                 settings: VisualSettings
             ) {
                 if (this.viewModel.isValid) {
-                    const htmlEntries = dataViews[0].table.rows.map((v) => v.toString());
+                    // const htmlEntriesIndex = this.getContentMetadataIndex(dataViews[0].metadata.columns)[0].index;
+                    const 
+                        rows = dataViews[0].table.rows,
+                        htmlEntries = rows.map((v) => v[this.viewModel.contentIndex].toString());
                     this.viewModel.contentFormatting = settings.contentFormatting;
                     this.viewModel.htmlEntries = htmlEntries;
-                    this.viewModel.isEmpty = htmlEntries.length <= 0;
+                    this.viewModel.isEmpty = rows.length === 0;
                 }
+                console.log(this.viewModel);
+            }
+
+
+        /**
+         * Checks the supplied columns for the correct index of the content column, so that we can map it correctly later.
+         * 
+         * @param columns   - Array of metadata columns from the Power BI data view.
+         */
+            private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
+                return columns.findIndex((c) => c.roles.content);
             }
 
     }

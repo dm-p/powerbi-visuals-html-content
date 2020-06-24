@@ -7,6 +7,14 @@
             "description": "HTML Content description.",
             "name": "content",
             "kind": "GroupingOrMeasure"
+        },
+        {
+            "displayNameKey": "Roles_Sampling",
+            "descriptionKey": "Roles_Sampling_Description",
+            "displayName": "Sampling",
+            "description": "Sampling description.",
+            "name": "sampling",
+            "kind": "Grouping"
         }
     ],
     "objects": {
@@ -108,12 +116,20 @@
                 {
                     "content": {
                         "max": 1
+                    },
+                    "sampling": {
+                        "max": 1
                     }
                 }
             ],
             "table": {
                 "rows": {
                     "select": [
+                        {
+                            "for": {
+                                "in": "sampling"
+                            }
+                        },
                         {
                             "for": {
                                 "in": "content"

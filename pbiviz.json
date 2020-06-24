@@ -4,7 +4,7 @@
         "displayName": "HTML Display",
         "guid": "htmlDisplay443BE3AD55E043BF878BED274D3A6855",
         "visualClassName": "Visual",
-        "version": "1.0.0.8",
+        "version": "1.0.0.9",
         "description": "A replacement Power BI custom visual for the HTML Viewer, which has recently been removed from the marketplace.",
         "supportUrl": "https://github.com/dm-p/powerbi-visuals-html-display",
         "gitHubUrl": "https://github.com/dm-p/powerbi-visuals-html-display"

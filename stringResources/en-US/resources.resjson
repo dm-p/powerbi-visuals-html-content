@@ -5,6 +5,8 @@
     "Landing_Page_Overview_4": "You can visit the visual's home page by clicking the question mark icon in the top-right of this page.",
     "Roles_HTML_Content": "HTML Content",
     "Roles_HTML_Content_Description": "Field values or measures containing the desired HTML data to render.",
+    "Roles_Sampling": "Sampling",
+    "Roles_Sampling_Description": "Because some results can aggregate to a single value, you can add a grouping value to this field to ensure that all discrete values are displayed in the visual.",
     "Objects_ContentFormatting": "Content Formatting",
     "Objects_ContentFormatting_Description": "HTML content formatting options.",
     "Objects_ContentFormatting_Separation": "Value Separation Method",

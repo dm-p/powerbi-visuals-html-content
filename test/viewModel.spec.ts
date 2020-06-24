@@ -11,16 +11,46 @@
         vmEmpty: IViewModel = {
             isValid: false,
             isEmpty: true,
+            contentIndex: -1,
             htmlEntries: []
         },
         dataViewEmpty: DataView[] = [],
+        contentMetadata = {
+            displayName: 'HTML',
+            roles: {
+                content: true
+            }
+        },
+        samplingMetadata = {
+            displayName: 'HTML',
+            roles: {
+                sampling: true
+            }
+        },
         dataViewNoValues: DataView[] = [
             {
                 table: {
                     columns: [],
                     rows: []
                 },
-                metadata: null
+                metadata: {
+                    columns: [
+                        contentMetadata
+                    ]
+                }
+            }
+        ],
+        dataViewNoValuesSamplingOnly: DataView[] = [
+            {
+                table: {
+                    columns: [],
+                    rows: []
+                },
+                metadata: {
+                    columns: [
+                        samplingMetadata
+                    ]
+                }
             }
         ],
         dataViewSimpleValues: DataView[] = [
@@ -39,7 +69,38 @@
                         ]
                     ]
                 },
-                metadata: null
+                metadata: {
+                    columns: [
+                        contentMetadata
+                    ]
+                }
+            }
+        ],
+        dataViewSimpleValuesWithSampling: DataView[] = [
+            {
+                table: {
+                    columns: [],
+                    rows: [
+                        [   
+                            "1",
+                            "<p>This is value <b>one</b></p>"
+                        ],
+                        [
+                            "2",
+                            "<p>This is value <b>two</b></p>"
+                        ],
+                        [
+                            "3",
+                            "<p>This is value <b>three</b></p>"
+                        ]
+                    ]
+                },
+                metadata: {
+                    columns: [
+                        samplingMetadata,
+                        contentMetadata
+                    ]
+                }
             }
         ];
 
@@ -76,11 +137,27 @@
             });
 
             it('| Valid data view with no results', () => {
-                expect(newVmValidate(dataViewNoValues).viewModel.isValid).toBeTrue();
+                const vm = newVmValidate(dataViewNoValuesSamplingOnly);
+                expect(vm.viewModel.contentIndex).toEqual(-1);
+                expect(vm.viewModel.isValid).toBeFalse();
+            });
+
+            it('| Valid data view with no content', () => {
+                const vm = newVmValidate(dataViewNoValues)
+                expect(vm.viewModel.contentIndex).toEqual(0);
+                expect(vm.viewModel.isValid).toBeTrue();
             });
 
             it('| Valid data view with some results', () => {
-                expect(newVmValidate(dataViewSimpleValues).viewModel.isValid).toBeTrue();
+                const vm = newVmValidate(dataViewSimpleValues);
+                expect(vm.viewModel.contentIndex).toEqual(0);
+                expect(vm.viewModel.isValid).toBeTrue();
+            });
+
+            it('| Valid data view with sampling and some results', () => {
+                const vm = newVmValidate(dataViewSimpleValuesWithSampling);
+                expect(vm.viewModel.contentIndex).toEqual(1);
+                expect(vm.viewModel.isValid).toBeTrue();
             });
 
         });
@@ -99,6 +176,13 @@
 
             it('| Valid data view with some results', () => {
                 const vm = newVmValidateMap(dataViewSimpleValues);
+                expect(vm.viewModel.isEmpty).toBeFalse();
+                expect(vm.viewModel.htmlEntries.length).toEqual(3);
+            });
+
+            it('| Valid data view with sampling and some results', () => {
+                const vm = newVmValidateMap(dataViewSimpleValuesWithSampling);
+                console.log(vm);
                 expect(vm.viewModel.isEmpty).toBeFalse();
                 expect(vm.viewModel.htmlEntries.length).toEqual(3);
             });

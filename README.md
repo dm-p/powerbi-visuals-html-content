@@ -5,7 +5,7 @@ By Daniel Marsh-Patrick
 ![github.png](./doc/assets/png/github.png "GitHub: dm-p") [dm-p](https://github.com/dm-p) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ![twitter.png](./doc/assets/png/twitter.png "Twitter: @the_d_mp") [@the_d_mp](https://twitter.com/the_d_mp) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  ![linkedin.png](./doc/assets/png/linkedin.png "in/daniel-m-p") [daniel-m-p](https://www.linkedin.com/in/daniel-m-p)  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; www.coacervo.co  |  [daniel@coacervo.co](mailto:daniel@coacervo.co) 
 
 ----
-**Home** | [Privacy Policy](./doc/privacy_policy.md)
+**Home** | [Usage](./doc/usage.md) | [Privacy Policy](./doc/privacy_policy.md)
 
 ----
 ## About the Visual
