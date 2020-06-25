@@ -8,13 +8,14 @@ By Daniel Marsh-Patrick
 **Home** | [Usage](./doc/usage.md) | [Privacy Policy](./doc/privacy_policy.md)
 
 ----
+## [Download the latest version from the Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases/latest)
+(includes .pbiviz and sample workbook)
+
 ## About the Visual
 
 This visual is intended to be a spiritual successor to the HTML Viewer visual, which has recently been removed from the Power BI Marketplace.
 
-The visual is currently in beta - you can download the latest version from the [Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases).
-
-I'm intending to publish this to the Power BI Marketplace shortly, once I've done the necessary work required to list it and will update with details when available.
+The visual is currently being submitted to the Power BI Marketplace and I'll update with details when available. For now, you can download the .pbiviz and sample workbook from the [repository's releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases/latest).
 
 There are some worked examples of how to approach this visual if you haven't used the previous one on the [Usage](./doc/usage.md) page.
 
