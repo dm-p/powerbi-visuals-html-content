@@ -10,34 +10,43 @@ By Daniel Marsh-Patrick
 ----
 ## About the Visual
 
-This custom visual is intended to be a spiritual successor to the HTML Viewer custom visual, which has recently been removed from the Power BI Marketplace.
-
-I didn't write the original, but as there seems to be some requests out there for something similar to be available, hopefully this will fill the gap for people missing out.
+This visual is intended to be a spiritual successor to the HTML Viewer visual, which has recently been removed from the Power BI Marketplace.
 
 The visual is currently in beta - you can download the latest version from the [Releases page](https://github.com/dm-p/powerbi-visuals-html-display/releases).
 
 I'm intending to publish this to the Power BI Marketplace shortly, once I've done the necessary work required to list it and will update with details when available.
 
-There's a worked example of how to approach this visual if you haven't used the previous on on the [Usage](./doc/usage.md) page.
+There are some worked examples of how to approach this visual if you haven't used the previous one on the [Usage](./doc/usage.md) page.
 
-### Are there Still Limitations to What I Can Do with HTML in this Visual?
-
-Yes.
-
-A lot of the limitations that the original HTML Viewer visual had will still exist in this one; this is specifically to do with a number of restrictions imposed upon custom visual permissions by Power BI. 
-
-For example, you can't embed content that tries to access sites with <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> configuration that will explicitly block content served from an empty domain (such as YouTube videos). Also, some stuff won't work in Desktop but will in the Service.
-
-### So, Why Use this One?
+## What's Different from the Original?
 
 There are some additional features that the original doesn't have:
 
-* The previous visual was limited to columns only - if you prefer, you can use HTML generated via measures.
+* You can use HTML generated from measures.
 * You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in.
 * You can opt to see the raw HTML rather than rendered HTML for debugging purposes.
 * By default, hyperlinks wouldn't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval. Please note that if in the Service, URLs will open in a new tab. This is how URLs need to work inside custom visuals.
 
 Refer to the [Usage](./doc/usage.md) page for a guided example using these new features.
+
+## Are there Still Limitations to What I Can Do with HTML in this Visual?
+
+Yes.
+
+A lot of the limitations that the original HTML Viewer visual had will still exist in this one; this is specifically to do with a number of restrictions imposed upon custom visual permissions by Power BI. 
+
+While the visual will have a good go at rendering the HTML content you supply, it only only passes your content into the DOM on your behalf. Therefore, you will need to bear the following in mind:
+
+* The browser(s) you are intending for your HTML content to be rendered in:
+    * You will need to manage browser-specific behaviors if doing anything particularly complicated.
+    * Note that Power BI Desktop is not a fully-functional web browser so may exhibit different behaviours what your content might look like when published to the Service or Mobile Devices.
+
+* Permissions imposed upon the visual by Power BI:
+    * Custom visuals run in a [sandbox](https://www.w3schools.com/tags/att_iframe_sandbox.asp) with the least amount of privilege.
+    * Any content hosted inside the visual that needs elevated privileges will likely not work correctly.
+    * This sandboxing also removes the domain from any custom visuals, so they can't impersonate powerbi.com.
+    * Therefore, accessing services or embedding content from sites that have <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> restrictions will not work inside the visual. 
+    * These CORS restrictions are set by the target server and cannot be overridden from the client (our visual).
 
 ### Is there A Privacy Policy?
 
