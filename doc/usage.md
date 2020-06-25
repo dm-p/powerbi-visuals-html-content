@@ -14,6 +14,8 @@ Let's work through this with an example. Consider the following data - I'm using
 
 The `[Country]` and `[Country Code]` columns are fields from our data model and `[$ Sales]` is a simple `SUM()` measure that calculates total sales for the current row context.
 
+The sample workbook is attached to each [Release](https://github.com/dm-p/powerbi-visuals-html-display/releases), if you want to download a copy.
+
 ### Columns
 
 Let's say we want to represent the country with its flag using the [Country Flags API](https://www.countryflags.io/). We can create a calculated column as follows:
@@ -55,7 +57,7 @@ If we want to split our measure for the distinct `[Country  Code]`, we can add o
 
 ![html_simple_measure_with_context.png](./assets/png/html_simple_measure_with_context.png "Using the Granularity data role to give a measure row context within the visual.")
 
-The initial measure we built looks a little ambiguous, so it could be changed to be context-aware if the **Granularity** data role is not present, e.g.:
+The initial measure we built now looks a little ambiguous, so it could be changed to be context-aware if the **Granularity** data role is not present, e.g.:
 
 ```
 <HTML> Sales Summary by Country = 
@@ -75,15 +77,13 @@ The initial measure we built looks a little ambiguous, so it could be changed to
 
 Any value that matches the desired grain can be added - in the example above, unique values of `[Country Code]` will match the unique values of `[Country Flag]`, but we could just have easily used `[Country]` also.
 
-You can add multiple fields to **Granularity** to produce the necessary row context if your measure requires a further level of uniquness.
+You can add multiple fields to **Granularity** to produce the necessary row context if your measure requires a further level of uniqueness.
 
 ## Value Separation
 
-The visual will flow HTML produced for each value together, but you can set the **Value Separation Method** property in the **Content Formatting** menu to separate them with a horizontal rule or `<hr/>` element, e.g.:
+The visual will flow HTML produced for each value together, but you can set the **Value Separation Method** property in the **Content Formatting** menu to separate them with a horizontal rule or `<hr/>` element. The last value will not include the separator, e.g.:
 
 ![html_separation_horizonal_rule.png](./assets/png/html_separation_horizonal_rule.png "Separation of discrete values with a <hr/> (horizontal rule) element.")
-
-The last value will not include the separator.
 
 ## Raw HTML
 
@@ -292,18 +292,3 @@ We could also take [David Eldersveld's excellent sparkline concept](https://comm
 ```
 
 As you can see, we can start to construct some very rich output based on our data 😀
-
-
-## Handling Advanced Use Cases
-
-While the visual will have a good go at rendering the HTML content you supply, it only only passes your content into the DOM on your behalf. Therefore, you will need to bear the following in mind:
-
-* The target destination you are intending your HTML to be displayed in:
-    * You will need to manage browser-specific behaviors if doing anything particularly complicated.
-    * Note that Power BI Desktop is not a fully-functional web browser so may exhibit different behaviours what your content might look like when published to the Service or Mobile Devices.
-
-* Permissions imposed upon the visual by Power BI:
-    * Custom visuals run in a [sandbox](https://www.w3schools.com/tags/att_iframe_sandbox.asp) with the least amount of privilege.
-    * Any content hosted inside the visual that needs elevated privileges will likely not work correctly.
-    * This sandboxing also removes the domain from any custom visuals, so they can't impersonate powerbi.com.
-    * Therefore, accessing services or embedding content from sites that have <a href ="https://en.wikipedia.org/wiki/Cross-origin_resource_sharing" target="_blank">CORS</a> restrictions will not work inside the visual. These restrictions are set by the target server and cannot be overriden from the client (our visual).
