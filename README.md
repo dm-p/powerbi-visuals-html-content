@@ -39,9 +39,9 @@ While the visual will have a good go at rendering the HTML content you supply, i
 
 * The browser(s) you are intending for your HTML content to be rendered in:
     * You will need to manage browser-specific behaviors if doing anything particularly complicated.
-    * Note that Power BI Desktop is not a fully-functional web browser so may exhibit different behaviours what your content might look like when published to the Service or Mobile Devices.
+    * Note that Power BI Desktop is not a fully-functional web browser so may not render content in the same way as when reports are published to the Service.
 
-* Permissions imposed upon the visual by Power BI:
+* Restrictions imposed upon the visual by Power BI:
     * Custom visuals run in a [sandbox](https://www.w3schools.com/tags/att_iframe_sandbox.asp) with the least amount of privilege.
     * Any content hosted inside the visual that needs elevated privileges will likely not work correctly.
     * This sandboxing also removes the domain from any custom visuals, so they can't impersonate powerbi.com.
