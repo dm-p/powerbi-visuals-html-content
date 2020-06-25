@@ -14,7 +14,7 @@ Let's work through this with an example. Consider the following data - I'm using
 
 The `[Country]` and `[Country Code]` columns are fields from our data model and `[$ Sales]` is a simple `SUM()` measure that calculates total sales for the current row context.
 
-The sample workbook is attached to each [Releases](https://github.com/dm-p/powerbi-visuals-html-display/releases), if you want to download a copy.
+The sample workbook is attached to each [Release](https://github.com/dm-p/powerbi-visuals-html-display/releases), if you want to download a copy.
 
 ### Columns
 
