@@ -6,7 +6,7 @@
 ---
 ## Getting Started
 
-To use the visual, you need to either create a column or measure in your data model that contains valid HTML. When this is added to the **HTML Content** data role, the visual will attempt to render the supplied HTML in the current row context.
+To use the visual, you need to either create a column or measure in your data model that contains valid HTML. When this is added to the **Values** data role, the visual will attempt to render the supplied HTML in the current row context.
 
 Let's work through this with an example. Consider the following data - I'm using the [Financial Sample workbook](https://docs.microsoft.com/en-us/power-bi/create-reports/sample-financial-download) data model:
 
@@ -23,11 +23,11 @@ Let's say we want to represent the country with its flag using the [Country Flag
  ```
 Country Flag HTML = "<img src='https://www.countryflags.io/" & Financials[Country Code] & "/flat/24.png'>"
  ```
-We can now add this to the HTML Display visual's **HTML Content** data role and we'll see a flag for each value of `Financials[Country Code]`, e.g.:
+We can now add this to the HTML Display visual's **Values** data role and we'll see a flag for each value of `Financials[Country Code]`, e.g.:
 
 ![html_country_flag_column.png](./assets/png/html_country_flag_column.png "A HTML column that generates a flag from a remote API, rendered in our visual.")
 
-> Note that while conventional HTML code snippets might use double quotes (`"`) for attribute values, these need to be escaped in DAX by using `""` for every occurrence of a double quote character. This can be tricky to keep track of in more advanced use cases.
+> Note that while conventional HTML might use double quotes (`"`) for attribute values, these need to be escaped in DAX by using `""` for every occurrence of a double quote character. This can be tricky to keep track of in more advanced use cases.
 >
 > Because single quotes are valid in the W3C HTML specification, I'll be using this format going forward to keep my example DAX code a bit easier to manage. If you do want to use double quotes, the above could also be written as:
 >
@@ -45,13 +45,13 @@ Similar to the above, we could create a measure to "narrate" this as follows:
 
 > Note that the measure doesn't have to have the `<HTML>` prefix. As it's good practice to try and prefix measure names  with units to denote what type of value they return, like a `$`, `#` etc. This is my preferred prefix to denote that the measure returns HTML output when inspecting it in the *Fields* list. 
 
-Like before, we can add this to the visual's **HTML Content** data role and this will result in the following output:
+Like before, we can add this to the visual's **Values** data role and this will result in the following output:
 
 ![html_simple_measure.png](./assets/png/html_simple_measure.png "Using a measure to create another, HTML-based one.")
 
 ### Providing Additional Row Context
 
-As the **HTML Content** data role contains the HTML we want to render and our measure has no additional context, we just get the total.
+As the **Values** data role contains the HTML we want to render and our measure has no additional context, we just get the total.
 
 If we want to split our measure for the distinct `[Country  Code]`, we can add our column to the **Granularity** data role and this will create the necessary context in the visual, e.g.:
 
@@ -79,19 +79,11 @@ Any value that matches the desired grain can be added - in the example above, un
 
 You can add multiple fields to **Granularity** to produce the necessary row context if your measure requires a further level of uniqueness.
 
-## Value Separation
-
-The visual will flow HTML produced for each value together, but you can set the **Value Separation Method** property in the **Content Formatting** menu to separate them with a horizontal rule or `<hr/>` element. The last value will not include the separator, e.g.:
-
-![html_separation_horizonal_rule.png](./assets/png/html_separation_horizonal_rule.png "Separation of discrete values with a <hr/> (horizontal rule) element.")
-
 ## Raw HTML
 
 The **Show Raw HTML** property can be used to debug your generated HTML output, e.g.:
 
 ![html_raw_view.png](./assets/png/html_raw_view.png "Viewing raw generated HTML.")
-
-Note that the **Value Separation Method** can also be used to better distiguish generated HTML for each value.
 
 ## Handling Hyperlinks to External URLs
 

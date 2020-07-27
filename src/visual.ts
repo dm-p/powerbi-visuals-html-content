@@ -38,7 +38,7 @@
             private landingContainer: d3.Selection<HTMLDivElement, any, any, any>;
         // Used for handling issues in the visual
             private statusContainer: d3.Selection<HTMLDivElement, any, any, any>;
-        // USed for HTML content from data model
+        // Used for HTML content from data model
             private contentContainer: d3.Selection<HTMLDivElement, any, any, any>;
         // Visual host services
             private host: IVisualHost;
@@ -122,7 +122,6 @@
                                     viewModel.htmlEntries
                                 );
                             DomainUtils.resolveHtmlGroupElement(dataElements, viewModel.contentFormatting.showRawHtml);
-                            DomainUtils.resolveGroupSeparation(viewModel.contentFormatting.separation, dataElements);
                             DomainUtils.resolveBodyStyling(this.container, {
                                 fontFamily: viewModel.contentFormatting.fontFamily,
                                 fontSize: viewModel.contentFormatting.fontSize,
