@@ -37,27 +37,6 @@
             }
 
         /**
-         * If the user wishes to separate grouping elements with something else, handle and append accordingly.
-         * 
-         * @param type              - The separation type to apply to elements.
-         * @param dataElements      - The elements to analyse and process.
-         */
-            export function resolveGroupSeparation(
-                type: string,
-                dataElements: d3.Selection<any, any, any, any>
-            ) {
-                // Remove the final element, as it's not required
-                    let eligible = dataElements.filter((e, i) => i < dataElements.data().length - 1);
-                // Add the necessary separation to each eligible group
-                    switch (type) {
-                        case 'hr': {
-                            eligible.append('hr');
-                            break;
-                        }
-                    }
-            }
-
-        /**
          * As we want to display different types of element for each entry/grouping, we will clear down the 
          * existing children and rebuild with our desired element for handling raw vs. rendered HTML.
          * 

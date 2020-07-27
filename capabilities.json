@@ -1,10 +1,10 @@
 {
     "dataRoles": [
         {
-            "displayNameKey": "Roles_HTML_Content",
-            "descriptionKey": "Roles_HTML_Content_Description",
-            "displayName": "HTML Content",
-            "description": "HTML Content description.",
+            "displayNameKey": "Roles_Values",
+            "descriptionKey": "Roles_Values_Description",
+            "displayName": "Values",
+            "description": "Values description.",
             "name": "content",
             "kind": "GroupingOrMeasure"
         },
@@ -23,26 +23,6 @@
             "descriptionKey": "Objects_ContentFormatting_Description",
             "displayName": "Content Formatting",
             "properties": {
-                "separation": {
-                    "displayNameKey": "Objects_ContentFormatting_Separation",
-                    "descriptionKey": "Objects_ContentFormatting_Separation_Description",
-                    "displayName": "Separation",
-                    "description": "Separation description.",
-                    "type": {
-                        "enumeration": [
-                            {
-                                "displayName": "None",
-                                "displayNameKey": "Enum_Separation_None",
-                                "value": "none"
-                            },
-                            {
-                                "displayName": "HR",
-                                "displayNameKey": "Enum_Separation_HR",
-                                "value": "hr"
-                            }
-                        ]
-                    }
-                },
                 "showRawHtml": {
                     "displayNameKey": "Objects_ContentFormatting_ShowRawHTML",
                     "descriptionKey": "Objects_ContentFormatting_ShowRawHTML_Description",

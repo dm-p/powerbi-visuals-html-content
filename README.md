@@ -1,4 +1,4 @@
-# HTML Display for Power BI
+# HTML Content for Power BI
 
 By Daniel Marsh-Patrick
 
@@ -24,7 +24,6 @@ There are some worked examples of how to approach this visual if you haven't use
 There are some additional features that the original doesn't have:
 
 * You can use HTML generated from measures.
-* You can opt to separate data rows with a `<hr/>` (horizontal rule) element if multiple values are passed in.
 * You can opt to see the raw HTML rather than rendered HTML for debugging purposes.
 * By default, hyperlinks wouldn't work due to custom visual limitations, but in this version you can opt to delegate URL requests to Power BI, which will provide the user with a prompt and request their approval. Please note that if in the Service, URLs will open in a new tab. This is how URLs need to work inside custom visuals.
 

@@ -35,8 +35,6 @@ export class VisualSettings extends DataViewObjectsParser {
 }
 
 export class ContentFormattingSettings {
-    // Separate row data
-        public separation: string = VisualConstants.contentFormatting.separation;
     // Whether to render as HTML or show raw code
         public showRawHtml: boolean = VisualConstants.contentFormatting.showRawHtml;
     // Allow hyperlinks to be opened using the visual host
