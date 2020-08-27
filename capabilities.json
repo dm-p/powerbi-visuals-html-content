@@ -120,5 +120,8 @@
             }
         }
     ],
+    "sorting": {
+        "default": {}
+    },
     "supportsLandingPage": true
 }
