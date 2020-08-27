@@ -1,7 +1,7 @@
 # HTML Display for Power BI Privacy Policy, as of 23 June 2020
 
 ---
-[Home](../README.md) | [Usage](./usage.md) | **Privacy Policy**
+[Home](../README.md) | [Release Notes](./release_notes.md) | [Usage](./usage.md) | **Privacy Policy**
 
 ---
 
