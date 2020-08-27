@@ -15,7 +15,7 @@ Not yet available in the Power BI Marketplace - [early adopters can download the
 
 The visual would previously sort in the value order supplied from Power BI (typically alphabetically).
 
-Standard sorting has been added to the visual, which is accessible from the visual header in the usual way, which will now permit you to sort by any measures or columns added to the visual's fields.
+Standard sorting has been added to the visual, which is accessible from the visual header in the usual way, and will now permit you to sort by any measures or columns added to the visual's fields.
 
 For example, if we have a visual that contains *Granularity* for **Country**, and measure that generates HTML to render the flag, total sales, and a sparkline of sales over time, there's quite a lot going on here. Power BI would sort it based on the query result, which would likely be by the *Granularity* field order (i.e. Canada first, USA last):
 
