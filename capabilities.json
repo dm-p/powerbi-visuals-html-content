@@ -14,7 +14,7 @@
             "displayName": "Sampling",
             "description": "Sampling description.",
             "name": "sampling",
-            "kind": "Grouping"
+            "kind": "GroupingOrMeasure"
         }
     ],
     "objects": {
@@ -120,5 +120,8 @@
             }
         }
     ],
+    "sorting": {
+        "default": {}
+    },
     "supportsLandingPage": true
 }
