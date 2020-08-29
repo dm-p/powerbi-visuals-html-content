@@ -23,7 +23,7 @@ Let's say we want to represent the country with its flag using the [Country Flag
  ```
 Country Flag HTML = "<img src='https://www.countryflags.io/" & Financials[Country Code] & "/flat/24.png'>"
  ```
-We can now add this to the HTML Display visual's **Values** data role and we'll see a flag for each value of `Financials[Country Code]`, e.g.:
+We can now add this to the HTML Content visual's **Values** data role and we'll see a flag for each value of `Financials[Country Code]`, e.g.:
 
 ![html_country_flag_column.png](./assets/png/html_country_flag_column.png "A HTML column that generates a flag from a remote API, rendered in our visual.")
 
