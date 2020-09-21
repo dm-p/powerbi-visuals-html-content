@@ -7,8 +7,6 @@
 
 ## 1.0.2
 
-Not yet available in the Power BI Marketplace - [early adopters can download the standalone version here](https://github.com/dm-p/powerbi-visuals-html-content/releases/tag/1.0.2).
-
 ### Minor Enhancements
 
 #### Sorting
