@@ -68,3 +68,4 @@ typings/
 .tmp/
 dist/
 webpack.statistics.*.html
+webpack.statistics.html

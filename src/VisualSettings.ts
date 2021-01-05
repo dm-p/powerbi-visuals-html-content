@@ -39,6 +39,8 @@ export class ContentFormattingSettings {
         public showRawHtml: boolean = VisualConstants.contentFormatting.showRawHtml;
     // Allow hyperlinks to be opened using the visual host
         public hyperlinks: boolean = VisualConstants.contentFormatting.hyperlinks;
+    // No data message
+        public noDataMessage: string = VisualConstants.contentFormatting.noDataMessage;
     // Default font family; used if no explicity styling in HTML body
         public fontFamily: string = VisualConstants.contentFormatting.font.family;
     // Default font size; used if no explicity styling in HTML body

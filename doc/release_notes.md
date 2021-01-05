@@ -1,9 +1,41 @@
 # Release Notes
 
 ---
+
 [Home](../README.md) | **Release Notes** | [Usage](./usage.md) | [Privacy Policy](./privacy_policy.md)
 
 ---
+
+## 1.1.0
+
+Not yet available in the Power BI Marketplace - [early adopters can download the standalone version here](https://github.com/dm-p/powerbi-visuals-html-content/releases/tag/1.1.0).
+
+### Minor Enhancements
+
+#### "No Data" Message
+
+Previously, the message displayed if there was no data available was hard-coded. The visual has now been modified to expose a **"No Data" Message** property:
+
+![issue_26_property.png](./assets/png/release_notes/issue_26_property.png "New 'No Data' Message property")
+
+You are able to now type in a different message, e.g.:
+
+![issue_26_simple_text.png](./assets/png/release_notes/issue_26_simple_text.png "Updating the 'No Data' message with simple text")
+
+The property has also been enabled to make use of conditional formatting. If you so wish, you could use a measure containing HTML-based formatting instead, e.g.:
+
+```
+<HTML> No Data = "
+    <hr/>
+        <img src='https://icon-library.net/images/no-data-icon/no-data-icon-10.jpg' width='150' style='align: center'/>
+    <hr/>"
+```
+
+![issue_26_conditional.png](./assets/png/release_notes/issue_26_conditional.png "Using a simple HTML-based measure for the 'No Data' expression")
+
+#### Default Title No Longer Used
+
+When creating a new instance of the visual, the title will no longer be shown be default (like for the table visual). This can be enabled or modified in the usual way in the properties pane.
 
 ## 1.0.2
 
@@ -15,7 +47,7 @@ The visual would previously sort in the value order supplied from Power BI (typi
 
 Standard sorting has been added to the visual, which is accessible from the visual header in the usual way, and will now permit you to sort by any measures or columns added to the visual's fields.
 
-For example, if we have a visual that contains *Granularity* for **Country**, and measure that generates HTML to render the flag, total sales, and a sparkline of sales over time, there's quite a lot going on here. Power BI would sort it based on the query result, which would likely be by the *Granularity* field order (i.e. Canada first, USA last):
+For example, if we have a visual that contains _Granularity_ for **Country**, and measure that generates HTML to render the flag, total sales, and a sparkline of sales over time, there's quite a lot going on here. Power BI would sort it based on the query result, which would likely be by the _Granularity_ field order (i.e. Canada first, USA last):
 
 ![issue_11_prior_sorting.png](./assets/png/release_notes/issue_11_prior_sorting.png "Visual, illustrating a SVG sparkline, flag and total sales measure, split by Country.")
 
@@ -23,13 +55,13 @@ Now, we could specify that we sort by the **Country** in reverse order by choosi
 
 ![issue_11_simple_sorting_by_country.gif](./assets/gif/release_notes/issue_11_simple_sorting_by_country.gif "Demonstrating sorting of the previous example using version 1.0.2 of the visual.")
 
-But what if we want to sort by total sales? 
+But what if we want to sort by total sales?
 
-As there is an existing row context for **Country**, we can add our **$ Sales** measure to the *Granularity* field. This will resolve to the same value that's displayed in our HTML measure, and because it's in the visual's data we can sort by it, e.g.:
+As there is an existing row context for **Country**, we can add our **\$ Sales** measure to the _Granularity_ field. This will resolve to the same value that's displayed in our HTML measure, and because it's in the visual's data we can sort by it, e.g.:
 
 ![issue_11_adding_sort_measure.gif](./assets/gif/release_notes/issue_11_adding_sort_measure.gif "Adding a measure to the Granularity field to provide more complex sorting.")
 
-Because values in the *Granularity* field are used to generate row context for the visual and do not get rendered, you may need to consider what happens to your HTML by adding columns or measures to this field, but this should provide a pretty decent level of flexibility here.
+Because values in the _Granularity_ field are used to generate row context for the visual and do not get rendered, you may need to consider what happens to your HTML by adding columns or measures to this field, but this should provide a pretty decent level of flexibility here.
 
 ### Bugs Fixed
 

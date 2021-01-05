@@ -103,7 +103,7 @@
                 selectionManager: ISelectionManager
             ) {
                 container.on('contextmenu', () => {
-                    const mouseEvent: MouseEvent = d3Select.event as MouseEvent;
+                    const mouseEvent: MouseEvent = <MouseEvent>d3Select.event;
                     selectionManager.showContextMenu({}, {
                         x: mouseEvent.x,
                         y: mouseEvent.y
