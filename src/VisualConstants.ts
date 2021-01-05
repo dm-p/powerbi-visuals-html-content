@@ -12,7 +12,8 @@
             },
             align: 'left',
             separation: 'none',
-            hyperlinks: false
+            hyperlinks: false,
+            noDataMessage: 'No data available to display'
         },
         dom: {
             viewerIdSelector: 'htmlViewer',

@@ -13,6 +13,8 @@
     import IVisualEventService = powerbi.extensibility.IVisualEventService;
     import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
     import VisualUpdateType = powerbi.VisualUpdateType;
+    import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
+    import { dataViewWildcard } from 'powerbi-visuals-utils-dataviewutils';
 
 // External dependencies
     import * as d3Select from 'd3-selection';
@@ -113,7 +115,7 @@
                                 throw new Error('View model mapping error');
                             }
                             if (viewModel.isEmpty) {
-                                this.updateStatus(this.localisationManager.getDisplayName('Status_No_Data'));
+                                this.updateStatus(this.settings.contentFormatting.noDataMessage, viewModel.contentFormatting.showRawHtml);
                             }
 
                         // Render our content
@@ -150,10 +152,22 @@
         /**
          * Generic function to manage update of text within status container.
          * 
-         * @param message   - Simple message to display. Omit to remove current content.
+         * @param message       - Simple message to display. Omit to remove current content.
+         * @param showRawHtml   - Flag to confirm whether we shoudl show Raw HTML or not
          */
-            private updateStatus(message?: string) {
-                this.statusContainer.html(message);
+            private updateStatus(message?: string, showRawHtml?: boolean) {
+                this.statusContainer
+                    .selectAll('*')
+                    .remove();
+                if (showRawHtml) {
+                    this.statusContainer
+                        .append('code')
+                        .text(message);
+                } else {
+                    this.statusContainer
+                        .append('div')
+                        .html(message);
+                }
             }
 
             private static parseSettings(dataView: DataView): VisualSettings {
@@ -179,6 +193,10 @@
                         if (this.settings.contentFormatting.showRawHtml) {
                             delete instances[0].properties['fontFamily'];
                         }
+                        instances[0].propertyInstanceKind = {
+                            noDataMessage: VisualEnumerationInstanceKinds.ConstantOrRule
+                        };
+                        // instances[0].selector = dataViewWildcard.createDataViewWildcardSelector(dataViewWildcard.DataViewWildcardMatchingOption.TotalsOnly);
                         break;
                     }
                 }
