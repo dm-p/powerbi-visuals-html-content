@@ -24,30 +24,38 @@
  *  THE SOFTWARE.
  */
 
-"use strict";
+'use strict';
 
-import { dataViewObjectsParser } from "powerbi-visuals-utils-dataviewutils";
+import { dataViewObjectsParser } from 'powerbi-visuals-utils-dataviewutils';
 import DataViewObjectsParser = dataViewObjectsParser.DataViewObjectsParser;
 import { VisualConstants } from './VisualConstants';
 
 export class VisualSettings extends DataViewObjectsParser {
-    public contentFormatting: ContentFormattingSettings = new ContentFormattingSettings();
+    public contentFormatting = new ContentFormattingSettings();
+    public stylesheet = new StylesheetSettings();
 }
 
 export class ContentFormattingSettings {
     // Whether to render as HTML or show raw code
-        public showRawHtml: boolean = VisualConstants.contentFormatting.showRawHtml;
+    public showRawHtml: boolean = VisualConstants.contentFormatting.showRawHtml;
     // Allow hyperlinks to be opened using the visual host
-        public hyperlinks: boolean = VisualConstants.contentFormatting.hyperlinks;
+    public hyperlinks: boolean = VisualConstants.contentFormatting.hyperlinks;
+    // Allow text select using the mouse rather than standard visual behaviour
+    public userSelect: boolean = VisualConstants.contentFormatting.userSelect;
     // No data message
-        public noDataMessage: string = VisualConstants.contentFormatting.noDataMessage;
+    public noDataMessage: string =
+        VisualConstants.contentFormatting.noDataMessage;
     // Default font family; used if no explicity styling in HTML body
-        public fontFamily: string = VisualConstants.contentFormatting.font.family;
+    public fontFamily: string = VisualConstants.contentFormatting.font.family;
     // Default font size; used if no explicity styling in HTML body
-        public fontSize: number = VisualConstants.contentFormatting.font.size;
+    public fontSize: number = VisualConstants.contentFormatting.font.size;
     // Default font colour; used if no explicity styling in HTML body
-        public fontColour: string = VisualConstants.contentFormatting.font.colour;
+    public fontColour: string = VisualConstants.contentFormatting.font.colour;
     // Default font size; used if no explicity styling in HTML body
-        public align: string = VisualConstants.contentFormatting.align;
+    public align: string = VisualConstants.contentFormatting.align;
 }
 
+export class StylesheetSettings {
+    // Additional stylesheet (via conditional formatting)
+    public stylesheet: string = VisualConstants.stylesheet.stylesheet;
+}
