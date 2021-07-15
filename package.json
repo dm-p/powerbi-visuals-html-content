@@ -39,7 +39,7 @@
         "karma-typescript-preprocessor": "^0.4.0",
         "karma-webpack": "^3.0.5",
         "overlayscrollbars": "^1.12.0",
-        "powerbi-visuals-api": "^3.8.0",
+        "powerbi-visuals-api": "^3.5.1",
         "powerbi-visuals-utils-dataviewutils": "^2.4.0",
         "powerbi-visuals-utils-testutils": "^2.3.1",
         "prettier": "^1.19.1",
