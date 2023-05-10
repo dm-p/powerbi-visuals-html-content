@@ -15,7 +15,7 @@
         "email": "daniel@coacervo.co"
     },
     "assets": {
-        "icon": "assets/palette_icon.png"
+        "icon": "assets/palette_icon_standard.png"
     },
     "externalJS": [],
     "style": "style/visual.less",
