@@ -23,7 +23,17 @@ import { select, Selection } from 'd3-selection';
 import { VisualSettings } from './VisualSettings';
 import { VisualConstants } from './VisualConstants';
 import { ViewModelHandler } from './ViewModel';
-import DomainUtils from './DomainUtils';
+import {
+    bindVisualDataToDom,
+    getParsedHtmlAsDom,
+    resolveContextMenu,
+    resolveForRawHtml,
+    resolveHtmlGroupElement,
+    resolveHyperlinkHandling,
+    resolveScrollableContent,
+    resolveStyling,
+    shouldUseStylesheet
+} from './DomainUtils';
 import LandingPageHandler from './LandingPageHandler';
 
 export class Visual implements IVisual {
@@ -124,7 +134,7 @@ export class Visual implements IVisual {
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
-            DomainUtils.resolveStyling(
+            resolveStyling(
                 this.styleSheetContainer,
                 this.container,
                 this.settings
@@ -135,27 +145,27 @@ export class Visual implements IVisual {
                     viewModel.contentFormatting.showRawHtml
                 );
             } else {
-                let dataElements = DomainUtils.bindVisualDataToDom(
+                const dataElements = bindVisualDataToDom(
                     this.contentContainer,
                     viewModel.htmlEntries
                 );
-                DomainUtils.resolveHtmlGroupElement(dataElements);
-                DomainUtils.resolveForRawHtml(
+                resolveHtmlGroupElement(dataElements);
+                resolveForRawHtml(
                     this.styleSheetContainer,
                     this.contentContainer,
                     this.settings
                 );
             }
-            DomainUtils.resolveHyperlinkHandling(
+            resolveHyperlinkHandling(
                 this.host,
                 this.container,
                 viewModel.contentFormatting.hyperlinks
             );
-            DomainUtils.resolveContextMenu(
+            resolveContextMenu(
                 this.container,
                 this.host.createSelectionManager()
             );
-            DomainUtils.resolveScrollableContent(this.container.node());
+            resolveScrollableContent(this.container.node());
 
             // Signal that we've finished rendering
             this.events.renderingFinished(options);
@@ -176,9 +186,11 @@ export class Visual implements IVisual {
      */
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
-        this.statusContainer.append('div').html(message);
+        this.statusContainer.append('div').append(function() {
+            return this.appendChild(getParsedHtmlAsDom(message));
+        });
         if (showRawHtml) {
-            DomainUtils.resolveForRawHtml(
+            resolveForRawHtml(
                 this.styleSheetContainer,
                 this.statusContainer,
                 this.settings
@@ -204,14 +216,14 @@ export class Visual implements IVisual {
             this.settings || VisualSettings.getDefault(),
             options
         )).instances;
-        let objectName = options.objectName;
+        const objectName = options.objectName;
 
         switch (objectName) {
             case 'contentFormatting': {
                 if (this.settings.contentFormatting.showRawHtml) {
                     delete instances[0].properties['fontFamily'];
                 }
-                if (DomainUtils.shouldUseStylesheet(this.settings.stylesheet)) {
+                if (shouldUseStylesheet(this.settings.stylesheet)) {
                     delete instances[0].properties['fontFamily'];
                     delete instances[0].properties['fontSize'];
                     delete instances[0].properties['fontColour'];

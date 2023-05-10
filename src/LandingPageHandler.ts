@@ -9,7 +9,7 @@ import { Selection } from 'd3-selection';
 
 // Internal dependencies
 import { VisualConstants } from './VisualConstants';
-import { DomainUtils } from './DomainUtils';
+import { resolveScrollableContent } from './DomainUtils';
 
 /**
  * Manages the handling and placement of the visual landing page if no data is present.
@@ -71,7 +71,7 @@ export default class LandingPageHandler {
      */
     render(host: IVisualHost) {
         // Top-level elements
-        let container = this.element
+        const container = this.element
             .append('div')
             .classed(
                 `${VisualConstants.dom.landingPageClassPrefix}-landing-page`,
@@ -79,18 +79,18 @@ export default class LandingPageHandler {
             )
             .classed('w3-card-4', true);
 
-        let heading = container
+        const heading = container
             .append('div')
             .classed('w3-container', true)
             .classed('w3-theme', true);
 
-        let version = container
+        const version = container
             .append('div')
             .classed('w3-container', true)
             .classed('w3-theme-l3', true)
             .classed('w3-small', true);
 
-        let helpBox = container
+        const helpBox = container
             .append('div')
             .classed('w3-container', true)
             .classed('w3-theme-l5', true)
@@ -159,6 +159,6 @@ export default class LandingPageHandler {
                 )
             );
 
-        DomainUtils.resolveScrollableContent(container.node());
+        resolveScrollableContent(container.node());
     }
 }
