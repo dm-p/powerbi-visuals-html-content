@@ -5,7 +5,7 @@ import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
 
 // External dependencies
-import * as d3 from 'd3';
+import { Selection } from 'd3-selection';
 
 // Internal dependencies
 import { VisualConstants } from './VisualConstants';
@@ -20,7 +20,7 @@ export default class LandingPageHandler {
     // Specifies that the landing page has been removed since being displayed.
     landingPageRemoved: boolean = false;
     // Element to bind the landing page to.
-    private element: d3.Selection<any, any, any, any>;
+    private element: Selection<any, any, any, any>;
     // Handle localisation of visual text.
     private localisationManager: ILocalizationManager;
 
@@ -29,7 +29,7 @@ export default class LandingPageHandler {
      * @param localisationManager   - Power BI localisation manager instance
      */
     constructor(
-        element: d3.Selection<any, any, any, any>,
+        element: Selection<any, any, any, any>,
         localisationManager: ILocalizationManager
     ) {
         this.element = element;

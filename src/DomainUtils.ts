@@ -4,7 +4,7 @@ import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ISelectionManager = powerbi.extensibility.ISelectionManager;
 
 // External dependencies
-import * as d3Select from 'd3-selection';
+import { select, Selection } from 'd3-selection';
 import * as OverlayScrollbars from 'overlayscrollbars';
 var pretty = require('pretty');
 
@@ -25,8 +25,8 @@ export namespace DomainUtils {
      * ones.
      */
     export const resolveStyling = (
-        styleSheetContainer: d3.Selection<any, any, any, any>,
-        bodyContainer: d3.Selection<any, any, any, any>,
+        styleSheetContainer: Selection<any, any, any, any>,
+        bodyContainer: Selection<any, any, any, any>,
         settings: VisualSettings
     ) => {
         const useSS = shouldUseStylesheet(settings.stylesheet),
@@ -51,8 +51,8 @@ export namespace DomainUtils {
      * textarea) is added to the DOM, as well as caretaking any existing elements.
      */
     export const resolveForRawHtml = (
-        styleSheetContainer: d3.Selection<any, any, any, any>,
-        contentContainer: d3.Selection<any, any, any, any>,
+        styleSheetContainer: Selection<any, any, any, any>,
+        contentContainer: Selection<any, any, any, any>,
         settings: VisualSettings
     ) => {
         if (settings.contentFormatting.showRawHtml) {
@@ -80,13 +80,14 @@ export namespace DomainUtils {
      */
     export function resolveHyperlinkHandling(
         host: IVisualHost,
-        container: d3.Selection<any, any, any, any>,
+        container: Selection<any, any, any, any>,
         allowDelegation?: boolean
     ) {
-        container.selectAll('a').on('click', (d, i, e) => {
-            d3Select.event.preventDefault();
+        container.selectAll('a').on('click', (event, d) => {
+            console.log('Hyperlink clicked', event.currentTarget);
+            event.preventDefault();
             allowDelegation &&
-                host.launchUrl(d3Select.select(e[i]).attr('href'));
+                host.launchUrl(select(event.currentTarget)?.attr('href'));
         });
     }
 
@@ -97,7 +98,7 @@ export namespace DomainUtils {
      * @param dataElements  - The elements to analyse and process.
      */
     export function resolveHtmlGroupElement(
-        dataElements: d3.Selection<any, any, any, any>
+        dataElements: Selection<any, any, any, any>
     ) {
         // Remove any applied elements
         dataElements.selectAll('*').remove();
@@ -125,19 +126,18 @@ export namespace DomainUtils {
      * @param selectionManager  - Power BI host services selection manager instance.
      */
     export function resolveContextMenu(
-        container: d3.Selection<any, any, any, any>,
+        container: Selection<any, any, any, any>,
         selectionManager: ISelectionManager
     ) {
-        container.on('contextmenu', () => {
-            const mouseEvent: MouseEvent = <MouseEvent>d3Select.event;
+        container.on('contextmenu', (event, d) => {
             selectionManager.showContextMenu(
                 {},
                 {
-                    x: mouseEvent.x,
-                    y: mouseEvent.y
+                    x: event.x,
+                    y: event.y
                 }
             );
-            mouseEvent.preventDefault();
+            event.preventDefault();
         });
     }
 
@@ -148,7 +148,7 @@ export namespace DomainUtils {
      * @param data      - Array of view model data to bind.
      */
     export function bindVisualDataToDom(
-        container: d3.Selection<any, any, any, any>,
+        container: Selection<any, any, any, any>,
         data: string[]
     ) {
         return container
@@ -166,8 +166,8 @@ export namespace DomainUtils {
      * "no data" message container), get raw HTML and pretty print it.
      */
     const getRawHtml = (
-        styleSheetContainer: d3.Selection<any, any, any, any>,
-        container: d3.Selection<any, any, any, any>,
+        styleSheetContainer: Selection<any, any, any, any>,
+        container: Selection<any, any, any, any>,
         stylesheet: StylesheetSettings
     ) =>
         pretty(
@@ -190,7 +190,7 @@ export namespace DomainUtils {
      */
     const resolveUserSelect = (
         enabled: boolean,
-        bodyContainer: d3.Selection<any, any, any, any>
+        bodyContainer: Selection<any, any, any, any>
     ) => {
         const value = (enabled && 'text') || 'none';
         bodyContainer
