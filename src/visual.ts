@@ -48,12 +48,7 @@ export class Visual implements IVisual {
     // Handles landing page
     private landingPageHandler: LandingPageHandler;
     // Manages custom styling from the user
-    private styleSheetContainer: Selection<
-        HTMLStyleElement,
-        any,
-        any,
-        any
-    >;
+    private styleSheetContainer: Selection<HTMLStyleElement, any, any, any>;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
