@@ -1,4 +1,11 @@
 {
+    "privileges": [
+        {
+            "name": "WebAccess",
+            "essential": true,
+            "parameters": ["https://*", "https://*"]
+        }
+    ],
     "dataRoles": [
         {
             "displayNameKey": "Roles_Values",

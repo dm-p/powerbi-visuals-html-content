@@ -16,7 +16,7 @@
         "@types/pretty": "^2.0.0",
         "d3-selection": "^3.0.0",
         "overlayscrollbars": "^1.12.0",
-        "powerbi-visuals-api": "^3.5.1",
+        "powerbi-visuals-api": "^5.1.0",
         "powerbi-visuals-utils-dataviewutils": "^2.4.0",
         "prettier": "^1.19.1",
         "pretty": "^2.0.0",

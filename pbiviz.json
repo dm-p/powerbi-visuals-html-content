@@ -9,6 +9,7 @@
         "supportUrl": "https://www.html-content.com",
         "gitHubUrl": "https://github.com/dm-p/powerbi-visuals-html-content"
     },
+    "apiVersion": "5.1.0",
     "author": {
         "name": "Daniel Marsh-Patrick",
         "email": "daniel@coacervo.co"
