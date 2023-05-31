@@ -1,6 +1,7 @@
 // Power BI API Dependencies
-import 'core-js/stable';
 import './../style/visual.less';
+import 'overlayscrollbars/css/OverlayScrollbars.css';
+import 'w3-css/w3.css';
 import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
@@ -16,24 +17,34 @@ import VisualUpdateType = powerbi.VisualUpdateType;
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
 
 // External dependencies
-import * as d3Select from 'd3-selection';
+import { select, Selection } from 'd3-selection';
 
 // Internal Dependencies
 import { VisualSettings } from './VisualSettings';
 import { VisualConstants } from './VisualConstants';
 import { ViewModelHandler } from './ViewModel';
-import DomainUtils from './DomainUtils';
+import {
+    bindVisualDataToDom,
+    getParsedHtmlAsDom,
+    resolveContextMenu,
+    resolveForRawHtml,
+    resolveHtmlGroupElement,
+    resolveHyperlinkHandling,
+    resolveScrollableContent,
+    resolveStyling,
+    shouldUseStylesheet
+} from './DomainUtils';
 import LandingPageHandler from './LandingPageHandler';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
-    private container: d3.Selection<HTMLDivElement, any, any, any>;
+    private container: Selection<HTMLDivElement, any, any, any>;
     // Used for displaying landing page
-    private landingContainer: d3.Selection<HTMLDivElement, any, any, any>;
+    private landingContainer: Selection<HTMLDivElement, any, any, any>;
     // Used for handling issues in the visual
-    private statusContainer: d3.Selection<HTMLDivElement, any, any, any>;
+    private statusContainer: Selection<HTMLDivElement, any, any, any>;
     // Used for HTML content from data model
-    private contentContainer: d3.Selection<HTMLDivElement, any, any, any>;
+    private contentContainer: Selection<HTMLDivElement, any, any, any>;
     // Visual host services
     private host: IVisualHost;
     // Parsed visual settings
@@ -47,23 +58,16 @@ export class Visual implements IVisual {
     // Handles landing page
     private landingPageHandler: LandingPageHandler;
     // Manages custom styling from the user
-    private styleSheetContainer: d3Select.Selection<
-        HTMLStyleElement,
-        any,
-        any,
-        any
-    >;
+    private styleSheetContainer: Selection<HTMLStyleElement, any, any, any>;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
-        this.container = d3Select
-            .select(options.element)
+        this.container = select(options.element)
             .append('div')
             .attr('id', VisualConstants.dom.viewerIdSelector);
         this.host = options.host;
         this.localisationManager = this.host.createLocalizationManager();
-        this.styleSheetContainer = d3Select
-            .select('head')
+        this.styleSheetContainer = select('head')
             .append('style')
             .attr('id', VisualConstants.dom.stylesheetIdSelector)
             .attr('name', VisualConstants.dom.stylesheetIdSelector)
@@ -130,7 +134,7 @@ export class Visual implements IVisual {
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
-            DomainUtils.resolveStyling(
+            resolveStyling(
                 this.styleSheetContainer,
                 this.container,
                 this.settings
@@ -141,27 +145,27 @@ export class Visual implements IVisual {
                     viewModel.contentFormatting.showRawHtml
                 );
             } else {
-                let dataElements = DomainUtils.bindVisualDataToDom(
+                const dataElements = bindVisualDataToDom(
                     this.contentContainer,
                     viewModel.htmlEntries
                 );
-                DomainUtils.resolveHtmlGroupElement(dataElements);
-                DomainUtils.resolveForRawHtml(
+                resolveHtmlGroupElement(dataElements);
+                resolveForRawHtml(
                     this.styleSheetContainer,
                     this.contentContainer,
                     this.settings
                 );
             }
-            DomainUtils.resolveHyperlinkHandling(
+            resolveHyperlinkHandling(
                 this.host,
                 this.container,
                 viewModel.contentFormatting.hyperlinks
             );
-            DomainUtils.resolveContextMenu(
+            resolveContextMenu(
                 this.container,
                 this.host.createSelectionManager()
             );
-            DomainUtils.resolveScrollableContent(this.container.node());
+            resolveScrollableContent(this.container.node());
 
             // Signal that we've finished rendering
             this.events.renderingFinished(options);
@@ -182,9 +186,11 @@ export class Visual implements IVisual {
      */
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
-        this.statusContainer.append('div').html(message);
+        this.statusContainer.append('div').append(function() {
+            return this.appendChild(getParsedHtmlAsDom(message));
+        });
         if (showRawHtml) {
-            DomainUtils.resolveForRawHtml(
+            resolveForRawHtml(
                 this.styleSheetContainer,
                 this.statusContainer,
                 this.settings
@@ -210,14 +216,14 @@ export class Visual implements IVisual {
             this.settings || VisualSettings.getDefault(),
             options
         )).instances;
-        let objectName = options.objectName;
+        const objectName = options.objectName;
 
         switch (objectName) {
             case 'contentFormatting': {
                 if (this.settings.contentFormatting.showRawHtml) {
                     delete instances[0].properties['fontFamily'];
                 }
-                if (DomainUtils.shouldUseStylesheet(this.settings.stylesheet)) {
+                if (shouldUseStylesheet(this.settings.stylesheet)) {
                     delete instances[0].properties['fontFamily'];
                     delete instances[0].properties['fontSize'];
                     delete instances[0].properties['fontColour'];
