@@ -1,10 +1,5 @@
 {
-    "privileges": [
-        {
-            "name": "WebAccess",
-            "parameters": ["https://*", "http://*"]
-        }
-    ],
+    "privileges": [],
     "dataRoles": [
         {
             "displayNameKey": "Roles_Values",
