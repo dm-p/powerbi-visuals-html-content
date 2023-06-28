@@ -29,7 +29,7 @@
         "prettier": "^1.19.1",
         "pretty": "^2.0.0",
         "process": "^0.11.10",
-        "sanitize-html": "^2.10.0",
+        "sanitize-html": "^2.11.0",
         "ts-loader": "6.1.0",
         "typescript": "3.6.3",
         "w3-css": "^4.1.0"
