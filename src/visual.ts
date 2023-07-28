@@ -13,7 +13,6 @@ import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnume
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import IVisualEventService = powerbi.extensibility.IVisualEventService;
 import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
-import VisualUpdateType = powerbi.VisualUpdateType;
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
 
 // External dependencies
