@@ -2,11 +2,9 @@
 import powerbi from 'powerbi-visuals-api';
 import DataView = powerbi.DataView;
 import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
-import * as sanitizeHtml from 'sanitize-html';
 
 // Internal dependencies
 import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
-import * as config from '../config/visual.json';
 
 /**
  * View model structure
@@ -73,15 +71,8 @@ export class ViewModelHandler {
         if (this.viewModel.isValid) {
             const rows = dataViews[0].table.rows,
                 htmlEntries = rows.map(v => {
-                    const raw = v[this.viewModel.contentIndex].toString();
-                    return config.sanitize
-                        ? sanitizeHtml(raw, {
-                              allowedTags: sanitizeHtml.defaults.allowedTags.concat(
-                                  ['img']
-                              ),
-                              allowedSchemes: ['data']
-                          })
-                        : raw;
+                    const value = v[this.viewModel.contentIndex];
+                    return value ? value.toString() : '';
                 });
             this.viewModel.contentFormatting = settings.contentFormatting;
             this.viewModel.htmlEntries = htmlEntries;
