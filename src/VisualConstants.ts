@@ -1,3 +1,5 @@
+// External dependencies
+import * as sanitizeHtml from 'sanitize-html';
 // Internal dependencies
 import { visual } from '../pbiviz.json';
 
@@ -29,5 +31,79 @@ export const VisualConstants = {
         landingPageClassPrefix: 'html-display',
         stylesheetIdSelector: 'visualUserStylesheet',
         rawOutputIdSelector: 'rawHtmlOutput'
-    }
+    },
+    allowedSchemes: [],
+    allowedSchemesByTag: <{ [index: string]: string[] }>{
+        a: ['http', 'https'],
+        img: ['data']
+    },
+    allowedTags: [
+        ...sanitizeHtml.defaults.allowedTags,
+        'img',
+        'svg',
+        'animate',
+        'animatemotion',
+        'animatetransform',
+        'circle',
+        'clippath',
+        'defs',
+        'desc',
+        'ellipse',
+        'feblend',
+        'fecolormatrix',
+        'fecomponenttransfer',
+        'fecomposite',
+        'feconvolvematrix',
+        'fediffuselighting',
+        'fedisplacementMap',
+        'fedistantlight',
+        'fedropshadow',
+        'feflood',
+        'fefunca',
+        'fefuncb',
+        'fefuncg',
+        'fefuncr',
+        'fegaussianblur',
+        'feimage',
+        'femerge',
+        'femergemode',
+        'femorphology',
+        'feoffset',
+        'fepointlight',
+        'fespecularlighting',
+        'fespotlight',
+        'fetile',
+        'feturbulence',
+        'filter',
+        'g',
+        'image',
+        'line',
+        'lineargradient',
+        'marker',
+        'mask',
+        'metadata',
+        'path',
+        'pattern',
+        'polygon',
+        'polyline',
+        'radialgradient',
+        'rect',
+        'set',
+        'stop',
+        'style',
+        'symbol',
+        'text',
+        'textpath',
+        'title',
+        'tspan',
+        'view'
+    ],
+    scriptingPatterns: [
+        'javascript',
+        'javas\x00script',
+        'javas\x07cript',
+        'javas\x0Dcript',
+        'javas\x0Acript',
+        'javas\x08cript'
+    ]
 };

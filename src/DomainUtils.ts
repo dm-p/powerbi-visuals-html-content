@@ -24,13 +24,49 @@ export const getParsedHtmlAsDom = (html: string) => {
     const parse = Range.prototype.createContextualFragment.bind(
         document.createRange()
     );
+    const {
+        allowedSchemes,
+        allowedSchemesByTag,
+        allowedTags
+    } = VisualConstants;
     const dom = config.sanitize
         ? sanitizeHtml(html, {
-              allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']),
-              allowedSchemes: ['data']
+              allowedAttributes: { '*': ['*'] },
+              allowedTags,
+              allowedSchemes,
+              allowedSchemesByTag,
+              transformTags: {
+                  '*': (tagName, attribs) => {
+                      return {
+                          tagName,
+                          attribs: getStrippedAttributes(attribs)
+                      };
+                  }
+              }
           })
         : html;
     return parse(dom);
+};
+
+/**
+ * It still might be possible to encode 'javascript' into an attribute, so
+ * we'll strip out any attributes that contain this, or any other potential
+ * scripting patterns.
+ */
+const getStrippedAttributes = (
+    attribs: sanitizeHtml.Attributes
+): sanitizeHtml.Attributes => {
+    for (const [key, value] of Object.entries(attribs)) {
+        if (
+            typeof value === 'string' &&
+            VisualConstants.scriptingPatterns.some(pattern =>
+                value.includes(pattern)
+            )
+        ) {
+            delete attribs[key];
+        }
+    }
+    return attribs;
 };
 
 /**
