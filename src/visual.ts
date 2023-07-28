@@ -184,9 +184,11 @@ export class Visual implements IVisual {
      */
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
-        this.statusContainer.append('div').append(function() {
-            return this.appendChild(getParsedHtmlAsDom(message));
-        });
+        if (message) {
+            this.statusContainer.append('div').append(function() {
+                return this.appendChild(getParsedHtmlAsDom(message));
+            });
+        }
         if (showRawHtml) {
             resolveForRawHtml(
                 this.styleSheetContainer,
