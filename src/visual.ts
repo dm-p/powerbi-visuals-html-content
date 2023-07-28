@@ -106,23 +106,22 @@ export class Visual implements IVisual {
             );
 
             // If new data, we need to re-map it
-            switch (options.type) {
-                case VisualUpdateType.Data:
-                case VisualUpdateType.All: {
-                    this.updateStatus(
-                        this.localisationManager.getDisplayName(
-                            'Status_Mapping_DataView'
-                        )
+            if (
+                powerbi.VisualUpdateType.Data ===
+                (options.type & powerbi.VisualUpdateType.Data)
+            ) {
+                this.updateStatus(
+                    this.localisationManager.getDisplayName(
+                        'Status_Mapping_DataView'
+                    )
+                );
+                this.viewModelHandler.validateDataView(options.dataViews);
+                viewModel.isValid &&
+                    this.viewModelHandler.mapDataView(
+                        options.dataViews,
+                        this.settings
                     );
-                    this.viewModelHandler.validateDataView(options.dataViews);
-                    viewModel.isValid &&
-                        this.viewModelHandler.mapDataView(
-                            options.dataViews,
-                            this.settings
-                        );
-                    this.updateStatus();
-                    break;
-                }
+                this.updateStatus();
             }
 
             this.landingPageHandler.handleLandingPage(
