@@ -127,13 +127,6 @@ export class ViewModelHandler {
         }
     }
 
-    static shouldDimPoint(
-        viewModel: IViewModel,
-        dataPoint: SelectableDataPoint
-    ) {
-        return viewModel.hasSelection && !dataPoint.selected;
-    }
-
     /**
      * Checks the supplied columns for the correct index of the content column, so that we can map it correctly later.
      *

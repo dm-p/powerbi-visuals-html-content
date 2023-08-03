@@ -162,7 +162,8 @@ export class Visual implements IVisual {
             } else {
                 const dataElements = bindVisualDataToDom(
                     this.contentContainer,
-                    viewModel.htmlEntries
+                    viewModel.htmlEntries,
+                    viewModel.hasSelection
                 );
                 resolveHtmlGroupElement(dataElements);
                 resolveForRawHtml(

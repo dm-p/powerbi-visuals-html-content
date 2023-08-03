@@ -308,16 +308,32 @@ function bindStandardTooltips(
  */
 export function bindVisualDataToDom(
     container: Selection<any, any, any, any>,
-    data: IHtmlEntry[]
+    data: IHtmlEntry[],
+    hasSelection: boolean
 ) {
+    const { entryClassSelector, unselectedClassSelector } = VisualConstants.dom;
     return container
-        .selectAll(`.${VisualConstants.dom.entryClassSelector}`)
+        .selectAll(`.${entryClassSelector}`)
         .data(data)
         .join(enter =>
             enter
                 .append('div')
-                .classed(VisualConstants.dom.entryClassSelector, true)
+                .classed(entryClassSelector, true)
+                .classed(unselectedClassSelector, d =>
+                    shouldDimPoint(hasSelection, d.selected)
+                )
         );
+}
+
+/**
+ * For the current selection state of the view model and the data point,
+ * determine whether the point should be dimmed or not.
+ *
+ * @param hasSelection
+ * @param isSelected
+ */
+export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
+    return hasSelection && !isSelected;
 }
 
 /**

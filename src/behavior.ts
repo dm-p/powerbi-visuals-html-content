@@ -4,8 +4,9 @@ import BaseDataPoint = interactivityBaseService.BaseDataPoint;
 import IInteractiveBehavior = interactivityBaseService.IInteractiveBehavior;
 import ISelectionHandler = interactivityBaseService.ISelectionHandler;
 
-import { IHtmlEntry, IViewModel, ViewModelHandler } from './view-model';
+import { IHtmlEntry, IViewModel } from './view-model';
 import { VisualConstants } from './visual-constants';
+import { shouldDimPoint } from './domain-utils';
 
 /**
  * Behavior options for interactivity.
@@ -130,7 +131,7 @@ export class BehaviorManager<SelectableDataPoint extends BaseDataPoint>
         // Update viewModel selection state to match current state
         viewModel.hasSelection = hasSelection;
         pointSelection.classed(VisualConstants.dom.unselectedClassSelector, d =>
-            ViewModelHandler.shouldDimPoint(viewModel, d)
+            shouldDimPoint(hasSelection, d.selected)
         );
     }
 }
