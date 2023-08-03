@@ -4,8 +4,8 @@ import BaseDataPoint = interactivityBaseService.BaseDataPoint;
 import IInteractiveBehavior = interactivityBaseService.IInteractiveBehavior;
 import ISelectionHandler = interactivityBaseService.ISelectionHandler;
 
-import { IHtmlEntry, IViewModel, ViewModelHandler } from './ViewModel';
-import { VisualConstants } from './VisualConstants';
+import { IHtmlEntry, IViewModel, ViewModelHandler } from './view-model';
+import { VisualConstants } from './visual-constants';
 
 /**
  * Behavior options for interactivity.

@@ -25,9 +25,9 @@ import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 import { select, Selection } from 'd3-selection';
 
 // Internal Dependencies
-import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
-import { VisualConstants } from './VisualConstants';
-import { ViewModelHandler } from './ViewModel';
+import { ContentFormattingSettings, VisualSettings } from './visual-settings';
+import { VisualConstants } from './visual-constants';
+import { ViewModelHandler } from './view-model';
 import {
     bindVisualDataToDom,
     getParsedHtmlAsDom,
@@ -38,9 +38,9 @@ import {
     resolveStyling,
     resolveHover,
     shouldUseStylesheet
-} from './DomainUtils';
-import LandingPageHandler from './LandingPageHandler';
-import { BehaviorManager, IHtmlBehaviorOptions } from './Interactivity';
+} from './domain-utils';
+import LandingPageHandler from './landing-page-handler';
+import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 
 export class Visual implements IVisual {
     // The root element for the entire visual

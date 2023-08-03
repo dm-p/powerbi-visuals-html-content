@@ -12,9 +12,9 @@ import * as sanitizeHtml from 'sanitize-html';
 const pretty = require('pretty');
 
 // Internal dependencies
-import { VisualConstants } from './VisualConstants';
-import { StylesheetSettings, VisualSettings } from './VisualSettings';
-import { IHtmlEntry } from './ViewModel';
+import { VisualConstants } from './visual-constants';
+import { StylesheetSettings, VisualSettings } from './visual-settings';
+import { IHtmlEntry } from './view-model';
 
 /**
  * Parse the supplied HTML string and then return as a DOM fragment that we can

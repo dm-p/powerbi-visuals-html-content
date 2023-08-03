@@ -28,7 +28,7 @@
 
 import { dataViewObjectsParser } from 'powerbi-visuals-utils-dataviewutils';
 import DataViewObjectsParser = dataViewObjectsParser.DataViewObjectsParser;
-import { VisualConstants } from './VisualConstants';
+import { VisualConstants } from './visual-constants';
 
 export class VisualSettings extends DataViewObjectsParser {
     public contentFormatting = new ContentFormattingSettings();

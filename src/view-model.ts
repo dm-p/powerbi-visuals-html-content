@@ -11,7 +11,7 @@ import { interactivitySelectionService } from 'powerbi-visuals-utils-interactivi
 import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 
 // Internal dependencies
-import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
+import { ContentFormattingSettings, VisualSettings } from './visual-settings';
 
 /**
  * View model structure

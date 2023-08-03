@@ -8,8 +8,8 @@ import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
 import { Selection } from 'd3-selection';
 
 // Internal dependencies
-import { VisualConstants } from './VisualConstants';
-import { resolveScrollableContent } from './DomainUtils';
+import { VisualConstants } from './visual-constants';
+import { resolveScrollableContent } from './domain-utils';
 
 /**
  * Manages the handling and placement of the visual landing page if no data is present.
