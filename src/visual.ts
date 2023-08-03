@@ -13,28 +13,34 @@ import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnume
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import IVisualEventService = powerbi.extensibility.IVisualEventService;
 import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
-import VisualUpdateType = powerbi.VisualUpdateType;
 import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
+import {
+    interactivitySelectionService,
+    interactivityBaseService
+} from 'powerbi-visuals-utils-interactivityutils';
+import IInteractivityService = interactivityBaseService.IInteractivityService;
+import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
 
 // Internal Dependencies
-import { VisualSettings } from './VisualSettings';
-import { VisualConstants } from './VisualConstants';
-import { ViewModelHandler } from './ViewModel';
+import { ContentFormattingSettings, VisualSettings } from './visual-settings';
+import { VisualConstants } from './visual-constants';
+import { ViewModelHandler } from './view-model';
 import {
     bindVisualDataToDom,
     getParsedHtmlAsDom,
-    resolveContextMenu,
     resolveForRawHtml,
     resolveHtmlGroupElement,
     resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
+    resolveHover,
     shouldUseStylesheet
-} from './DomainUtils';
-import LandingPageHandler from './LandingPageHandler';
+} from './domain-utils';
+import LandingPageHandler from './landing-page-handler';
+import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -54,11 +60,15 @@ export class Visual implements IVisual {
     // Handle localisation of visual text
     private localisationManager: ILocalizationManager;
     // Visual view model
-    private viewModelHandler = new ViewModelHandler();
+    private viewModelHandler: ViewModelHandler;
     // Handles landing page
     private landingPageHandler: LandingPageHandler;
     // Manages custom styling from the user
     private styleSheetContainer: Selection<HTMLStyleElement, any, any, any>;
+    // Interactivity for data points
+    private interactivity: IInteractivityService<SelectableDataPoint>;
+    // Behavior of data points
+    private behavior: BehaviorManager<SelectableDataPoint>;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -66,7 +76,12 @@ export class Visual implements IVisual {
             .append('div')
             .attr('id', VisualConstants.dom.viewerIdSelector);
         this.host = options.host;
+        this.viewModelHandler = new ViewModelHandler();
         this.localisationManager = this.host.createLocalizationManager();
+        this.interactivity = interactivitySelectionService.createInteractivitySelectionService(
+            this.host
+        );
+        this.behavior = new BehaviorManager();
         this.styleSheetContainer = select('head')
             .append('style')
             .attr('id', VisualConstants.dom.stylesheetIdSelector)
@@ -91,7 +106,7 @@ export class Visual implements IVisual {
 
     // Runs when data roles added or something changes
     public update(options: VisualUpdateOptions) {
-        const viewModel = this.viewModelHandler.viewModel;
+        const { viewModel } = this.viewModelHandler;
 
         // Handle main update flow
         try {
@@ -106,23 +121,23 @@ export class Visual implements IVisual {
             );
 
             // If new data, we need to re-map it
-            switch (options.type) {
-                case VisualUpdateType.Data:
-                case VisualUpdateType.All: {
-                    this.updateStatus(
-                        this.localisationManager.getDisplayName(
-                            'Status_Mapping_DataView'
-                        )
+            if (
+                powerbi.VisualUpdateType.Data ===
+                (options.type & powerbi.VisualUpdateType.Data)
+            ) {
+                this.updateStatus(
+                    this.localisationManager.getDisplayName(
+                        'Status_Mapping_DataView'
+                    )
+                );
+                this.viewModelHandler.validateDataView(options.dataViews);
+                viewModel.isValid &&
+                    this.viewModelHandler.mapDataView(
+                        options.dataViews,
+                        this.settings,
+                        this.host
                     );
-                    this.viewModelHandler.validateDataView(options.dataViews);
-                    viewModel.isValid &&
-                        this.viewModelHandler.mapDataView(
-                            options.dataViews,
-                            this.settings
-                        );
-                    this.updateStatus();
-                    break;
-                }
+                this.updateStatus();
             }
 
             this.landingPageHandler.handleLandingPage(
@@ -147,7 +162,8 @@ export class Visual implements IVisual {
             } else {
                 const dataElements = bindVisualDataToDom(
                     this.contentContainer,
-                    viewModel.htmlEntries
+                    viewModel.htmlEntries,
+                    viewModel.hasSelection
                 );
                 resolveHtmlGroupElement(dataElements);
                 resolveForRawHtml(
@@ -155,15 +171,23 @@ export class Visual implements IVisual {
                     this.contentContainer,
                     this.settings
                 );
+                if (this.host.hostCapabilities.allowInteractions) {
+                    this.interactivity.bind(<
+                        IHtmlBehaviorOptions<SelectableDataPoint>
+                    >{
+                        behavior: this.behavior,
+                        dataPoints: viewModel.htmlEntries,
+                        clearCatcherSelection: this.container,
+                        pointSelection: dataElements,
+                        viewModel
+                    });
+                }
+                resolveHover(dataElements, this.host, viewModel.hasGranularity);
             }
             resolveHyperlinkHandling(
                 this.host,
                 this.container,
                 viewModel.contentFormatting.hyperlinks
-            );
-            resolveContextMenu(
-                this.container,
-                this.host.createSelectionManager()
             );
             resolveScrollableContent(this.container.node());
 
@@ -186,9 +210,11 @@ export class Visual implements IVisual {
      */
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
-        this.statusContainer.append('div').append(function() {
-            return this.appendChild(getParsedHtmlAsDom(message));
-        });
+        if (message) {
+            this.statusContainer.append('div').append(function() {
+                return this.appendChild(getParsedHtmlAsDom(message));
+            });
+        }
         if (showRawHtml) {
             resolveForRawHtml(
                 this.styleSheetContainer,
@@ -210,37 +236,78 @@ export class Visual implements IVisual {
     public enumerateObjectInstances(
         options: EnumerateVisualObjectInstancesOptions
     ): VisualObjectInstance[] | VisualObjectInstanceEnumerationObject {
-        const instances: VisualObjectInstance[] = (<
-            VisualObjectInstanceEnumerationObject
-        >VisualSettings.enumerateObjectInstances(
-            this.settings || VisualSettings.getDefault(),
-            options
-        )).instances;
         const objectName = options.objectName;
-
+        const objectEnumeration: VisualObjectInstance[] = [];
+        const { contentFormatting, stylesheet, crossFilter } = this.settings;
         switch (objectName) {
             case 'contentFormatting': {
-                if (this.settings.contentFormatting.showRawHtml) {
-                    delete instances[0].properties['fontFamily'];
-                }
-                if (shouldUseStylesheet(this.settings.stylesheet)) {
-                    delete instances[0].properties['fontFamily'];
-                    delete instances[0].properties['fontSize'];
-                    delete instances[0].properties['fontColour'];
-                    delete instances[0].properties['align'];
-                }
-                instances[0].propertyInstanceKind = {
-                    noDataMessage: VisualEnumerationInstanceKinds.ConstantOrRule
+                const properties = <ContentFormattingSettings>{
+                    showRawHtml: contentFormatting.showRawHtml,
+                    hyperlinks: contentFormatting.hyperlinks,
+                    userSelect: contentFormatting.userSelect,
+                    noDataMessage: contentFormatting.noDataMessage
                 };
+                if (
+                    !contentFormatting.showRawHtml &&
+                    !shouldUseStylesheet(stylesheet)
+                ) {
+                    properties.fontFamily = contentFormatting.fontFamily;
+                    properties.fontSize = contentFormatting.fontSize;
+                    properties.fontColour = contentFormatting.fontColour;
+                    properties.align = contentFormatting.align;
+                }
+                objectEnumeration.push({
+                    objectName,
+                    properties: <any>properties,
+                    selector: null,
+                    propertyInstanceKind: {
+                        noDataMessage:
+                            VisualEnumerationInstanceKinds.ConstantOrRule
+                    }
+                });
                 break;
             }
             case 'stylesheet': {
-                instances[0].propertyInstanceKind = {
-                    stylesheet: VisualEnumerationInstanceKinds.Rule
-                };
+                objectEnumeration.push({
+                    objectName,
+                    properties: {
+                        stylesheet: stylesheet.stylesheet
+                    },
+                    propertyInstanceKind: {
+                        stylesheet: VisualEnumerationInstanceKinds.Rule
+                    },
+                    selector: null
+                });
                 break;
             }
+            case 'crossFilter': {
+                if (this.viewModelHandler.viewModel.hasGranularity) {
+                    objectEnumeration.push({
+                        objectName,
+                        properties: {
+                            enabled: crossFilter.enabled,
+                            useTransparency: crossFilter.enabled
+                                ? crossFilter.useTransparency
+                                : undefined,
+                            transparencyPercent:
+                                crossFilter.enabled &&
+                                crossFilter.useTransparency
+                                    ? crossFilter.transparencyPercent
+                                    : undefined
+                        },
+                        selector: null,
+                        validValues: {
+                            transparencyPercent: {
+                                numberRange: {
+                                    min: 0,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                }
+            }
         }
-        return instances;
+        return objectEnumeration;
     }
 }

@@ -9,14 +9,9 @@
         "outDir": "./.tmp/build/",
         "moduleResolution": "node",
         "declaration": true,
-        "lib": [
-            "es2015",
-            "dom"
-        ],
+        "lib": ["es2019", "dom"],
         "alwaysStrict": true,
         "resolveJsonModule": true
     },
-    "files": [
-        "./src/visual.ts"
-    ]
+    "files": ["./src/visual.ts"]
 }

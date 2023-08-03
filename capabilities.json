@@ -16,6 +16,14 @@
             "description": "Sampling description.",
             "name": "sampling",
             "kind": "GroupingOrMeasure"
+        },
+        {
+            "displayNameKey": "Roles_Tooltips",
+            "descriptionKey": "Roles_Tooltips_Description",
+            "displayName": "Tooltips",
+            "description": "Tooltips description.",
+            "name": "tooltips",
+            "kind": "Measure"
         }
     ],
     "objects": {
@@ -125,6 +133,41 @@
                     }
                 }
             }
+        },
+        "crossFilter": {
+            "displayNameKey": "Objects_CrossFilter",
+            "descriptionKey": "Objects_CrossFilter_Description",
+            "displayName": "Cross filter",
+            "description": "Cross filter description.",
+            "properties": {
+                "enabled": {
+                    "displayNameKey": "Objects_CrossFilter_Enabled",
+                    "descriptionKey": "Objects_CrossFilter_Enabled_Description",
+                    "displayName": "Enable",
+                    "description": "Enable description.",
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "useTransparency": {
+                    "displayNameKey": "Objects_CrossFilter_UseTransparency",
+                    "descriptionKey": "Objects_CrossFilter_UseTransparency_Description",
+                    "displayName": "Use transparency",
+                    "description": "Use transparency description.",
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "transparencyPercent": {
+                    "displayNameKey": "Objects_CrossFilter_TransparencyPercent",
+                    "descriptionKey": "Objects_CrossFilter_TransparencyPercent_Description",
+                    "displayName": "Transparency percent",
+                    "description": "Transparency percent description.",
+                    "type": {
+                        "integer": true
+                    }
+                }
+            }
         }
     },
     "dataViewMappings": [
@@ -148,6 +191,11 @@
                             "for": {
                                 "in": "content"
                             }
+                        },
+                        {
+                            "for": {
+                                "in": "tooltips"
+                            }
                         }
                     ],
                     "dataReductionAlgorithm": {
@@ -161,5 +209,13 @@
         "default": {}
     },
     "supportsLandingPage": true,
-    "suppressDefaultTitle": true
+    "suppressDefaultTitle": true,
+    "tooltips": {
+        "supportedTypes": {
+            "default": true,
+            "canvas": true
+        },
+        "supportEnhancedTooltips": true,
+        "roles": ["tooltips"]
+    }
 }
