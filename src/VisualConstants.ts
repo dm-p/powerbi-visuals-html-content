@@ -22,6 +22,11 @@ export const VisualConstants = {
     stylesheet: {
         stylesheet: ''
     },
+    crossFilter: {
+        enabled: false,
+        useTransparency: true,
+        transparencyPercent: 70
+    },
     dom: {
         viewerIdSelector: 'htmlViewer',
         entryClassSelector: 'htmlViewerEntry',
@@ -30,7 +35,13 @@ export const VisualConstants = {
         landingIdSelector: 'landingPage',
         landingPageClassPrefix: 'html-display',
         stylesheetIdSelector: 'visualUserStylesheet',
-        rawOutputIdSelector: 'rawHtmlOutput'
+        rawOutputIdSelector: 'rawHtmlOutput',
+        hoverClassSelector: 'hover',
+        manualTooltipSelector: 'tooltipEnabled',
+        manualTooltipDataPrefix: 'tooltip',
+        manualTooltipDataTitle: 'Title', // Will be camel-cased by HTML data API
+        manualTooltipDataValue: 'Value', // Will be camel-cased by HTML data API
+        unselectedClassSelector: 'unselected'
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{

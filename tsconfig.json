@@ -9,7 +9,7 @@
         "outDir": "./.tmp/build/",
         "moduleResolution": "node",
         "declaration": true,
-        "lib": ["es2021", "dom"],
+        "lib": ["es2019", "dom"],
         "alwaysStrict": true,
         "resolveJsonModule": true
     },

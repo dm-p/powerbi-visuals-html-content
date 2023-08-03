@@ -1,7 +1,8 @@
 // Power BI API Dependencies
 import powerbi from 'powerbi-visuals-api';
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
-import ISelectionManager = powerbi.extensibility.ISelectionManager;
+import TooltipShowOptions = powerbi.extensibility.TooltipShowOptions;
+import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
@@ -13,6 +14,7 @@ const pretty = require('pretty');
 // Internal dependencies
 import { VisualConstants } from './VisualConstants';
 import { StylesheetSettings, VisualSettings } from './VisualSettings';
+import { IHtmlEntry } from './ViewModel';
 
 /**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
@@ -85,9 +87,19 @@ export const resolveStyling = (
     bodyContainer: Selection<any, any, any, any>,
     settings: VisualSettings
 ) => {
-    const useSS = shouldUseStylesheet(settings.stylesheet),
-        bodyProps = settings.contentFormatting;
-    styleSheetContainer.text((useSS && settings.stylesheet.stylesheet) || '');
+    const useSS = shouldUseStylesheet(settings.stylesheet);
+    const bodyProps = settings.contentFormatting;
+    const {
+        crossFilter: { enabled, useTransparency, transparencyPercent }
+    } = settings;
+    const crossFilterStyles =
+        enabled && useTransparency
+            ? `.${VisualConstants.dom.entryClassSelector}.${
+                  VisualConstants.dom.unselectedClassSelector
+              } { opacity: ${1 - transparencyPercent / 100}; }`
+            : '';
+    const customStyles = `${(useSS && settings.stylesheet.stylesheet) || ''}`;
+    styleSheetContainer.text(`${crossFilterStyles} ${customStyles}`);
     resolveUserSelect(bodyProps.userSelect, bodyContainer);
     bodyContainer
         .style('font-family', resolveBodyStyle(useSS, bodyProps.fontFamily))
@@ -150,13 +162,13 @@ export function resolveHyperlinkHandling(
  * @param dataElements  - The elements to analyse and process.
  */
 export function resolveHtmlGroupElement(
-    dataElements: Selection<any, any, any, any>
+    dataElements: Selection<any, IHtmlEntry, any, any>
 ) {
     // Remove any applied elements
     dataElements.selectAll('*').remove();
     // Add the correct element
     dataElements.append('div').append(function(d) {
-        return this.appendChild(getParsedHtmlAsDom(d));
+        return this.appendChild(getParsedHtmlAsDom(d.content));
     });
 }
 
@@ -174,24 +186,117 @@ export function resolveScrollableContent(element: HTMLElement) {
 }
 
 /**
- * Add Power BI context menu suppor to the selected container
+ * Handle eventing when a data element is hovred over. This includes showing
+ * the tooltip and toggling appropriate class names for style hooks.
  *
- * @param container         - The container to process.
- * @param selectionManager  - Power BI host services selection manager instance.
+ * @param dataElements      - The elements to analyse and process.
+ * @param host              - Visual host services.
+ * @param hasGranularity    - Whether we have granularity or not.
  */
-export function resolveContextMenu(
-    container: Selection<any, any, any, any>,
-    selectionManager: ISelectionManager
+export function resolveHover(
+    dataElements: Selection<any, IHtmlEntry, any, any>,
+    host: IVisualHost,
+    hasGranularity: boolean
 ) {
-    container.on('contextmenu', event => {
-        selectionManager.showContextMenu(
-            {},
-            {
-                x: event.x,
-                y: event.y
-            }
+    bindStandardTooltips(dataElements, host, hasGranularity);
+    bindManualTooltips(dataElements, host);
+}
+
+/**
+ * If we don't have any granularity, we will look for elements that have
+ * a tooltip attribute and use this to show the tooltip.
+ *
+ * @param dataElements      - The elements to analyse and process.
+ * @param host              - Visual host services.
+ */
+function bindManualTooltips(
+    dataElements: Selection<any, IHtmlEntry, any, any>,
+    host: IVisualHost
+) {
+    const { tooltipService } = host;
+    const {
+        manualTooltipSelector,
+        manualTooltipDataPrefix,
+        manualTooltipDataTitle,
+        manualTooltipDataValue
+    } = VisualConstants.dom;
+    const manualTooltipElements = dataElements.selectAll(
+        `.${manualTooltipSelector}`
+    );
+    const titleExp = new RegExp(
+        `${manualTooltipDataPrefix}${manualTooltipDataTitle}`,
+        'g'
+    );
+    const valueExp = new RegExp(
+        `${manualTooltipDataPrefix}${manualTooltipDataValue}`,
+        'g'
+    );
+    manualTooltipElements.on('mouseover mousemove', event => {
+        const dataset = event.currentTarget.dataset;
+        const keys = Object.keys(dataset).map(key =>
+            key.replace(titleExp, '').replace(valueExp, '')
         );
-        event.preventDefault();
+        const uniqueKeys = [...new Set(keys)];
+        const dataItems: VisualTooltipDataItem[] = uniqueKeys.map(key => ({
+            displayName:
+                dataset[
+                    `${manualTooltipDataPrefix}${manualTooltipDataTitle}${key}`
+                ] || '',
+            value:
+                dataset[
+                    `${manualTooltipDataPrefix}${manualTooltipDataValue}${key}`
+                ] || ''
+        }));
+        if (dataItems.length > 0) {
+            const options: TooltipShowOptions = {
+                coordinates: [event.clientX, event.clientY],
+                isTouchEvent: true,
+                dataItems,
+                identities: []
+            };
+            tooltipService.show(options);
+        }
+    });
+    manualTooltipElements.on('mouseout', () =>
+        tooltipService.hide({ immediately: true, isTouchEvent: true })
+    );
+}
+
+/**
+ * For standard data elements, working with the data roles and correct
+ * rules, we will apply the regular tooltip handling.
+ *
+ * @param dataElements      - The elements to analyse and process.
+ * @param host              - Visual host services.
+ * @param hasGranularity    - Whether we have granularity or not.
+ */
+function bindStandardTooltips(
+    dataElements: Selection<any, IHtmlEntry, any, any>,
+    host: IVisualHost,
+    hasGranularity: boolean
+) {
+    const { tooltipService } = host;
+    dataElements.on('mouseover mousemove', (event, d) => {
+        select(event.currentTarget).classed(
+            VisualConstants.dom.hoverClassSelector,
+            true
+        );
+        if (hasGranularity || d.tooltips.length > 0) {
+            const options: TooltipShowOptions = {
+                coordinates: [event.clientX, event.clientY],
+                isTouchEvent: true,
+                dataItems: d.tooltips,
+                identities: [d.identity]
+            };
+            tooltipService.show(options);
+        }
+    });
+    dataElements.on('mouseout', event => {
+        select(event.currentTarget).classed(
+            VisualConstants.dom.hoverClassSelector,
+            false
+        );
+        tooltipService.hide({ immediately: true, isTouchEvent: true });
     });
 }
 
@@ -203,7 +308,7 @@ export function resolveContextMenu(
  */
 export function bindVisualDataToDom(
     container: Selection<any, any, any, any>,
-    data: string[]
+    data: IHtmlEntry[]
 ) {
     return container
         .selectAll(`.${VisualConstants.dom.entryClassSelector}`)

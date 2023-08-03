@@ -33,6 +33,7 @@ import { VisualConstants } from './VisualConstants';
 export class VisualSettings extends DataViewObjectsParser {
     public contentFormatting = new ContentFormattingSettings();
     public stylesheet = new StylesheetSettings();
+    public crossFilter = new CrossFilterSettings();
 }
 
 export class ContentFormattingSettings {
@@ -58,4 +59,15 @@ export class ContentFormattingSettings {
 export class StylesheetSettings {
     // Additional stylesheet (via conditional formatting)
     public stylesheet: string = VisualConstants.stylesheet.stylesheet;
+}
+
+export class CrossFilterSettings {
+    // Whether to enable cross-filtering
+    public enabled: boolean = VisualConstants.crossFilter.enabled;
+    // Whether to use transparency on non-selected items
+    public useTransparency: boolean =
+        VisualConstants.crossFilter.useTransparency;
+    // Transparency percentage (if using transparency)
+    public transparencyPercent: number =
+        VisualConstants.crossFilter.transparencyPercent;
 }

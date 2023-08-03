@@ -2,6 +2,13 @@
 import powerbi from 'powerbi-visuals-api';
 import DataView = powerbi.DataView;
 import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
+import IVisualHost = powerbi.extensibility.visual.IVisualHost;
+import ISelectionId = powerbi.visuals.ISelectionId;
+import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
+import DataViewTableRow = powerbi.DataViewTableRow;
+import { valueFormatter } from 'powerbi-visuals-utils-formattingutils';
+import { interactivitySelectionService } from 'powerbi-visuals-utils-interactivityutils';
+import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 
 // Internal dependencies
 import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
@@ -12,9 +19,17 @@ import { ContentFormattingSettings, VisualSettings } from './VisualSettings';
 export interface IViewModel {
     isValid: boolean;
     isEmpty: boolean;
+    hasCrossFiltering: boolean;
+    hasGranularity: boolean;
+    hasSelection: boolean;
     contentIndex: number;
     contentFormatting?: ContentFormattingSettings;
-    htmlEntries: string[];
+    htmlEntries: IHtmlEntry[];
+}
+
+export interface IHtmlEntry extends SelectableDataPoint {
+    content: string;
+    tooltips: VisualTooltipDataItem[];
 }
 
 /**
@@ -34,6 +49,9 @@ export class ViewModelHandler {
         this.viewModel = {
             isValid: false,
             isEmpty: true,
+            hasCrossFiltering: false,
+            hasGranularity: false,
+            hasSelection: false,
             contentIndex: -1,
             htmlEntries: []
         };
@@ -67,17 +85,53 @@ export class ViewModelHandler {
      * @param dataViews     - Data views from the visual's update method.
      * @param settings      - Parsed visual settings.
      */
-    mapDataView(dataViews: DataView[], settings: VisualSettings) {
+    mapDataView(
+        dataViews: DataView[],
+        settings: VisualSettings,
+        host: IVisualHost
+    ) {
         if (this.viewModel.isValid) {
-            const rows = dataViews[0].table.rows,
-                htmlEntries = rows.map(v => {
-                    const value = v[this.viewModel.contentIndex];
-                    return value ? value.toString() : '';
-                });
+            const hasGranularity = dataViews[0].table.columns.some(
+                c => c.roles.sampling
+            );
+            const hasCrossFiltering =
+                hasGranularity && settings.crossFilter.enabled;
+            const { columns, rows } = dataViews[0].table;
+            const initialSelection = this.viewModel.htmlEntries;
+            const hasSelection =
+                (initialSelection.some(dp => dp.selected) &&
+                    hasCrossFiltering) ||
+                false;
+            const htmlEntries: IHtmlEntry[] = rows.map((row, index) => {
+                const value = row[this.viewModel.contentIndex];
+                const selectionIdBuilder = host.createSelectionIdBuilder();
+                const identity = selectionIdBuilder
+                    .withTable(dataViews[0].table, index)
+                    .createSelectionId();
+                return {
+                    content: value ? value.toString() : '',
+                    identity,
+                    selected: this.isSelected(initialSelection, identity),
+                    tooltips: [
+                        ...this.getTooltipData('sampling', columns, row, host),
+                        ...this.getTooltipData('tooltips', columns, row, host)
+                    ]
+                };
+            });
+            this.viewModel.hasCrossFiltering = hasCrossFiltering;
+            this.viewModel.hasGranularity = hasGranularity;
+            this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
             this.viewModel.htmlEntries = htmlEntries;
             this.viewModel.isEmpty = rows.length === 0;
         }
+    }
+
+    static shouldDimPoint(
+        viewModel: IViewModel,
+        dataPoint: SelectableDataPoint
+    ) {
+        return viewModel.hasSelection && !dataPoint.selected;
     }
 
     /**
@@ -87,5 +141,50 @@ export class ViewModelHandler {
      */
     private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
         return columns.findIndex(c => c.roles.content);
+    }
+
+    /**
+     * For a data row, extract the columns that have been assigned to the
+     * tooltips role and return their corresponding values.
+     *
+     * @param columns   - Array of metadata columns from the Power BI data view.
+     * @param row       - Current table row from the data view.
+     */
+    private getTooltipData(
+        role: string,
+        columns: DataViewMetadataColumn[],
+        row: DataViewTableRow,
+        host: IVisualHost
+    ) {
+        const tooltipValues: VisualTooltipDataItem[] = [];
+        columns.forEach((c, i) => {
+            const formatter = valueFormatter.create({
+                cultureSelector: host.locale,
+                format: c.format
+            });
+            if (c.roles[role]) {
+                tooltipValues.push({
+                    displayName: c.displayName,
+                    value: formatter.format(row[i])
+                });
+            }
+        });
+        return tooltipValues;
+    }
+
+    /**
+     * For an array of selectable data points, determine if the specificed selectionId is currently selected or not.
+     *
+     * @param initialSelection  - all selectable data points to inspect
+     * @param selectionId       - selectionId to search for
+     */
+    private isSelected(
+        initialSelection: interactivitySelectionService.SelectableDataPoint[],
+        selectionId: ISelectionId
+    ): boolean {
+        const selectedDataPoint = (initialSelection || []).find(dp =>
+            selectionId.equals(<ISelectionId>dp.identity)
+        );
+        return selectedDataPoint ? selectedDataPoint.selected : false;
     }
 }
