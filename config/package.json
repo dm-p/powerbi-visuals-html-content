@@ -18,8 +18,7 @@
                 {
                     "name": "WebAccess",
                     "parameters": [
-                        "https://*",
-                        "http://*"
+                        "*"
                     ]
                 }
             ]
@@ -44,8 +43,7 @@
                 {
                     "name": "WebAccess",
                     "parameters": [
-                        "https://*",
-                        "http://*"
+                        "*"
                     ]
                 }
             ]
