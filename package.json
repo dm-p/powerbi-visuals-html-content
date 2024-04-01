@@ -13,7 +13,7 @@
     "devDependencies": {
         "@types/d3": "^5.7.2",
         "@types/d3-selection": "^3.0.5",
-        "@types/node": "^20.1.1",
+        "@types/node": "^20.12.2",
         "@types/overlayscrollbars": "^1.12.0",
         "@types/pretty": "^2.0.0",
         "@types/sanitize-html": "^2.9.0",
@@ -27,6 +27,7 @@
         "lodash": "^4.17.21",
         "overlayscrollbars": "^1.13.3",
         "powerbi-visuals-api": "~5.1.0",
+        "powerbi-visuals-tools": "^5.4.3",
         "powerbi-visuals-utils-dataviewutils": "^2.4.0",
         "powerbi-visuals-utils-formattingutils": "^6.0.1",
         "powerbi-visuals-utils-interactivityutils": "^6.0.2",
@@ -35,7 +36,7 @@
         "process": "^0.11.10",
         "sanitize-html": "^2.11.0",
         "ts-loader": "6.1.0",
-        "typescript": "3.6.3",
+        "typescript": "^5.4.3",
         "w3-css": "^4.1.0"
     }
 }
