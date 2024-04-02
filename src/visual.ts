@@ -6,26 +6,22 @@ import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import IVisual = powerbi.extensibility.visual.IVisual;
-import EnumerateVisualObjectInstancesOptions = powerbi.EnumerateVisualObjectInstancesOptions;
-import VisualObjectInstance = powerbi.VisualObjectInstance;
-import DataView = powerbi.DataView;
-import VisualObjectInstanceEnumerationObject = powerbi.VisualObjectInstanceEnumerationObject;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import IVisualEventService = powerbi.extensibility.IVisualEventService;
 import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
-import VisualEnumerationInstanceKinds = powerbi.VisualEnumerationInstanceKinds;
 import {
     interactivitySelectionService,
     interactivityBaseService
 } from 'powerbi-visuals-utils-interactivityutils';
 import IInteractivityService = interactivityBaseService.IInteractivityService;
 import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
+import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel';
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
 
 // Internal Dependencies
-import { ContentFormattingSettings, VisualSettings } from './visual-settings';
+import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
 import { ViewModelHandler } from './view-model';
 import {
@@ -36,8 +32,7 @@ import {
     resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
-    resolveHover,
-    shouldUseStylesheet
+    resolveHover
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
@@ -54,7 +49,9 @@ export class Visual implements IVisual {
     // Visual host services
     private host: IVisualHost;
     // Parsed visual settings
-    private settings: VisualSettings;
+    private formattingSettings: VisualFormattingSettingsModel;
+    // Formatting settings service
+    private formattingSettingsService: FormattingSettingsService;
     // Handle rendering events
     private events: IVisualEventService;
     // Handle localisation of visual text
@@ -96,6 +93,9 @@ export class Visual implements IVisual {
         this.contentContainer = this.container
             .append('div')
             .attr('id', VisualConstants.dom.contentIdSelector);
+        this.formattingSettingsService = new FormattingSettingsService(
+            this.localisationManager
+        );
         this.landingPageHandler = new LandingPageHandler(
             this.landingContainer,
             this.localisationManager
@@ -104,9 +104,24 @@ export class Visual implements IVisual {
         this.viewModelHandler.reset();
     }
 
+    /**
+     * Returns properties pane formatting model content hierarchies, properties and latest formatting values, Then populate properties pane.
+     * This method is called once every time we open properties pane or when the user edit any format property.
+     */
+    public getFormattingModel(): powerbi.visuals.FormattingModel {
+        return this.formattingSettingsService.buildFormattingModel(
+            this.formattingSettings
+        );
+    }
+
     // Runs when data roles added or something changes
     public update(options: VisualUpdateOptions) {
         const { viewModel } = this.viewModelHandler;
+        // Parse the settings for use in the visual
+        this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
+            VisualFormattingSettingsModel,
+            options.dataViews?.[0]
+        );
 
         // Handle main update flow
         try {
@@ -114,11 +129,6 @@ export class Visual implements IVisual {
             this.events.renderingStarted(options);
             this.updateStatus();
             this.contentContainer.selectAll('*').remove();
-
-            // Parse the settings for use in the visual
-            this.settings = Visual.parseSettings(
-                options && options.dataViews && options.dataViews[0]
-            );
 
             // If new data, we need to re-map it
             if (
@@ -134,11 +144,12 @@ export class Visual implements IVisual {
                 viewModel.isValid &&
                     this.viewModelHandler.mapDataView(
                         options.dataViews,
-                        this.settings,
+                        this.formattingSettings,
                         this.host
                     );
                 this.updateStatus();
             }
+            this.formattingSettings.handlePropertyVisibility(viewModel);
 
             this.landingPageHandler.handleLandingPage(
                 this.viewModelHandler.viewModel.isValid,
@@ -152,12 +163,14 @@ export class Visual implements IVisual {
             resolveStyling(
                 this.styleSheetContainer,
                 this.container,
-                this.settings
+                this.formattingSettings
             );
             if (viewModel.isEmpty) {
                 this.updateStatus(
-                    this.settings.contentFormatting.noDataMessage,
-                    viewModel.contentFormatting.showRawHtml
+                    this.formattingSettings.contentFormatting
+                        .contentFormattingCardNoData.noDataMessage.value,
+                    viewModel.contentFormatting.contentFormattingCardBehavior
+                        .showRawHtml.value
                 );
             } else {
                 const dataElements = bindVisualDataToDom(
@@ -169,7 +182,7 @@ export class Visual implements IVisual {
                 resolveForRawHtml(
                     this.styleSheetContainer,
                     this.contentContainer,
-                    this.settings
+                    this.formattingSettings
                 );
                 if (this.host.hostCapabilities.allowInteractions) {
                     this.interactivity.bind(<
@@ -187,7 +200,8 @@ export class Visual implements IVisual {
             resolveHyperlinkHandling(
                 this.host,
                 this.container,
-                viewModel.contentFormatting.hyperlinks
+                viewModel.contentFormatting.contentFormattingCardBehavior
+                    .hyperlinks.value
             );
             resolveScrollableContent(this.container.node());
 
@@ -219,95 +233,8 @@ export class Visual implements IVisual {
             resolveForRawHtml(
                 this.styleSheetContainer,
                 this.statusContainer,
-                this.settings
+                this.formattingSettings
             );
         }
-    }
-
-    private static parseSettings(dataView: DataView): VisualSettings {
-        return VisualSettings.parse(dataView);
-    }
-
-    /**
-     * This function gets called for each of the objects defined in the capabilities files and allows you to select which of the
-     * objects and properties you want to expose to the users in the property pane.
-     *
-     */
-    public enumerateObjectInstances(
-        options: EnumerateVisualObjectInstancesOptions
-    ): VisualObjectInstance[] | VisualObjectInstanceEnumerationObject {
-        const objectName = options.objectName;
-        const objectEnumeration: VisualObjectInstance[] = [];
-        const { contentFormatting, stylesheet, crossFilter } = this.settings;
-        switch (objectName) {
-            case 'contentFormatting': {
-                const properties = <ContentFormattingSettings>{
-                    showRawHtml: contentFormatting.showRawHtml,
-                    hyperlinks: contentFormatting.hyperlinks,
-                    userSelect: contentFormatting.userSelect,
-                    noDataMessage: contentFormatting.noDataMessage
-                };
-                if (
-                    !contentFormatting.showRawHtml &&
-                    !shouldUseStylesheet(stylesheet)
-                ) {
-                    properties.fontFamily = contentFormatting.fontFamily;
-                    properties.fontSize = contentFormatting.fontSize;
-                    properties.fontColour = contentFormatting.fontColour;
-                    properties.align = contentFormatting.align;
-                }
-                objectEnumeration.push({
-                    objectName,
-                    properties: <any>properties,
-                    selector: null,
-                    propertyInstanceKind: {
-                        noDataMessage:
-                            VisualEnumerationInstanceKinds.ConstantOrRule
-                    }
-                });
-                break;
-            }
-            case 'stylesheet': {
-                objectEnumeration.push({
-                    objectName,
-                    properties: {
-                        stylesheet: stylesheet.stylesheet
-                    },
-                    propertyInstanceKind: {
-                        stylesheet: VisualEnumerationInstanceKinds.Rule
-                    },
-                    selector: null
-                });
-                break;
-            }
-            case 'crossFilter': {
-                if (this.viewModelHandler.viewModel.hasGranularity) {
-                    objectEnumeration.push({
-                        objectName,
-                        properties: {
-                            enabled: crossFilter.enabled,
-                            useTransparency: crossFilter.enabled
-                                ? crossFilter.useTransparency
-                                : undefined,
-                            transparencyPercent:
-                                crossFilter.enabled &&
-                                crossFilter.useTransparency
-                                    ? crossFilter.transparencyPercent
-                                    : undefined
-                        },
-                        selector: null,
-                        validValues: {
-                            transparencyPercent: {
-                                numberRange: {
-                                    min: 0,
-                                    max: 100
-                                }
-                            }
-                        }
-                    });
-                }
-            }
-        }
-        return objectEnumeration;
     }
 }
