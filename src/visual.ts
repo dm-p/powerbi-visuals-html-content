@@ -66,6 +66,8 @@ export class Visual implements IVisual {
     private interactivity: IInteractivityService<SelectableDataPoint>;
     // Behavior of data points
     private behavior: BehaviorManager<SelectableDataPoint>;
+    // Flag whether the user clicked into the visual or not (for focus management)
+    private bodyFocusedWithClick = false;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -92,6 +94,7 @@ export class Visual implements IVisual {
             .attr('id', VisualConstants.dom.statusIdSelector);
         this.contentContainer = this.container
             .append('div')
+            .attr('tabindex', 0)
             .attr('id', VisualConstants.dom.contentIdSelector);
         this.formattingSettingsService = new FormattingSettingsService(
             this.localisationManager
@@ -100,6 +103,7 @@ export class Visual implements IVisual {
             this.landingContainer,
             this.localisationManager
         );
+        this.bindFocusEvents();
         this.events = this.host.eventService;
         this.viewModelHandler.reset();
     }
@@ -114,7 +118,9 @@ export class Visual implements IVisual {
         );
     }
 
-    // Runs when data roles added or something changes
+    /**
+     * Runs when data roles added or something changes
+     */
     public update(options: VisualUpdateOptions) {
         const { viewModel } = this.viewModelHandler;
         // Parse the settings for use in the visual
@@ -214,6 +220,22 @@ export class Visual implements IVisual {
             this.contentContainer.selectAll('*').remove();
             this.updateStatus();
         }
+    }
+
+    /**
+     * Ensure that when the user navigates to the visual using Power BI-supported keyboard shortcuts, the visual is focused accordingly. If
+     * the user clicks on the body of the page, we should behave as normal.
+     */
+    private bindFocusEvents() {
+        document.body.onmousedown = () => {
+            this.bodyFocusedWithClick = true;
+        };
+        document.body.onfocus = () => {
+            if (!this.bodyFocusedWithClick) {
+                this.contentContainer.node().focus();
+            }
+            this.bodyFocusedWithClick = false;
+        };
     }
 
     /**
