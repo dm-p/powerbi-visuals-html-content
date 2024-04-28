@@ -13,7 +13,10 @@ const pretty = require('pretty');
 
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
-import { StylesheetSettings, VisualSettings } from './visual-settings';
+import {
+    StylesheetSettings,
+    VisualFormattingSettingsModel
+} from './visual-settings';
 import { IHtmlEntry } from './view-model';
 
 /**
@@ -75,7 +78,7 @@ const getStrippedAttributes = (
  * Use to determine if we should include stylesheet logic, based on whether it has been supplied or not.
  */
 export const shouldUseStylesheet = (stylesheet: StylesheetSettings) =>
-    stylesheet.stylesheet ? true : false;
+    stylesheet.stylesheetCardMain.stylesheet.value ? true : false;
 
 /**
  * Resolve how styling should be applied, based on supplied properties. Basically, if user has supplied
@@ -85,27 +88,64 @@ export const shouldUseStylesheet = (stylesheet: StylesheetSettings) =>
 export const resolveStyling = (
     styleSheetContainer: Selection<any, any, any, any>,
     bodyContainer: Selection<any, any, any, any>,
-    settings: VisualSettings
+    settings: VisualFormattingSettingsModel
 ) => {
     const useSS = shouldUseStylesheet(settings.stylesheet);
     const bodyProps = settings.contentFormatting;
     const {
-        crossFilter: { enabled, useTransparency, transparencyPercent }
+        crossFilter: {
+            crossFilterCardMain: {
+                enabled,
+                useTransparency,
+                transparencyPercent
+            }
+        }
     } = settings;
     const crossFilterStyles =
-        enabled && useTransparency
+        enabled.value && useTransparency.value
             ? `.${VisualConstants.dom.entryClassSelector}.${
                   VisualConstants.dom.unselectedClassSelector
-              } { opacity: ${1 - transparencyPercent / 100}; }`
+              } { opacity: ${1 - transparencyPercent.value / 100}; }`
             : '';
-    const customStyles = `${(useSS && settings.stylesheet.stylesheet) || ''}`;
+    const customStyles = `${(useSS &&
+        settings.stylesheet.stylesheetCardMain.stylesheet.value) ||
+        ''}`;
     styleSheetContainer.text(`${crossFilterStyles} ${customStyles}`);
-    resolveUserSelect(bodyProps.userSelect, bodyContainer);
+    resolveUserSelect(
+        bodyProps.contentFormattingCardBehavior.userSelect.value,
+        bodyContainer
+    );
     bodyContainer
-        .style('font-family', resolveBodyStyle(useSS, bodyProps.fontFamily))
-        .style('font-size', resolveBodyStyle(useSS, `${bodyProps.fontSize}pt`))
-        .style('color', resolveBodyStyle(useSS, bodyProps.fontColour))
-        .style('text-align', resolveBodyStyle(useSS, bodyProps.align));
+        .style(
+            'font-family',
+            resolveBodyStyle(
+                useSS,
+                bodyProps.contentFormattingCardDefaultBodyStyling.fontFamily
+                    .value
+            )
+        )
+        .style(
+            'font-size',
+            resolveBodyStyle(
+                useSS,
+                `${bodyProps.contentFormattingCardDefaultBodyStyling.fontSize.value}pt`
+            )
+        )
+        .style(
+            'color',
+            resolveBodyStyle(
+                useSS,
+                bodyProps.contentFormattingCardDefaultBodyStyling.fontColour
+                    .value.value
+            )
+        )
+        .style(
+            'text-align',
+            resolveBodyStyle(
+                useSS,
+                bodyProps.contentFormattingCardDefaultBodyStyling.align.value
+            )
+        );
 };
 
 /**
@@ -116,9 +156,12 @@ export const resolveStyling = (
 export const resolveForRawHtml = (
     styleSheetContainer: Selection<any, any, any, any>,
     contentContainer: Selection<any, any, any, any>,
-    settings: VisualSettings
+    settings: VisualFormattingSettingsModel
 ) => {
-    if (settings.contentFormatting.showRawHtml) {
+    if (
+        settings.contentFormatting.contentFormattingCardBehavior.showRawHtml
+            .value
+    ) {
         const output = getRawHtml(
             styleSheetContainer,
             contentContainer,
@@ -346,7 +389,9 @@ const getRawHtml = (
     stylesheet: StylesheetSettings
 ) =>
     pretty(
-        `${((shouldUseStylesheet(stylesheet) && stylesheet.stylesheet) || '') &&
+        `${((shouldUseStylesheet(stylesheet) &&
+            stylesheet.stylesheetCardMain.stylesheet.value) ||
+            '') &&
             styleSheetContainer.node().outerHTML} ${container.node().outerHTML}`
     );
 

@@ -28,25 +28,13 @@
     ],
     "objects": {
         "contentFormatting": {
-            "displayNameKey": "Objects_ContentFormatting",
-            "descriptionKey": "Objects_ContentFormatting_Description",
-            "displayName": "Content Formatting",
-            "description": "Content Formatting description.",
             "properties": {
                 "showRawHtml": {
-                    "displayNameKey": "Objects_ContentFormatting_ShowRawHTML",
-                    "descriptionKey": "Objects_ContentFormatting_ShowRawHTML_Description",
-                    "displayName": "Show Raw HTML",
-                    "description": "Show Raw HTML description.",
                     "type": {
                         "bool": true
                     }
                 },
                 "fontFamily": {
-                    "displayNameKey": "Objects_ContentFormatting_FontFamily",
-                    "descriptionKey": "Objects_ContentFormatting_FontFamily_Description",
-                    "displayName": "Default Font Family",
-                    "description": "Default Font Family description.",
                     "type": {
                         "formatting": {
                             "fontFamily": true
@@ -54,10 +42,6 @@
                     }
                 },
                 "fontSize": {
-                    "displayNameKey": "Objects_ContentFormatting_FontSize",
-                    "descriptionKey": "Objects_ContentFormatting_FontSize_Description",
-                    "displayName": "Default Font Size",
-                    "description": "Default Font Size description.",
                     "type": {
                         "formatting": {
                             "fontSize": true
@@ -65,10 +49,6 @@
                     }
                 },
                 "fontColour": {
-                    "displayNameKey": "Objects_ContentFormatting_FontColour",
-                    "descriptionKey": "Objects_ContentFormatting_FontColour_Description",
-                    "displayName": "Default Font Color",
-                    "description": "Default Font Color description.",
                     "type": {
                         "fill": {
                             "solid": {
@@ -78,10 +58,6 @@
                     }
                 },
                 "align": {
-                    "displayNameKey": "Objects_ContentFormatting_Align",
-                    "descriptionKey": "Objects_ContentFormatting_Align_Description",
-                    "displayName": "Default Text Alignment",
-                    "description": "Default Text Alignment description.",
                     "type": {
                         "formatting": {
                             "alignment": true
@@ -89,28 +65,16 @@
                     }
                 },
                 "hyperlinks": {
-                    "displayNameKey": "Objects_ContentFormatting_Hyperlinks",
-                    "descriptionKey": "Objects_ContentFormatting_Hyperlinks_Description",
-                    "displayName": "Hyperlinks",
-                    "description": "Hyperlinks description.",
                     "type": {
                         "bool": true
                     }
                 },
                 "userSelect": {
-                    "displayNameKey": "Objects_ContentFormatting_UserSelect",
-                    "descriptionKey": "Objects_ContentFormatting_UserSelect_Description",
-                    "displayName": "Select Text",
-                    "description": "Select Text description.",
                     "type": {
                         "bool": true
                     }
                 },
                 "noDataMessage": {
-                    "displayNameKey": "Objects_ContentFormatting_NoDataMessage",
-                    "descriptionKey": "Objects_ContentFormatting_NoDataMessage_Description",
-                    "displayName": "No Data",
-                    "description": "No Data description.",
                     "type": {
                         "text": true
                     }
@@ -118,16 +82,13 @@
             }
         },
         "stylesheet": {
-            "displayNameKey": "Objects_Stylesheet",
-            "descriptionKey": "Objects_Stylesheet_Description",
-            "displayName": "Stylesheet",
-            "description": "Stylesheet description",
             "properties": {
                 "stylesheet": {
-                    "displayNameKey": "Objects_Stylesheet_Stylesheet",
-                    "descriptionKey": "Objects_Stylesheet_Stylesheet_Description",
-                    "displayName": "Stylesheet",
-                    "description": "Stylesheet description.",
+                    "type": {
+                        "text": true
+                    }
+                },
+                "test": {
                     "type": {
                         "text": true
                     }
@@ -135,34 +96,18 @@
             }
         },
         "crossFilter": {
-            "displayNameKey": "Objects_CrossFilter",
-            "descriptionKey": "Objects_CrossFilter_Description",
-            "displayName": "Cross filter",
-            "description": "Cross filter description.",
             "properties": {
                 "enabled": {
-                    "displayNameKey": "Objects_CrossFilter_Enabled",
-                    "descriptionKey": "Objects_CrossFilter_Enabled_Description",
-                    "displayName": "Enable",
-                    "description": "Enable description.",
                     "type": {
                         "bool": true
                     }
                 },
                 "useTransparency": {
-                    "displayNameKey": "Objects_CrossFilter_UseTransparency",
-                    "descriptionKey": "Objects_CrossFilter_UseTransparency_Description",
-                    "displayName": "Use transparency",
-                    "description": "Use transparency description.",
                     "type": {
                         "bool": true
                     }
                 },
                 "transparencyPercent": {
-                    "displayNameKey": "Objects_CrossFilter_TransparencyPercent",
-                    "descriptionKey": "Objects_CrossFilter_TransparencyPercent_Description",
-                    "displayName": "Transparency percent",
-                    "description": "Transparency percent description.",
                     "type": {
                         "integer": true
                     }
@@ -210,12 +155,16 @@
     },
     "supportsLandingPage": true,
     "suppressDefaultTitle": true,
+    "supportsKeyboardFocus": true,
     "tooltips": {
         "supportedTypes": {
             "default": true,
             "canvas": true
         },
         "supportEnhancedTooltips": true,
-        "roles": ["tooltips"]
-    }
+        "roles": [
+            "tooltips"
+        ]
+    },
+    "supportsMultiVisualSelection": true
 }

@@ -11,7 +11,10 @@ import { interactivitySelectionService } from 'powerbi-visuals-utils-interactivi
 import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 
 // Internal dependencies
-import { ContentFormattingSettings, VisualSettings } from './visual-settings';
+import {
+    ContentFormattingSettings,
+    VisualFormattingSettingsModel
+} from './visual-settings';
 
 /**
  * View model structure
@@ -87,7 +90,7 @@ export class ViewModelHandler {
      */
     mapDataView(
         dataViews: DataView[],
-        settings: VisualSettings,
+        settings: VisualFormattingSettingsModel,
         host: IVisualHost
     ) {
         if (this.viewModel.isValid) {
@@ -95,7 +98,8 @@ export class ViewModelHandler {
                 c => c.roles.sampling
             );
             const hasCrossFiltering =
-                hasGranularity && settings.crossFilter.enabled;
+                hasGranularity &&
+                settings.crossFilter.crossFilterCardMain.enabled.value;
             const { columns, rows } = dataViews[0].table;
             const initialSelection = this.viewModel.htmlEntries;
             const hasSelection =
