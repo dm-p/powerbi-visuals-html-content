@@ -165,5 +165,6 @@
         "roles": [
             "tooltips"
         ]
-    }
+    },
+    "supportsMultiVisualSelection": true
 }
