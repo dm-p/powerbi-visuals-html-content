@@ -69,7 +69,7 @@ export const VisualConstants = {
         'fecomposite',
         'feconvolvematrix',
         'fediffuselighting',
-        'fedisplacementMap',
+        'fedisplacementmap',
         'fedistantlight',
         'fedropshadow',
         'feflood',
