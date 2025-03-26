@@ -9,6 +9,7 @@ import { select, Selection } from 'd3-selection';
 import * as OverlayScrollbars from 'overlayscrollbars';
 import * as config from '../config/visual.json';
 import * as sanitizeHtml from 'sanitize-html';
+import { marked } from 'marked';
 const pretty = require('pretty');
 
 // Internal dependencies
@@ -18,6 +19,7 @@ import {
     VisualFormattingSettingsModel
 } from './visual-settings';
 import { IHtmlEntry } from './view-model';
+import { RenderFormat } from './types';
 
 /**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
@@ -25,7 +27,7 @@ import { IHtmlEntry } from './view-model';
  * we should sanitie, do this also, so that we're not injecting any malicious
  * code into the DOM and keep to certification requirements.
  */
-export const getParsedHtmlAsDom = (html: string) => {
+export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
     const parse = Range.prototype.createContextualFragment.bind(
         document.createRange()
     );
@@ -34,8 +36,10 @@ export const getParsedHtmlAsDom = (html: string) => {
         allowedSchemesByTag,
         allowedTags
     } = VisualConstants;
+    const converted =
+        format === 'markdown' ? marked.parse(content).toString() : content;
     const dom = config.sanitize
-        ? sanitizeHtml(html, {
+        ? sanitizeHtml(converted, {
               allowedAttributes: { '*': ['*'] },
               allowedTags,
               allowedSchemes,
@@ -49,7 +53,7 @@ export const getParsedHtmlAsDom = (html: string) => {
                   }
               }
           })
-        : html;
+        : converted;
     return parse(dom);
 };
 
@@ -205,13 +209,14 @@ export function resolveHyperlinkHandling(
  * @param dataElements  - The elements to analyse and process.
  */
 export function resolveHtmlGroupElement(
-    dataElements: Selection<any, IHtmlEntry, any, any>
+    dataElements: Selection<any, IHtmlEntry, any, any>,
+    format: RenderFormat
 ) {
     // Remove any applied elements
     dataElements.selectAll('*').remove();
     // Add the correct element
     dataElements.append('div').append(function(d) {
-        return this.appendChild(getParsedHtmlAsDom(d.content));
+        return this.appendChild(getParsedHtmlAsDom(d.content, format));
     });
 }
 
