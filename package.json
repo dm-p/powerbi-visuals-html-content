@@ -27,7 +27,7 @@
         "lodash": "^4.17.21",
         "marked": "^15.0.7",
         "overlayscrollbars": "^1.13.3",
-        "powerbi-visuals-api": "~5.7.0",
+        "powerbi-visuals-api": "~5.10.0",
         "powerbi-visuals-tools": "^5.4.3",
         "powerbi-visuals-utils-dataviewutils": "^2.4.0",
         "powerbi-visuals-utils-formattingmodel": "^6.0.1",
