@@ -34,6 +34,22 @@
                         "bool": true
                     }
                 },
+                "format": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayNameKey": "Enum_RenderFormat_HTML",
+                                "displayName": "HTML",
+                                "value": "html"
+                            },
+                            {
+                                "displayNameKey": "Enum_RenderFormat_Mardown",
+                                "displayName": "Markdown",
+                                "value": "markdown"
+                            }
+                        ]
+                    }
+                },
                 "fontFamily": {
                     "type": {
                         "formatting": {
@@ -162,9 +178,7 @@
             "canvas": true
         },
         "supportEnhancedTooltips": true,
-        "roles": [
-            "tooltips"
-        ]
+        "roles": ["tooltips"]
     },
     "supportsMultiVisualSelection": true
 }

@@ -3,9 +3,12 @@ import * as sanitizeHtml from 'sanitize-html';
 // Internal dependencies
 import { visual } from '../pbiviz.json';
 
+import { RenderFormat } from './types';
+
 export const VisualConstants = {
     visual: visual,
     contentFormatting: {
+        format: <RenderFormat>'html',
         showRawHtml: false,
         font: {
             family:
@@ -66,7 +69,7 @@ export const VisualConstants = {
         'fecomposite',
         'feconvolvematrix',
         'fediffuselighting',
-        'fedisplacementMap',
+        'fedisplacementmap',
         'fedistantlight',
         'fedropshadow',
         'feflood',

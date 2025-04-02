@@ -15,6 +15,8 @@
     "Objects_ContentFormatting_DefaultBodyStyling_Description": "Options to control the default styling of the rendered HTML body.",
     "Objects_ContentFormatting_Separation": "Value separation method",
     "Objects_ContentFormatting_Separation_Description": "Options to separate multiple values in the rendered output.",
+    "Objects_ContentFormatting_Format": "Renderer",
+    "Objects_ContentFormatting_Format_Description": "The renderer to apply to supplied content. HTML is the default, but you can also use Github Flavored Markdown. Note that detected HTML will be subject to the same sanitization rules if you are using using HTML Content (lite).",
     "Objects_ContentFormatting_ShowRawHTML": "Show raw HTML",
     "Objects_ContentFormatting_ShowRawHTML_Description": "Display the data as raw HTML, rather than rendered HTML.",
     "Objects_ContentFormatting_FontFamily": "Font family",
@@ -45,5 +47,7 @@
     "Status_Invalid_View_Model": "No data available to display.",
     "Status_No_Data": "No data available to display.",
     "Enum_Separation_None": "None",
-    "Enum_Separation_HR": "Horizontal Rule (<hr/>)"
+    "Enum_Separation_HR": "Horizontal Rule (<hr/>)",
+    "Enum_RenderFormat_HTML": "HTML",
+    "Enum_RenderFormat_Markdown": "Markdown"
 }

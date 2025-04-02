@@ -34,6 +34,7 @@ import FormattingSettingsModel = formattingSettings.Model;
 import { VisualConstants } from './visual-constants';
 import { IViewModel } from './view-model';
 import { shouldUseStylesheet } from './domain-utils';
+import { RenderFormat } from './types';
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     contentFormatting = new ContentFormattingSettings();
@@ -83,6 +84,13 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
     name = 'contentFormatting-behavior';
     displayNameKey = 'Objects_ContentFormatting_Behavior';
     descriptionKey = 'Objects_ContentFormatting_Behavior_Description';
+    // Render format
+    format = new formattingSettings.AutoDropdown({
+        name: 'format',
+        displayNameKey: 'Objects_ContentFormatting_Format',
+        descriptionKey: 'Objects_ContentFormatting_Format_Description',
+        value: VisualConstants.contentFormatting.format
+    });
     // Whether to render as HTML or show raw code
     showRawHtml = new formattingSettings.ToggleSwitch({
         name: 'showRawHtml',
@@ -105,6 +113,7 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
         value: VisualConstants.contentFormatting.userSelect
     });
     slices: Array<FormattingSettingsSlice> = [
+        this.format,
         this.showRawHtml,
         this.hyperlinks,
         this.userSelect
@@ -120,7 +129,7 @@ class ContentFormattingCardNoData extends FormattingSettingsGroup {
         name: 'noDataMessage',
         value: VisualConstants.contentFormatting.noDataMessage,
         placeholder: ' ',
-        selector: null,
+        selector: undefined,
         instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
     slices: Array<FormattingSettingsSlice> = [this.noDataMessage];
@@ -187,7 +196,7 @@ class StylesheetCardMain extends FormattingSettingsGroup {
         name: 'stylesheet',
         placeholder: ' ',
         value: VisualConstants.stylesheet.stylesheet,
-        selector: null,
+        selector: undefined,
         instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
     slices: Array<FormattingSettingsSlice> = [this.stylesheet];

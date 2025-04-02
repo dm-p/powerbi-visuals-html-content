@@ -25,6 +25,7 @@
         "eslint-plugin-powerbi-visuals": "^0.8.1",
         "fs": "^0.0.1-security",
         "lodash": "^4.17.21",
+        "marked": "^15.0.7",
         "overlayscrollbars": "^1.13.3",
         "powerbi-visuals-api": "~5.7.0",
         "powerbi-visuals-tools": "^5.4.3",

@@ -36,6 +36,7 @@ import {
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
+import { RenderFormat } from './types';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -184,7 +185,12 @@ export class Visual implements IVisual {
                     viewModel.htmlEntries,
                     viewModel.hasSelection
                 );
-                resolveHtmlGroupElement(dataElements);
+                resolveHtmlGroupElement(
+                    dataElements,
+                    this.formattingSettings.contentFormatting
+                        .contentFormattingCardBehavior.format
+                        .value as RenderFormat
+                );
                 resolveForRawHtml(
                     this.styleSheetContainer,
                     this.contentContainer,
@@ -248,7 +254,7 @@ export class Visual implements IVisual {
         this.statusContainer.selectAll('*').remove();
         if (message) {
             this.statusContainer.append('div').append(function() {
-                return this.appendChild(getParsedHtmlAsDom(message));
+                return this.appendChild(getParsedHtmlAsDom(message, 'html'));
             });
         }
         if (showRawHtml) {
