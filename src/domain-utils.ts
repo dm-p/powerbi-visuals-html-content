@@ -24,7 +24,7 @@ import { RenderFormat } from './types';
 /**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
  * use in the visual for our data. If we're specifying in the configuration that
- * we should sanitie, do this also, so that we're not injecting any malicious
+ * we should sanitize, do this also, so that we're not injecting any malicious
  * code into the DOM and keep to certification requirements.
  */
 export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
