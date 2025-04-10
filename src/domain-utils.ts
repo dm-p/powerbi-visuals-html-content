@@ -31,16 +31,26 @@ export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
     const parse = Range.prototype.createContextualFragment.bind(
         document.createRange()
     );
+    const converted =
+        format === 'markdown' ? marked.parse(content).toString() : content;
+    const dom = config.sanitize ? getSanitizedContent(converted) : converted;
+    return parse(dom);
+};
+
+/**
+ * Sanitize the supplied HTML string, based on the configuration settings. This will remove any
+ * potentially dangerous content, such as javascript, and ensure that we are only allowing the tags and
+ * attributes that we want to be able to use.
+ */
+const getSanitizedContent = (content: string) => {
     const {
         allowedSchemes,
         allowedSchemesByTag,
         allowedTags,
         allowedAttributes
     } = VisualConstants;
-    const converted =
-        format === 'markdown' ? marked.parse(content).toString() : content;
-    const dom = config.sanitize
-        ? sanitizeHtml(converted, {
+    return config.sanitize
+        ? sanitizeHtml(content, {
               allowedAttributes: { '*': allowedAttributes },
               allowedTags,
               allowedSchemes,
@@ -54,8 +64,7 @@ export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
                   }
               }
           })
-        : converted;
-    return parse(dom);
+        : content;
 };
 
 /**
