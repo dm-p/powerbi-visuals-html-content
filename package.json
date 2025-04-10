@@ -16,7 +16,7 @@
         "@types/node": "^20.12.2",
         "@types/overlayscrollbars": "^1.12.0",
         "@types/pretty": "^2.0.0",
-        "@types/sanitize-html": "^2.9.0",
+        "@types/sanitize-html": "^2.15.0",
         "@typescript-eslint/eslint-plugin": "^5.62.0",
         "@typescript-eslint/parser": "^5.62.0",
         "d3-selection": "^3.0.0",
@@ -35,7 +35,7 @@
         "prettier": "^1.19.1",
         "pretty": "^2.0.0",
         "process": "^0.11.10",
-        "sanitize-html": "^2.11.0",
+        "sanitize-html": "^2.15.0",
         "ts-loader": "6.1.0",
         "typescript": "^5.4.3",
         "w3-css": "^4.1.0"
