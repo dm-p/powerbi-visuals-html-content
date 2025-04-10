@@ -34,13 +34,14 @@ export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
     const {
         allowedSchemes,
         allowedSchemesByTag,
-        allowedTags
+        allowedTags,
+        allowedAttributes
     } = VisualConstants;
     const converted =
         format === 'markdown' ? marked.parse(content).toString() : content;
     const dom = config.sanitize
         ? sanitizeHtml(converted, {
-              allowedAttributes: { '*': ['*'] },
+              allowedAttributes: { '*': allowedAttributes },
               allowedTags,
               allowedSchemes,
               allowedSchemesByTag,
