@@ -46,12 +46,11 @@ const getSanitizedContent = (content: string) => {
     const {
         allowedSchemes,
         allowedSchemesByTag,
-        allowedTags,
-        allowedAttributes
+        allowedTags
     } = VisualConstants;
     return config.sanitize
         ? sanitizeHtml(content, {
-              allowedAttributes: { '*': allowedAttributes },
+              allowedAttributes: { '*': ['*'] },
               allowedTags,
               allowedSchemes,
               allowedSchemesByTag,
@@ -61,6 +60,27 @@ const getSanitizedContent = (content: string) => {
                           tagName,
                           attribs: getStrippedAttributes(attribs)
                       };
+                  }
+              },
+              exclusiveFilter: frame => {
+                  try {
+                      // Test for CSS import with potential XSS in <style> tags
+                      const cssImportFail =
+                          (frame.tag == 'style' &&
+                              frame.text.match(
+                                  /@[\s\\]*i[\s\\]*m[\s\\]*p[\s\\]*o[\s\\]*r[\s\\]*t[\s\\]*[^;]+;/g
+                              )?.length > 0) ||
+                          false;
+                      // Test for event attributes (onload, onclick, etc.)
+                      const eventAttributeFailure = Object.keys(
+                          frame.attribs
+                      ).some(attr => {
+                          return attr.match(/on[a-zA-Z]+/g);
+                      });
+                      const fail = cssImportFail || eventAttributeFailure;
+                      return fail;
+                  } catch (e) {
+                      return true;
                   }
               }
           })
