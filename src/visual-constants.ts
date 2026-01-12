@@ -48,7 +48,11 @@ export const VisualConstants = {
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{
+        // Power BI only supports http and https protocols for links
+        // mailto: and tel: are not supported by Power BI's launchUrl()
         a: ['http', 'https'],
+        // For AppSource certification, img tags must NOT load external resources
+        // Only data: URIs are permitted (sanitized by getSanitizedDataUri function)
         img: ['data']
     },
     allowedTags: [
@@ -114,10 +118,81 @@ export const VisualConstants = {
     ],
     scriptingPatterns: [
         'javascript',
-        'javas\x00script',
+        'vbscript',
+        'livescript',
+        'mocha',
+        'data:text/html',
+        'data:text/javascript',
+        'data:application/javascript',
+        'data:application/x-javascript',
+        // All control characters (0x00-0x1F) for javascript obfuscation
+        'javas\x00cript',
+        'javas\x01cript',
+        'javas\x02cript',
+        'javas\x03cript',
+        'javas\x04cript',
+        'javas\x05cript',
+        'javas\x06cript',
         'javas\x07cript',
-        'javas\x0Dcript',
+        'javas\x08cript',
+        'javas\x09cript',
         'javas\x0Acript',
-        'javas\x08cript'
-    ]
+        'javas\x0Bcript',
+        'javas\x0Ccript',
+        'javas\x0Dcript',
+        'javas\x0Ecript',
+        'javas\x0Fcript',
+        'javas\x10cript',
+        'javas\x11cript',
+        'javas\x12cript',
+        'javas\x13cript',
+        'javas\x14cript',
+        'javas\x15cript',
+        'javas\x16cript',
+        'javas\x17cript',
+        'javas\x18cript',
+        'javas\x19cript',
+        'javas\x1Acript',
+        'javas\x1Bcript',
+        'javas\x1Ccript',
+        'javas\x1Dcript',
+        'javas\x1Ecript',
+        'javas\x1Fcript',
+        // CSS-based attacks
+        'expression(',
+        'expression (',
+        '-moz-binding',
+        'behavior:',
+        'behavior :',
+        // URL functions that can be dangerous
+        'url(javascript',
+        'url( javascript',
+        'url(data:text/html',
+        'url( data:text/html',
+        'url(data:text/javascript',
+        'url( data:text/javascript',
+        'url(data:application/',
+        'url( data:application/',
+        'url(vbscript',
+        'url( vbscript'
+    ],
+    // Comprehensive CSS dangerous patterns for style tag content
+    cssDangerousPatterns: [
+        // eslint-disable-next-line no-useless-escape
+        /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/gi,
+        /expression\s*\(/gi,
+        /javascript\s*:/gi,
+        /vbscript\s*:/gi,
+        /data\s*:\s*text\/html/gi,
+        /data\s*:\s*text\/javascript/gi,
+        /data\s*:\s*application\/javascript/gi,
+        /-moz-binding\s*:/gi,
+        /behavior\s*:/gi,
+        /url\s*\(\s*['"]?\s*javascript/gi,
+        /url\s*\(\s*['"]?\s*vbscript/gi,
+        /url\s*\(\s*['"]?\s*data\s*:\s*text\//gi
+    ],
+    // Dangerous patterns to check in SVG content (for data URIs)
+    // eslint-disable-next-line no-script-url
+    svgDangerousPatterns: ['<script', 'javascript:', 'onload=', 'onerror=', 'onclick=', 'onmouseover=']
 };

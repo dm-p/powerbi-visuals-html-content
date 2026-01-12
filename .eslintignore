@@ -6,3 +6,4 @@ test
 .eslintrc.js
 karma.conf.ts
 test.webpack.config.js
+vitest.config.ts

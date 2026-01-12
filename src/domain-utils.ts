@@ -56,6 +56,14 @@ const getSanitizedContent = (content: string) => {
               allowedSchemesByTag,
               transformTags: {
                   '*': (tagName, attribs) => {
+                      // Sanitize data URIs in src attributes
+                      if (attribs.src && typeof attribs.src === 'string' && attribs.src.startsWith('data:')) {
+                          attribs.src = getSanitizedDataUri(attribs.src);
+                      }
+                      // Sanitize data URIs in href attributes for SVG/images
+                      if (attribs.href && typeof attribs.href === 'string' && attribs.href.startsWith('data:')) {
+                          attribs.href = getSanitizedDataUri(attribs.href);
+                      }
                       return {
                           tagName,
                           attribs: getStrippedAttributes(attribs)
@@ -64,20 +72,27 @@ const getSanitizedContent = (content: string) => {
               },
               exclusiveFilter: frame => {
                   try {
-                      // Test for CSS import with potential XSS in <style> tags
-                      const cssImportFail =
-                          (frame.tag == 'style' &&
-                              frame.text.match(
-                                  /@[\s\\]*i[\s\\]*m[\s\\]*p[\s\\]*o[\s\\]*r[\s\\]*t[\s\\]*[^;]+;/g
-                              )?.length > 0) ||
-                          false;
-                      // Test for event attributes (onload, onclick, etc.)
+                      // Test for dangerous CSS patterns in <style> tags
+                      let cssContentFail = false;
+                      if (frame.tag === 'style' && frame.text) {
+                          // Use comprehensive CSS sanitization check
+                          for (const pattern of VisualConstants.cssDangerousPatterns) {
+                              if (pattern.test(frame.text)) {
+                                  console.warn(`Blocked <style> tag containing dangerous pattern: ${pattern}`);
+                                  cssContentFail = true;
+                                  break;
+                              }
+                          }
+                      }
+
+                      // Test for event attributes (onload, onclick, etc.) - anchored and case-insensitive
                       const eventAttributeFailure = Object.keys(
                           frame.attribs
                       ).some(attr => {
-                          return attr.match(/on[a-zA-Z]+/g);
+                          return /^on[a-z]+$/i.test(attr);
                       });
-                      const fail = cssImportFail || eventAttributeFailure;
+
+                      const fail = cssContentFail || eventAttributeFailure;
                       return fail;
                   } catch (e) {
                       return true;
@@ -96,16 +111,120 @@ const getStrippedAttributes = (
     attribs: sanitizeHtml.Attributes
 ): sanitizeHtml.Attributes => {
     for (const [key, value] of Object.entries(attribs)) {
-        if (
-            typeof value === 'string' &&
-            VisualConstants.scriptingPatterns.some(pattern =>
-                value.includes(pattern)
-            )
-        ) {
-            delete attribs[key];
+        // Check attribute values for dangerous patterns (case-insensitive)
+        if (typeof value === 'string') {
+            const lowerValue = value.toLowerCase();
+            const hasDangerousPattern = VisualConstants.scriptingPatterns.some(pattern =>
+                lowerValue.includes(pattern.toLowerCase())
+            );
+
+            if (hasDangerousPattern) {
+                delete attribs[key];
+            }
         }
     }
     return attribs;
+};
+
+/**
+ * Sanitize CSS content to remove dangerous patterns that could lead to XSS or data exfiltration.
+ * This is critical for both <style> tag content and custom stylesheets.
+ */
+const getSanitizedCss = (css: string): string => {
+    if (!css || typeof css !== 'string') {
+        return '';
+    }
+
+    // Check for dangerous CSS patterns and block the entire stylesheet if found
+    for (const pattern of VisualConstants.cssDangerousPatterns) {
+        if (pattern.test(css)) {
+            console.warn(`Blocked CSS containing dangerous pattern: ${pattern}`);
+            return '/* CSS blocked: contains potentially dangerous content */';
+        }
+    }
+
+    // Additional checks for data URIs in CSS - only allow safe image types
+    const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
+    const matches = css.match(dataUriPattern);
+
+    if (matches) {
+        for (const match of matches) {
+            const mimeMatch = match.match(/data:([^;,\s)]+)/i);
+            if (mimeMatch) {
+                const mimeType = mimeMatch[1].toLowerCase();
+                // Only allow image MIME types
+                if (!mimeType.startsWith('image/')) {
+                    console.warn(`Blocked CSS data URI with non-image MIME type: ${mimeType}`);
+                    return '/* CSS blocked: data URI contains non-image content */';
+                }
+            }
+        }
+    }
+
+    return css;
+};
+
+/**
+ * Sanitize CSS specifically for data URIs in img src attributes.
+ * Only allows specific safe image MIME types.
+ */
+const getSanitizedDataUri = (dataUri: string): string => {
+    if (!dataUri || !dataUri.startsWith('data:')) {
+        return dataUri;
+    }
+
+    const mimeMatch = dataUri.match(/^data:([^;,]+)/i);
+    if (mimeMatch) {
+        const mimeType = mimeMatch[1].toLowerCase();
+        // Whitelist of safe image MIME types
+        const safeMimeTypes = [
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/gif',
+            'image/webp',
+            'image/bmp',
+            'image/svg+xml'
+        ];
+
+        if (!safeMimeTypes.includes(mimeType)) {
+            console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
+            return '';
+        }
+
+        // For SVG, perform additional sanitization on the content
+        if (mimeType === 'image/svg+xml') {
+            try {
+                // Decode the SVG content
+                const base64Match = dataUri.match(/^data:image\/svg\+xml;base64,(.+)$/i);
+                const plainMatch = dataUri.match(/^data:image\/svg\+xml,(.+)$/i);
+
+                let svgContent = '';
+                if (base64Match) {
+                    // atob is used here for decoding base64 SVG data URIs for security validation
+                    // eslint-disable-next-line no-script-url
+                    svgContent = atob(base64Match[1]);
+                } else if (plainMatch) {
+                    svgContent = decodeURIComponent(plainMatch[1]);
+                }
+
+                // Check for dangerous patterns in SVG content
+                const lowerContent = svgContent.toLowerCase();
+
+                for (const pattern of VisualConstants.svgDangerousPatterns) {
+                    if (lowerContent.includes(pattern)) {
+                        console.warn(`Blocked SVG data URI containing dangerous pattern: ${pattern}`);
+                        return '';
+                    }
+                }
+            } catch (e) {
+                console.warn('Error parsing SVG data URI, blocking for safety');
+                return '';
+            }
+        }
+    }
+
+    return dataUri;
 };
 
 /**
@@ -141,9 +260,9 @@ export const resolveStyling = (
                   VisualConstants.dom.unselectedClassSelector
               } { opacity: ${1 - transparencyPercent.value / 100}; }`
             : '';
-    const customStyles = `${(useSS &&
-        settings.stylesheet.stylesheetCardMain.stylesheet.value) ||
-        ''}`;
+    // CRITICAL: Sanitize custom stylesheet to prevent CSS-based XSS attacks
+    const rawCustomStyles = useSS && settings.stylesheet.stylesheetCardMain.stylesheet.value || '';
+    const customStyles = rawCustomStyles ? getSanitizedCss(rawCustomStyles) : '';
     styleSheetContainer.text(`${crossFilterStyles} ${customStyles}`);
     resolveUserSelect(
         bodyProps.contentFormattingCardBehavior.userSelect.value,

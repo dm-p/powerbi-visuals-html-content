@@ -8,7 +8,6 @@ import FormattingSettingsModel = formattingSettings.Model;
 import { VisualConstants } from './visual-constants';
 import { IViewModel } from './view-model';
 import { shouldUseStylesheet } from './domain-utils';
-import { RenderFormat } from './types';
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     contentFormatting = new ContentFormattingSettings();
