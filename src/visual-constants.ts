@@ -66,6 +66,8 @@ export const VisualConstants = {
         'clippath',
         'defs',
         'desc',
+        'del',
+        'details',
         'ellipse',
         'feblend',
         'fecolormatrix',
@@ -95,20 +97,26 @@ export const VisualConstants = {
         'filter',
         'g',
         'image',
+        'ins',
         'line',
         'lineargradient',
         'marker',
         'mask',
+        'meter',
         'metadata',
+        'output',
         'path',
         'pattern',
         'polygon',
         'polyline',
+        'progress',
         'radialgradient',
         'rect',
+        'search',
         'set',
         'stop',
         'style',
+        'summary',
         'symbol',
         'text',
         'textpath',
@@ -193,6 +201,13 @@ export const VisualConstants = {
         /url\s*\(\s*['"]?\s*data\s*:\s*text\//gi
     ],
     // Dangerous patterns to check in SVG content (for data URIs)
-    // eslint-disable-next-line no-script-url
-    svgDangerousPatterns: ['<script', 'javascript:', 'onload=', 'onerror=', 'onclick=', 'onmouseover=']
+    svgDangerousPatterns: [
+        '<script',
+        // eslint-disable-next-line no-script-url
+        'javascript:',
+        'onload=',
+        'onerror=',
+        'onclick=',
+        'onmouseover='
+    ]
 };
