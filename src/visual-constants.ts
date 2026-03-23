@@ -187,27 +187,17 @@ export const VisualConstants = {
     // Comprehensive CSS dangerous patterns for style tag content
     cssDangerousPatterns: [
         // eslint-disable-next-line no-useless-escape
-        /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/gi,
-        /expression\s*\(/gi,
-        /javascript\s*:/gi,
-        /vbscript\s*:/gi,
-        /data\s*:\s*text\/html/gi,
-        /data\s*:\s*text\/javascript/gi,
-        /data\s*:\s*application\/javascript/gi,
-        /-moz-binding\s*:/gi,
-        /behavior\s*:/gi,
-        /url\s*\(\s*['"]?\s*javascript/gi,
-        /url\s*\(\s*['"]?\s*vbscript/gi,
-        /url\s*\(\s*['"]?\s*data\s*:\s*text\//gi
-    ],
-    // Dangerous patterns to check in SVG content (for data URIs)
-    svgDangerousPatterns: [
-        '<script',
-        // eslint-disable-next-line no-script-url
-        'javascript:',
-        'onload=',
-        'onerror=',
-        'onclick=',
-        'onmouseover='
+        /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/i,
+        /expression\s*\(/i,
+        /javascript\s*:/i,
+        /vbscript\s*:/i,
+        /data\s*:\s*text\/html/i,
+        /data\s*:\s*text\/javascript/i,
+        /data\s*:\s*application\/javascript/i,
+        /-moz-binding\s*:/i,
+        /behavior\s*:/i,
+        /url\s*\(\s*['"]?\s*javascript/i,
+        /url\s*\(\s*['"]?\s*vbscript/i,
+        /url\s*\(\s*['"]?\s*data\s*:\s*text\//i
     ]
 };

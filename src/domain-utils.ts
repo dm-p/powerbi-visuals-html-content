@@ -48,8 +48,7 @@ const getSanitizedContent = (content: string) => {
         allowedSchemesByTag,
         allowedTags
     } = VisualConstants;
-    return config.sanitize
-        ? sanitizeHtml(content, {
+    return sanitizeHtml(content, {
               allowedAttributes: { '*': ['*'] },
               allowedTags,
               allowedSchemes,
@@ -63,6 +62,12 @@ const getSanitizedContent = (content: string) => {
                       // Sanitize data URIs in href attributes for SVG/images
                       if (attribs.href && typeof attribs.href === 'string' && attribs.href.startsWith('data:')) {
                           attribs.href = getSanitizedDataUri(attribs.href);
+                      }
+                      // Sanitize xlink:href (SVG attribute that can carry javascript: or data: URIs)
+                      if (attribs['xlink:href'] && typeof attribs['xlink:href'] === 'string') {
+                          if (attribs['xlink:href'].startsWith('data:')) {
+                              attribs['xlink:href'] = getSanitizedDataUri(attribs['xlink:href']);
+                          }
                       }
                       return {
                           tagName,
@@ -83,6 +88,21 @@ const getSanitizedContent = (content: string) => {
                                   break;
                               }
                           }
+                          // Also check for non-image data URIs in style content
+                          if (!cssContentFail) {
+                              const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
+                              const matches = frame.text.match(dataUriPattern);
+                              if (matches) {
+                                  for (const match of matches) {
+                                      const mimeMatch = match.match(/data:([^;,\s)]+)/i);
+                                      if (mimeMatch && !mimeMatch[1].toLowerCase().startsWith('image/')) {
+                                          console.warn(`Blocked <style> tag with non-image data URI: ${mimeMatch[1]}`);
+                                          cssContentFail = true;
+                                          break;
+                                      }
+                                  }
+                              }
+                          }
                       }
 
                       // Test for event attributes (onload, onclick, etc.) - anchored and case-insensitive
@@ -98,8 +118,7 @@ const getSanitizedContent = (content: string) => {
                       return true;
                   }
               }
-          })
-        : content;
+          });
 };
 
 /**
@@ -120,6 +139,17 @@ const getStrippedAttributes = (
 
             if (hasDangerousPattern) {
                 delete attribs[key];
+                continue;
+            }
+
+            // Check inline style attributes against CSS dangerous patterns
+            if (key.toLowerCase() === 'style') {
+                const hasDangerousCss = VisualConstants.cssDangerousPatterns.some(
+                    pattern => pattern.test(value)
+                );
+                if (hasDangerousCss) {
+                    delete attribs[key];
+                }
             }
         }
     }
@@ -183,44 +213,12 @@ const getSanitizedDataUri = (dataUri: string): string => {
             'image/jpg',
             'image/gif',
             'image/webp',
-            'image/bmp',
-            'image/svg+xml'
+            'image/bmp'
         ];
 
         if (!safeMimeTypes.includes(mimeType)) {
             console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
             return '';
-        }
-
-        // For SVG, perform additional sanitization on the content
-        if (mimeType === 'image/svg+xml') {
-            try {
-                // Decode the SVG content
-                const base64Match = dataUri.match(/^data:image\/svg\+xml;base64,(.+)$/i);
-                const plainMatch = dataUri.match(/^data:image\/svg\+xml,(.+)$/i);
-
-                let svgContent = '';
-                if (base64Match) {
-                    // atob is used here for decoding base64 SVG data URIs for security validation
-                    // eslint-disable-next-line no-script-url
-                    svgContent = atob(base64Match[1]);
-                } else if (plainMatch) {
-                    svgContent = decodeURIComponent(plainMatch[1]);
-                }
-
-                // Check for dangerous patterns in SVG content
-                const lowerContent = svgContent.toLowerCase();
-
-                for (const pattern of VisualConstants.svgDangerousPatterns) {
-                    if (lowerContent.includes(pattern)) {
-                        console.warn(`Blocked SVG data URI containing dangerous pattern: ${pattern}`);
-                        return '';
-                    }
-                }
-            } catch (e) {
-                console.warn('Error parsing SVG data URI, blocking for safety');
-                return '';
-            }
         }
     }
 
