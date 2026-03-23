@@ -91,9 +91,7 @@ describe('Security Sanitization', () => {
     });
 
     describe('CSS Pattern Matching', () => {
-        // Helper to test regex patterns safely (reset lastIndex for global patterns)
         const testPattern = (pattern: RegExp, input: string): boolean => {
-            pattern.lastIndex = 0; // Reset for global patterns
             return pattern.test(input);
         };
 
@@ -282,8 +280,7 @@ describe('Security Sanitization', () => {
                 'image/jpg',
                 'image/gif',
                 'image/webp',
-                'image/bmp',
-                'image/svg+xml'
+                'image/bmp'
             ];
 
             // Verify concept - actual implementation in getSanitizedDataUri

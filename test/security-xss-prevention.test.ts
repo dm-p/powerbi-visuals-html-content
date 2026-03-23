@@ -14,10 +14,8 @@ describe('Security XSS Attack Prevention', () => {
         );
     };
 
-    // Helper to test cssDangerousPatterns matching (with proper regex reset)
     const matchesCssDangerousPattern = (input: string): boolean => {
         return VisualConstants.cssDangerousPatterns.some(pattern => {
-            pattern.lastIndex = 0;
             return pattern.test(input);
         });
     };
