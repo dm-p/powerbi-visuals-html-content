@@ -29,7 +29,6 @@
         "eslint": "^8.46.0",
         "eslint-plugin-powerbi-visuals": "^0.8.1",
         "fs": "^0.0.1-security",
-
         "jsdom": "^27.4.0",
         "lodash": "^4.17.21",
         "marked": "^15.0.7",
