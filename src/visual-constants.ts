@@ -86,7 +86,7 @@ export const VisualConstants = {
         'fegaussianblur',
         'feimage',
         'femerge',
-        'femergemode',
+        'femergenode',
         'femorphology',
         'feoffset',
         'fepointlight',
