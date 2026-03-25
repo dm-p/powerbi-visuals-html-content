@@ -189,10 +189,10 @@ describe('VisualConstants', () => {
 
     describe('scriptingPatterns', () => {
         it('should include javascript and variants', () => {
-            expect(VisualConstants.scriptingPatterns).toContain('javascript');
-            expect(VisualConstants.scriptingPatterns).toContain('vbscript');
-            expect(VisualConstants.scriptingPatterns).toContain('livescript');
-            expect(VisualConstants.scriptingPatterns).toContain('mocha');
+            expect(VisualConstants.scriptingPatterns).toContain('javascript:');
+            expect(VisualConstants.scriptingPatterns).toContain('vbscript:');
+            expect(VisualConstants.scriptingPatterns).toContain('livescript:');
+            expect(VisualConstants.scriptingPatterns).toContain('mocha:');
         });
 
         it('should include data URI patterns', () => {

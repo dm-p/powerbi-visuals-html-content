@@ -4,9 +4,9 @@ import { VisualConstants } from '../src/visual-constants';
 describe('Security Sanitization', () => {
     describe('Visual Constants - Security Patterns', () => {
         it('should have comprehensive scriptingPatterns', () => {
-            expect(VisualConstants.scriptingPatterns).toContain('javascript');
-            expect(VisualConstants.scriptingPatterns).toContain('vbscript');
-            expect(VisualConstants.scriptingPatterns).toContain('livescript');
+            expect(VisualConstants.scriptingPatterns).toContain('javascript:');
+            expect(VisualConstants.scriptingPatterns).toContain('vbscript:');
+            expect(VisualConstants.scriptingPatterns).toContain('livescript:');
             expect(VisualConstants.scriptingPatterns).toContain(
                 'data:text/html'
             );
@@ -200,9 +200,9 @@ describe('Security Sanitization', () => {
         });
 
         it('should detect vbscript and alternative schemes', () => {
-            expect(VisualConstants.scriptingPatterns).toContain('vbscript');
-            expect(VisualConstants.scriptingPatterns).toContain('livescript');
-            expect(VisualConstants.scriptingPatterns).toContain('mocha');
+            expect(VisualConstants.scriptingPatterns).toContain('vbscript:');
+            expect(VisualConstants.scriptingPatterns).toContain('livescript:');
+            expect(VisualConstants.scriptingPatterns).toContain('mocha:');
         });
 
         it('should detect data URIs with dangerous MIME types', () => {
@@ -287,6 +287,29 @@ describe('Security Sanitization', () => {
             safeMimeTypes.forEach(mime => {
                 expect(mime).toMatch(/^image\//);
             });
+        });
+
+        it('should not include image/svg+xml as a safe MIME type', () => {
+            // SVG data URIs can embed scripts, so they are blocked entirely
+            // in the certified edition. Only raster image types are allowed.
+            const safeMimeTypes = [
+                'image/png',
+                'image/jpeg',
+                'image/jpg',
+                'image/gif',
+                'image/webp',
+                'image/bmp'
+            ];
+            expect(safeMimeTypes).not.toContain('image/svg+xml');
+        });
+
+        it('should block data:text/html via scriptingPatterns', () => {
+            // data:text/html is a dangerous MIME type used in XSS attacks.
+            // getSanitizedDataUri blocks non-image MIME types and returns
+            // 'data:,' (inert placeholder) to prevent empty src="" requests.
+            expect(VisualConstants.scriptingPatterns).toContain(
+                'data:text/html'
+            );
         });
 
         it('should identify unsafe MIME types', () => {

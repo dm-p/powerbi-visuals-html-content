@@ -125,10 +125,14 @@ export const VisualConstants = {
         'view'
     ],
     scriptingPatterns: [
-        'javascript',
-        'vbscript',
-        'livescript',
-        'mocha',
+        // eslint-disable-next-line no-script-url
+        'javascript:',
+        'javascript :',
+        'vbscript:',
+        'vbscript :',
+        'livescript:',
+        'livescript :',
+        'mocha:',
         'data:text/html',
         'data:text/javascript',
         'data:application/javascript',

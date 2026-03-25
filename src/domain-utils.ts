@@ -67,6 +67,8 @@ const getSanitizedContent = (content: string) => {
                       if (attribs['xlink:href'] && typeof attribs['xlink:href'] === 'string') {
                           if (attribs['xlink:href'].startsWith('data:')) {
                               attribs['xlink:href'] = getSanitizedDataUri(attribs['xlink:href']);
+                          } else if (/^javascript\s*:/i.test(attribs['xlink:href'])) {
+                              delete attribs['xlink:href'];
                           }
                       }
                       return {
@@ -218,7 +220,7 @@ const getSanitizedDataUri = (dataUri: string): string => {
 
         if (!safeMimeTypes.includes(mimeType)) {
             console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
-            return '';
+            return 'data:,';
         }
     }
 

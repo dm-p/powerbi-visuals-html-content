@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { VisualConstants } from '../src/visual-constants';
 
 /**
@@ -264,6 +264,29 @@ describe('Security XSS Attack Prevention', () => {
             ];
             links.forEach(link => {
                 expect(matchesScriptingPattern(link)).toBe(false);
+            });
+        });
+
+        it('should NOT block URLs or classes containing "javascript" without colon', () => {
+            const legitimateValues = [
+                'https://developer.mozilla.org/docs/JavaScript',
+                'javascript-syntax-highlight',
+                'class="javascript-theme"',
+                'Learn JavaScript Today'
+            ];
+            legitimateValues.forEach(value => {
+                expect(matchesScriptingPattern(value)).toBe(false);
+            });
+        });
+
+        it('should still block javascript: URI schemes', () => {
+            const maliciousValues = [
+                "javascript:alert('XSS')",
+                'JavaScript:void(0)',
+                'JAVASCRIPT:alert(1)'
+            ];
+            maliciousValues.forEach(value => {
+                expect(matchesScriptingPattern(value)).toBe(true);
             });
         });
 
