@@ -125,7 +125,6 @@ export const VisualConstants = {
         'view'
     ],
     scriptingPatterns: [
-        // eslint-disable-next-line no-script-url
         'javascript:',
         'javascript :',
         'vbscript:',
@@ -190,7 +189,6 @@ export const VisualConstants = {
     ],
     // Comprehensive CSS dangerous patterns for style tag content
     cssDangerousPatterns: [
-        // eslint-disable-next-line no-useless-escape
         /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/i,
         /expression\s*\(/i,
         /javascript\s*:/i,
