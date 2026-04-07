@@ -901,8 +901,10 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
             'Style with safe color and unsafe background — color survives, background dropped.',
         input: '<div style="color: red; background: url(https://attacker.example/x.png)">x</div>',
         expectedSanitized: {
-            contains: ['color: red'],
-            notContains: ['attacker.example', 'background:']
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output is 'color:red' rather than 'color: red'.
+            contains: ['color:red'],
+            notContains: ['attacker.example', 'background']
         },
         category: 'partial-survival',
         cspCategory: 'img-src',
@@ -914,8 +916,10 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         input:
             '<div style="font-size: 14px; color: blue; cursor: url(https://attacker.example/c.cur), auto; padding: 4px">x</div>',
         expectedSanitized: {
-            contains: ['font-size: 14px', 'color: blue', 'padding: 4px'],
-            notContains: ['attacker.example', 'cursor:']
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output collapses to 'font-size:14px' etc.
+            contains: ['font-size:14px', 'color:blue', 'padding:4px'],
+            notContains: ['attacker.example', 'cursor']
         },
         category: 'partial-survival',
         cspCategory: 'img-src',
@@ -978,7 +982,9 @@ export const CLEAN_PAYLOADS: Payload[] = [
             'font-weight) with no external resource references.',
         input: '<p style="color: red; font-weight: bold">red bold</p>',
         expectedSanitized: {
-            contains: ['color: red', 'font-weight: bold'],
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output is 'color:red;font-weight:bold'.
+            contains: ['color:red', 'font-weight:bold'],
             notContains: ['url(']
         },
         category: 'clean-baseline',

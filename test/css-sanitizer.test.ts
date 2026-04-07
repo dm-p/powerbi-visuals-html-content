@@ -665,6 +665,51 @@ describe('partial survival — siblings untouched (Task 12)', () => {
         expect(out).toContain('@media');
         expect(out).toContain('color: red');
     });
+
+    // Regression: Task 14 integration harness surfaced a bug where adjacent
+    // declarations in declaration-list mode were joined without their
+    // separator ';' because Declaration.toString() does not include the
+    // trailing semicolon. sanitize-html's own style re-parser then choked on
+    // the malformed output ("font-size: 14pxcolor: blue"). The fix is to
+    // serialize the synthetic container rule and strip the wrapper braces
+    // so postcss's stringify inserts separators correctly.
+    it('preserves separator semicolons between adjacent safe declarations (declaration-list)', () => {
+        const out = sanitizeCss(
+            'color: red; font-weight: bold',
+            'declaration-list'
+        );
+        expect(out).toContain('color: red');
+        expect(out).toContain('font-weight: bold');
+        // Parseable as a declaration list — no touching tokens across the
+        // boundary between declarations.
+        expect(out).not.toMatch(/redfont-weight/);
+        expect(out).not.toMatch(/boldcolor/);
+    });
+
+    it('preserves separators across three safe declarations (declaration-list)', () => {
+        const out = sanitizeCss(
+            'color: red; font-size: 14px; padding: 4px',
+            'declaration-list'
+        );
+        expect(out).toContain('color: red');
+        expect(out).toContain('font-size: 14px');
+        expect(out).toContain('padding: 4px');
+        expect(out).not.toMatch(/redfont/);
+        expect(out).not.toMatch(/14pxpadding/);
+    });
+
+    it('preserves separators when a middle declaration is dropped', () => {
+        const out = sanitizeCss(
+            'color: red; background: url(https://evil/x); font-weight: bold',
+            'declaration-list'
+        );
+        expect(out).toContain('color: red');
+        expect(out).toContain('font-weight: bold');
+        // Neither the dropped declaration nor a merge of the survivors
+        expect(out).not.toContain('evil');
+        expect(out).not.toContain('background');
+        expect(out).not.toMatch(/redfont-weight/);
+    });
 });
 
 describe('defense-in-depth regex final pass (Task 13)', () => {

@@ -12,6 +12,26 @@ import { marked } from 'marked';
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
 import { RenderFormat } from './types';
+import { sanitizeCss } from './css-sanitizer';
+
+/**
+ * Pre-process <style> tag bodies through sanitizeCss before handing off
+ * to sanitize-html. sanitize-html's transformTags callback does not
+ * expose tag text, so we use a regex pass over the raw input to extract
+ * <style> bodies, sanitize them, and re-inject. Case-insensitive.
+ */
+function preprocessStyleTags(input: string): string {
+    return input.replace(
+        /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
+        (_match, body) => {
+            const sanitized = sanitizeCss(body, 'stylesheet');
+            if (sanitized === '') {
+                return '';
+            }
+            return `<style>${sanitized}</style>`;
+        }
+    );
+}
 
 /**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
@@ -40,9 +60,11 @@ export const getSanitizedContent = (content: string) => {
         allowedSchemesByTag,
         allowedTags
     } = VisualConstants;
-    return sanitizeHtml(content, {
+    const preprocessed = preprocessStyleTags(content);
+    return sanitizeHtml(preprocessed, {
               allowedAttributes: { '*': ['*'] },
               allowedTags,
+              allowVulnerableTags: true,
               allowedSchemes,
               allowedSchemesByTag,
               transformTags: {
@@ -63,6 +85,15 @@ export const getSanitizedContent = (content: string) => {
                               delete attribs['xlink:href'];
                           }
                       }
+                      // Sanitize inline style attribute via the CSS sanitizer.
+                      if (attribs.style && typeof attribs.style === 'string') {
+                          const sanitizedStyle = sanitizeCss(attribs.style, 'declaration-list');
+                          if (sanitizedStyle === '') {
+                              delete attribs.style;
+                          } else {
+                              attribs.style = sanitizedStyle;
+                          }
+                      }
                       return {
                           tagName,
                           attribs: getStrippedAttributes(attribs)
@@ -71,34 +102,6 @@ export const getSanitizedContent = (content: string) => {
               },
               exclusiveFilter: (frame: { tag: string; text: string; attribs: Record<string, string> }) => {
                   try {
-                      // Test for dangerous CSS patterns in <style> tags
-                      let cssContentFail = false;
-                      if (frame.tag === 'style' && frame.text) {
-                          // Use comprehensive CSS sanitization check
-                          for (const pattern of VisualConstants.cssDangerousPatterns) {
-                              if (pattern.test(frame.text)) {
-                                  console.warn(`Blocked <style> tag containing dangerous pattern: ${pattern}`);
-                                  cssContentFail = true;
-                                  break;
-                              }
-                          }
-                          // Also check for non-image data URIs in style content
-                          if (!cssContentFail) {
-                              const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
-                              const matches = frame.text.match(dataUriPattern);
-                              if (matches) {
-                                  for (const match of matches) {
-                                      const mimeMatch = match.match(/data:([^;,\s)]+)/i);
-                                      if (mimeMatch && !mimeMatch[1].toLowerCase().startsWith('image/')) {
-                                          console.warn(`Blocked <style> tag with non-image data URI: ${mimeMatch[1]}`);
-                                          cssContentFail = true;
-                                          break;
-                                      }
-                                  }
-                              }
-                          }
-                      }
-
                       // Test for event attributes (onload, onclick, etc.) - anchored and case-insensitive
                       const eventAttributeFailure = Object.keys(
                           frame.attribs
@@ -106,8 +109,7 @@ export const getSanitizedContent = (content: string) => {
                           return /^on[a-z]+$/i.test(attr);
                       });
 
-                      const fail = cssContentFail || eventAttributeFailure;
-                      return fail;
+                      return eventAttributeFailure;
                   } catch (e) {
                       return true;
                   }
@@ -134,16 +136,6 @@ export const getStrippedAttributes = (attribs: any): any => {
                 delete attribs[key];
                 continue;
             }
-
-            // Check inline style attributes against CSS dangerous patterns
-            if (key.toLowerCase() === 'style') {
-                const hasDangerousCss = VisualConstants.cssDangerousPatterns.some(
-                    pattern => pattern.test(value)
-                );
-                if (hasDangerousCss) {
-                    delete attribs[key];
-                }
-            }
         }
     }
     return attribs;
@@ -157,34 +149,7 @@ export const getSanitizedCss = (css: string): string => {
     if (!css || typeof css !== 'string') {
         return '';
     }
-
-    // Check for dangerous CSS patterns and block the entire stylesheet if found
-    for (const pattern of VisualConstants.cssDangerousPatterns) {
-        if (pattern.test(css)) {
-            console.warn(`Blocked CSS containing dangerous pattern: ${pattern}`);
-            return '/* CSS blocked: contains potentially dangerous content */';
-        }
-    }
-
-    // Additional checks for data URIs in CSS - only allow safe image types
-    const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
-    const matches = css.match(dataUriPattern);
-
-    if (matches) {
-        for (const match of matches) {
-            const mimeMatch = match.match(/data:([^;,\s)]+)/i);
-            if (mimeMatch) {
-                const mimeType = mimeMatch[1].toLowerCase();
-                // Only allow image MIME types
-                if (!mimeType.startsWith('image/')) {
-                    console.warn(`Blocked CSS data URI with non-image MIME type: ${mimeType}`);
-                    return '/* CSS blocked: data URI contains non-image content */';
-                }
-            }
-        }
-    }
-
-    return css;
+    return sanitizeCss(css, 'stylesheet');
 };
 
 /**

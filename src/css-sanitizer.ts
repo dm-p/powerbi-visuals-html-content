@@ -228,10 +228,14 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         if (!synthetic || synthetic.type !== 'rule') {
             return '';
         }
-        output = synthetic.nodes
-            .map(n => n.toString())
-            .join('')
-            .trim();
+        // Serialize the whole synthetic rule so postcss's stringify inserts
+        // separators (';') between declarations, then strip the wrapper
+        // braces. Joining per-node toString() by hand would drop the
+        // separators because Declaration.toString() does NOT include the
+        // trailing semicolon — that's the container's job, not the node's.
+        const full = synthetic.toString();
+        const match = full.match(/^[^{]*\{([\s\S]*)\}\s*$/);
+        output = match ? match[1].trim() : '';
     } else {
         output = root.toString();
     }
