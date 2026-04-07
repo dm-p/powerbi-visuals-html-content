@@ -69,3 +69,9 @@ typings/
 dist/
 webpack.statistics.*.html
 webpack.statistics.html
+
+# Playwright / integration test artifacts
+/test-results/
+/playwright-report/
+/harness-baseline.log
+/harness-after-*.log
