@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
+    <title>CSP Replica Sandbox</title>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        // Listeners installed BEFORE any payload is rendered.
+        window.__violations = [];
+        window.__consoleErrors = [];
+        window.__consoleWarnings = [];
+
+        document.addEventListener('securitypolicyviolation', function (e) {
+            window.__violations.push({
+                blockedURI: e.blockedURI,
+                violatedDirective: e.violatedDirective,
+                effectiveDirective: e.effectiveDirective,
+                originalPolicy: e.originalPolicy,
+                sourceFile: e.sourceFile,
+                lineNumber: e.lineNumber,
+                columnNumber: e.columnNumber,
+                sample: e.sample
+            });
+        });
+
+        var origError = console.error.bind(console);
+        var origWarn = console.warn.bind(console);
+        console.error = function () {
+            window.__consoleErrors.push(Array.prototype.slice.call(arguments).map(String).join(' '));
+            origError.apply(null, arguments);
+        };
+        console.warn = function () {
+            window.__consoleWarnings.push(Array.prototype.slice.call(arguments).map(String).join(' '));
+            origWarn.apply(null, arguments);
+        };
+
+        window.__renderPayload = function (html) {
+            var root = document.getElementById('root');
+            root.innerHTML = '';
+            // Use a parser-based insertion path that mirrors how the visual
+            // inserts sanitized HTML in production (innerHTML on a container).
+            root.innerHTML = html;
+            return new Promise(function (resolve) {
+                // Wait two task ticks so async resource loads (img src, etc.)
+                // have a chance to fail and emit violations.
+                setTimeout(function () {
+                    setTimeout(resolve, 50);
+                }, 50);
+            });
+        };
+
+        window.__reset = function () {
+            window.__violations = [];
+            window.__consoleErrors = [];
+            window.__consoleWarnings = [];
+            document.getElementById('root').innerHTML = '';
+        };
+    </script>
+</body>
+</html>
