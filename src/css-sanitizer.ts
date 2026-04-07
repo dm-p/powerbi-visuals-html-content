@@ -37,6 +37,42 @@ const ALLOWED_AT_RULES = new Set<string>([
     'page'
 ]);
 
+/**
+ * Defense-in-depth patterns run against the final serialized output of
+ * sanitizeCss, AFTER the postcss-based pipeline has finished. If any match,
+ * the entire block is dropped. This is a safety net against parser escapes
+ * we didn't anticipate — the parser-based rules are the primary defense,
+ * these are belt and braces.
+ *
+ * Specifically catches content smuggled through CSS comments, which the
+ * postcss walker preserves verbatim because comments are structurally legal.
+ *
+ * The `behavior:` pattern is anchored to a declaration boundary so it
+ * doesn't false-positive on compound property names like `scroll-behavior`
+ * or `overflow-behavior`.
+ */
+const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
+    /@import/i,
+    /@font-face/i,
+    /@namespace/i,
+    /expression\s*\(/i,
+    /javascript\s*:/i,
+    /vbscript\s*:/i,
+    /livescript\s*:/i,
+    /mocha\s*:/i,
+    /data\s*:\s*text\/html/i,
+    /data\s*:\s*text\/javascript/i,
+    /data\s*:\s*application\/javascript/i,
+    /data\s*:\s*application\/x-javascript/i,
+    /-moz-binding/i,
+    /(^|[;{\s])behavior\s*:/i,
+    /progid\s*:/i
+];
+
+function finalPassIsClean(serialized: string): boolean {
+    return !DEFENSE_IN_DEPTH_PATTERNS.some(p => p.test(serialized));
+}
+
 const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
     /javascript\s*:/i,
     /vbscript\s*:/i,
@@ -186,18 +222,27 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         }
     });
 
+    let output: string;
     if (mode === 'declaration-list') {
         const synthetic = root.first;
         if (!synthetic || synthetic.type !== 'rule') {
             return '';
         }
-        return synthetic.nodes
+        output = synthetic.nodes
             .map(n => n.toString())
             .join('')
             .trim();
+    } else {
+        output = root.toString();
     }
 
-    return root.toString();
+    if (!finalPassIsClean(output)) {
+        console.warn(
+            'sanitizeCss: defense-in-depth final pass caught a dangerous pattern; dropping entire block'
+        );
+        return '';
+    }
+    return output;
 }
 
 /**

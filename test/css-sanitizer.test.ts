@@ -200,13 +200,6 @@ describe('sanitizeCss', () => {
     });
 
     describe('failure mode', () => {
-        it('returns empty string and warns on parse failure', () => {
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            const out = sanitizeCss('}}}', 'stylesheet');
-            expect(out === '' || typeof out === 'string').toBe(true);
-            warn.mockRestore();
-        });
-
         it('returns empty for empty input', () => {
             expect(sanitizeCss('', 'declaration-list')).toBe('');
             expect(sanitizeCss('', 'stylesheet')).toBe('');
@@ -671,5 +664,102 @@ describe('partial survival — siblings untouched (Task 12)', () => {
         expect(out).not.toContain('attacker.example');
         expect(out).toContain('@media');
         expect(out).toContain('color: red');
+    });
+});
+
+describe('defense-in-depth regex final pass (Task 13)', () => {
+    it('drops a rule whose comment contains @import', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* @import url(https://evil) */ }',
+            'stylesheet'
+        );
+        expect(out).toBe('');
+    });
+
+    it('drops a rule whose comment contains javascript:', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* javascript:alert(1) */ }',
+            'stylesheet'
+        );
+        expect(out).toBe('');
+    });
+
+    it('drops a rule whose comment contains expression(', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* expression(alert(1)) */ }',
+            'stylesheet'
+        );
+        expect(out).toBe('');
+    });
+
+    it('drops a rule whose comment contains vbscript:', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* vbscript:msgbox(1) */ }',
+            'stylesheet'
+        );
+        expect(out).toBe('');
+    });
+
+    it('drops a rule whose comment contains -moz-binding', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* -moz-binding: url(foo) */ }',
+            'stylesheet'
+        );
+        expect(out).toBe('');
+    });
+
+    it('defense-in-depth also applies to declaration-list mode', () => {
+        const out = sanitizeCss(
+            'color: red /* javascript:alert(1) */',
+            'declaration-list'
+        );
+        expect(out).toBe('');
+    });
+
+    it('emits a console.warn when the defense-in-depth pass fires', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        sanitizeCss('p { /* @import */ color: red; }', 'stylesheet');
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    it('preserves a rule with a benign comment', () => {
+        const out = sanitizeCss(
+            'p { color: red; /* just a normal comment */ }',
+            'stylesheet'
+        );
+        expect(out).toContain('color: red');
+    });
+});
+
+describe('parse failure (Task 13)', () => {
+    it('returns empty string and warns when postcss.parse throws', async () => {
+        const postcssModule = await import('postcss');
+        const parseSpy = vi
+            .spyOn(postcssModule.default, 'parse')
+            .mockImplementation(() => {
+                throw new Error('synthetic parse failure');
+            });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        try {
+            const out = sanitizeCss('p { color: red; }', 'stylesheet');
+
+            expect(out).toBe('');
+            expect(warn).toHaveBeenCalled();
+            const warnMsg = (warn.mock.calls[0] || []).join(' ');
+            expect(warnMsg).toContain('parse failure');
+            expect(warnMsg).toContain('synthetic parse failure');
+        } finally {
+            // Restore in finally so a failed assertion doesn't leak the mock
+            // into subsequent tests — even if this block is reordered later.
+            parseSpy.mockRestore();
+            warn.mockRestore();
+        }
+    });
+
+    it('returns empty for empty input without calling parse', () => {
+        expect(sanitizeCss('', 'stylesheet')).toBe('');
+        expect(sanitizeCss('', 'declaration-list')).toBe('');
     });
 });
