@@ -24,6 +24,51 @@
 import postcss, { Root, Declaration } from 'postcss';
 import valueParser, { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
 
+const ALLOWED_AT_RULES = new Set<string>([
+    'media',
+    'supports',
+    'keyframes',
+    '-webkit-keyframes',
+    'font-feature-values',
+    'page'
+]);
+
+const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
+    /javascript\s*:/i,
+    /vbscript\s*:/i,
+    /livescript\s*:/i,
+    /mocha\s*:/i,
+    /data\s*:\s*text\/html/i,
+    /data\s*:\s*text\/javascript/i,
+    /data\s*:\s*application\/javascript/i,
+    /data\s*:\s*application\/x-javascript/i,
+    /data\s*:\s*image/i
+];
+
+function hasDangerousSchemeInValue(value: string): boolean {
+    // Strip url(...) tokens first — they are handled by the url() walker
+    // in hasUnsafeUrl, and safe image data URIs inside url() must not
+    // trip the bare-scheme check (e.g. url(data:image/png;base64,...)).
+    //
+    // The [^)]* pattern does not handle escaped or nested closing parens
+    // inside the url argument (CSS allows `url(foo\))` and `url("a)b")`).
+    // That's acceptable because any dangerous content inside the url()
+    // token is already caught by the postcss-value-parser AST walk in
+    // hasUnsafeUrl — this pre-strip is only a false-positive guard for
+    // the scheme regex, not a source of truth for safety.
+    const stripped = value.replace(/url\s*\([^)]*\)/gi, '');
+    return DANGEROUS_SCHEME_PATTERNS.some(p => p.test(stripped));
+}
+
+function hasDangerousSelector(selector: string): boolean {
+    if (/javascript\s*:/i.test(selector)) return true;
+    for (let i = 0; i < selector.length; i++) {
+        const code = selector.charCodeAt(i);
+        if (code >= 0x00 && code <= 0x1f) return true;
+    }
+    return false;
+}
+
 const SAFE_IMAGE_MIME_TYPES = new Set([
     'image/png',
     'image/jpeg',
@@ -112,6 +157,20 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         return '';
     }
 
+    root.walkAtRules(atRule => {
+        if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
+            atRule.remove();
+        }
+    });
+
+    if (mode === 'stylesheet') {
+        root.walkRules(rule => {
+            if (hasDangerousSelector(rule.selector)) {
+                rule.remove();
+            }
+        });
+    }
+
     root.walkDecls((decl: Declaration) => {
         if (isDangerousDeclaration(decl)) {
             decl.remove();
@@ -153,6 +212,7 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
 function isDangerousDeclaration(decl: Declaration): boolean {
     const value = decl.value;
     if (!value) return false;
+    if (hasDangerousSchemeInValue(value)) return true;
     if (!/url\s*\(/i.test(value)) return false;
 
     let parsed;
