@@ -180,6 +180,19 @@ export const getSanitizedContent = (content: string) => {
                       if (hasEventAttribute) {
                           attribs['data-sanitize-drop'] = '1';
                       }
+                      // NFKC-normalize URL-bearing attribute values to defeat
+                      // Unicode obfuscation of dangerous schemes — e.g. fullwidth
+                      // 'ｊavascript:' becomes 'javascript:' after normalization,
+                      // which then matches sanitize-html's allowedSchemes check
+                      // and is rejected. Browsers do this normalization themselves
+                      // when parsing URLs; we mirror it so the scheme check can
+                      // see what the browser will see.
+                      for (const urlAttr of ['href', 'src', 'xlink:href']) {
+                          const v = attribs[urlAttr];
+                          if (typeof v === 'string') {
+                              attribs[urlAttr] = v.normalize('NFKC');
+                          }
+                      }
                       // Sanitize data URIs in src attributes
                       if (attribs.src && typeof attribs.src === 'string' && attribs.src.startsWith('data:')) {
                           attribs.src = getSanitizedDataUri(attribs.src);
@@ -270,8 +283,12 @@ export const getSanitizedCss = (css: string): string => {
 };
 
 /**
- * Sanitize CSS specifically for data URIs in img src attributes.
- * Only allows specific safe image MIME types.
+ * Sanitize a data: URI for use in img src / href / xlink:href attributes.
+ * Only allows specific safe image MIME types AND requires the URI to be
+ * base64-encoded — real binary image data is always base64. A
+ * `data:image/png,<plain-text>` URI is always smuggling (typically HTML
+ * or text masquerading as an image) and is rejected even though the
+ * declared MIME type is on the allowlist.
  */
 export const getSanitizedDataUri = (dataUri: string): string => {
     if (!dataUri || !dataUri.startsWith('data:')) {
@@ -293,6 +310,17 @@ export const getSanitizedDataUri = (dataUri: string): string => {
 
         if (!safeMimeTypes.includes(mimeType)) {
             console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
+            return 'data:,';
+        }
+
+        // Require base64 encoding. Real binary images can only be
+        // expressed as base64; a data:image/* without ;base64, is
+        // always carrying plain-text content (HTML/SVG/script) and
+        // smuggling it past the MIME-type check.
+        if (!/^data:[^,]*;base64,/i.test(dataUri)) {
+            console.warn(
+                `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
+            );
             return 'data:,';
         }
     }
