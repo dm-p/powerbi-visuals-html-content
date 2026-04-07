@@ -492,3 +492,184 @@ describe('sanitizeCss', () => {
         });
     });
 });
+
+describe('denied CSS functions (Task 12)', () => {
+    it('drops declaration with expression()', () => {
+        const out = sanitizeCss(
+            'width: expression(alert(1))',
+            'declaration-list'
+        );
+        expect(out).not.toContain('expression');
+        expect(out).not.toContain('width');
+    });
+
+    it('drops declaration with expression() inside a stylesheet rule', () => {
+        const out = sanitizeCss(
+            'p { color: red; width: expression(alert(1)); }',
+            'stylesheet'
+        );
+        expect(out).toContain('color: red');
+        expect(out).not.toContain('expression');
+        expect(out).not.toContain('width');
+    });
+
+    it('drops declaration with uppercase EXPRESSION()', () => {
+        const out = sanitizeCss(
+            'width: EXPRESSION(alert(1))',
+            'declaration-list'
+        );
+        expect(out).not.toContain('EXPRESSION');
+        expect(out).not.toContain('expression');
+    });
+
+    it('drops declaration with -moz-binding() function', () => {
+        const out = sanitizeCss(
+            'x: -moz-binding(foo)',
+            'declaration-list'
+        );
+        expect(out).not.toContain('-moz-binding');
+    });
+
+    it('drops declaration with attr() function', () => {
+        const out = sanitizeCss(
+            'content: attr(data-x)',
+            'declaration-list'
+        );
+        expect(out).not.toContain('attr');
+        expect(out).not.toContain('content');
+    });
+
+    it('preserves declaration with safe calc() function', () => {
+        const out = sanitizeCss(
+            'width: calc(100% - 20px)',
+            'declaration-list'
+        );
+        expect(out).toContain('calc');
+        expect(out).toContain('width');
+    });
+
+    it('preserves declaration with rgb() and hsl()', () => {
+        const out = sanitizeCss(
+            'color: rgb(10, 20, 30)',
+            'declaration-list'
+        );
+        expect(out).toContain('rgb');
+
+        const out2 = sanitizeCss(
+            'background-color: hsl(120, 50%, 50%)',
+            'declaration-list'
+        );
+        expect(out2).toContain('hsl');
+    });
+
+    it('preserves declaration with var()', () => {
+        const out = sanitizeCss(
+            'color: var(--primary, black)',
+            'declaration-list'
+        );
+        expect(out).toContain('var');
+    });
+
+    it('drops declaration where expression() is nested inside calc()', () => {
+        const out = sanitizeCss(
+            'width: calc(100% - expression(alert(1)))',
+            'declaration-list'
+        );
+        expect(out).not.toContain('expression');
+        expect(out).not.toContain('width');
+    });
+});
+
+describe('property-name denylist (Task 12)', () => {
+    it('drops behavior property regardless of value', () => {
+        const out = sanitizeCss(
+            'behavior: normal',
+            'declaration-list'
+        );
+        expect(out).not.toContain('behavior');
+    });
+
+    it('drops -moz-binding property regardless of value', () => {
+        const out = sanitizeCss(
+            '-moz-binding: inherit',
+            'declaration-list'
+        );
+        expect(out).not.toContain('-moz-binding');
+    });
+
+    it('drops filter property containing progid:', () => {
+        const out = sanitizeCss(
+            "filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50)",
+            'declaration-list'
+        );
+        expect(out).not.toContain('progid');
+        expect(out).not.toContain('filter');
+    });
+
+    it('preserves filter property with standard CSS filter functions', () => {
+        const out = sanitizeCss(
+            'filter: blur(5px) grayscale(50%)',
+            'declaration-list'
+        );
+        expect(out).toContain('filter');
+        expect(out).toContain('blur');
+        expect(out).toContain('grayscale');
+    });
+
+    it('case-insensitive property name check', () => {
+        const out = sanitizeCss(
+            'BEHAVIOR: normal',
+            'declaration-list'
+        );
+        expect(out).not.toContain('BEHAVIOR');
+        expect(out).not.toContain('behavior');
+    });
+});
+
+describe('partial survival — siblings untouched (Task 12)', () => {
+    it('drops one bad declaration leaving others intact (declaration-list)', () => {
+        const out = sanitizeCss(
+            'color: red; width: expression(alert(1)); font-weight: bold',
+            'declaration-list'
+        );
+        expect(out).toContain('color: red');
+        expect(out).toContain('font-weight: bold');
+        expect(out).not.toContain('expression');
+        expect(out).not.toContain('width');
+    });
+
+    it('drops one bad declaration inside a rule, rest of rule survives', () => {
+        const out = sanitizeCss(
+            'p { color: red; background: url(https://evil/x); font-weight: bold; }',
+            'stylesheet'
+        );
+        expect(out).toContain('p');
+        expect(out).toContain('color: red');
+        expect(out).toContain('font-weight: bold');
+        expect(out).not.toContain('evil');
+        expect(out).not.toContain('background');
+    });
+
+    it('drops bad declarations across multiple rules', () => {
+        const out = sanitizeCss(
+            '.a { color: red; } .b { behavior: normal; } .c { font-size: 12px; }',
+            'stylesheet'
+        );
+        expect(out).toContain('.a');
+        expect(out).toContain('color: red');
+        expect(out).toContain('.c');
+        expect(out).toContain('font-size');
+        expect(out).not.toContain('behavior');
+    });
+
+    it('drops @import nested inside @media', () => {
+        const out = sanitizeCss(
+            '@media screen { @import url(https://attacker.example/x.css); p { color: red; } }',
+            'stylesheet'
+        );
+        expect(out).not.toContain('@import');
+        expect(out).not.toContain('attacker.example');
+        expect(out).toContain('@media');
+        expect(out).toContain('color: red');
+    });
+});

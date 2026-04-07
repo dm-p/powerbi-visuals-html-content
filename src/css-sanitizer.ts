@@ -14,10 +14,14 @@
  *    setting. The input is a full stylesheet that may contain rules,
  *    at-rules, comments, etc.
  *
- * Both modes apply the same declaration-level rules (defined in subsequent
- * tasks). Stylesheet mode additionally enforces an at-rule allowlist and
- * selector-level checks. See docs/sanitization-rules.md for the full rule
- * set, and docs/superpowers/specs/2026-04-07-csp-sanitization-hardening-design.md
+ * Both modes apply the same declaration-level rules: unsafe url() tokens
+ * (scheme + MIME-type allowlist for images), bare dangerous schemes in
+ * property values (javascript:/vbscript:/data:text-html/etc), denied CSS
+ * functions (expression, -moz-binding, attr), and a property-name denylist
+ * (behavior, -moz-binding, filter+progid:). Stylesheet mode additionally
+ * enforces an at-rule allowlist and a selector filter. See
+ * docs/sanitization-rules.md for the user-facing rule set, and
+ * docs/superpowers/specs/2026-04-07-csp-sanitization-hardening-design.md
  * for the design rationale.
  */
 
@@ -78,17 +82,15 @@ const SAFE_IMAGE_MIME_TYPES = new Set([
     'image/bmp'
 ]);
 
-const URL_CONTAINER_FUNCTIONS = new Set([
-    'linear-gradient',
-    'radial-gradient',
-    'conic-gradient',
-    'repeating-linear-gradient',
-    'repeating-radial-gradient',
-    'repeating-conic-gradient',
-    'image-set',
-    '-webkit-image-set',
-    'cross-fade',
-    '-webkit-cross-fade'
+const DENIED_FUNCTIONS = new Set<string>([
+    'expression',
+    '-moz-binding',
+    'attr'
+]);
+
+const DENIED_PROPERTY_NAMES = new Set<string>([
+    'behavior',
+    '-moz-binding'
 ]);
 
 function extractUrlArgument(node: FunctionNode): string {
@@ -112,11 +114,12 @@ function isSafeImageDataUri(rawUrl: string): boolean {
     return SAFE_IMAGE_MIME_TYPES.has(mime);
 }
 
-function hasUnsafeUrl(nodes: ValueNode[]): boolean {
+function hasUnsafeFunction(nodes: ValueNode[]): boolean {
     for (const node of nodes) {
         if (node.type !== 'function') continue;
         const fn = node as FunctionNode;
         const name = fn.value.toLowerCase();
+        if (DENIED_FUNCTIONS.has(name)) return true;
         if (name === 'url') {
             const arg = extractUrlArgument(fn);
             if (!isSafeImageDataUri(arg)) {
@@ -124,12 +127,18 @@ function hasUnsafeUrl(nodes: ValueNode[]): boolean {
             }
             continue;
         }
-        if (URL_CONTAINER_FUNCTIONS.has(name)) {
-            if (hasUnsafeUrl(fn.nodes)) {
-                return true;
-            }
-        }
+        // Recurse into every function's children so denied functions
+        // nested inside safe wrappers (e.g. calc(100% - expression(...)))
+        // are still caught.
+        if (hasUnsafeFunction(fn.nodes)) return true;
     }
+    return false;
+}
+
+function hasDangerousProperty(prop: string, value: string): boolean {
+    const propLower = prop.toLowerCase();
+    if (DENIED_PROPERTY_NAMES.has(propLower)) return true;
+    if (propLower === 'filter' && /progid\s*:/i.test(value)) return true;
     return false;
 }
 
@@ -192,28 +201,43 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
 }
 
 /**
- * Drop any declaration whose value contains a `url()` token — at any
- * nesting depth — whose argument is not an allowlisted image data URI.
+ * Drop any declaration whose property or value violates the rule set.
  *
- * The value is parsed into a postcss-value-parser AST and walked via
- * `hasUnsafeUrl`, which recurses into gradient, image-set, and cross-fade
- * functions (and their `-webkit-` variants) to catch url() tokens nested
- * inside them. CSS custom properties (`--foo`) are covered because the
- * walker operates on decl.value, which postcss populates the same way
- * for custom properties as for standard ones.
+ * The checks run in order of increasing cost:
+ *  1. Property-name denylist (`behavior`, `-moz-binding`, and `filter` with
+ *     a `progid:` value — the legacy IE filter syntax). Runs first and
+ *     catches declarations even with empty values.
+ *  2. Bare dangerous scheme check (`javascript:`, `vbscript:`, `data:text/html`,
+ *     etc.) on the value string with url(...) tokens pre-stripped so safe
+ *     image data URIs don't false-positive.
+ *  3. Cheap substring early-out: if the value has no `url(`, `expression(`,
+ *     `-moz-binding(`, or `attr(` token anywhere, skip the parse entirely.
+ *  4. Full postcss-value-parser AST walk via `hasUnsafeFunction`, which
+ *     recurses into every function's children (not just gradient/image-set
+ *     containers) so attacker payloads like `calc(100% - expression(...))`
+ *     are caught. For `url()` tokens the argument is validated against the
+ *     image data-URI allowlist.
+ *
+ * CSS custom properties (`--foo`) are covered because the walker operates
+ * on `decl.value`, which postcss populates the same way for custom
+ * properties as for standard ones.
  *
  * If postcss-value-parser fails to parse the value, the declaration is
  * dropped as a safe default.
  *
- * Tasks 11-13 will add at-rule allowlisting, non-url() scheme variants
- * (javascript:/vbscript:/blob:), denied function checks (expression,
- * -moz-binding, behavior), and the defense-in-depth final pass.
+ * Task 13 will add a defense-in-depth regex pass over the serialized
+ * output as a final safety net, and strengthen the parse-failure test.
  */
 function isDangerousDeclaration(decl: Declaration): boolean {
     const value = decl.value;
-    if (!value) return false;
+    if (!value) {
+        return hasDangerousProperty(decl.prop, '');
+    }
+    if (hasDangerousProperty(decl.prop, value)) return true;
     if (hasDangerousSchemeInValue(value)) return true;
-    if (!/url\s*\(/i.test(value)) return false;
+    if (!/url\s*\(|expression\s*\(|-moz-binding\s*\(|attr\s*\(/i.test(value)) {
+        return false;
+    }
 
     let parsed;
     try {
@@ -221,5 +245,5 @@ function isDangerousDeclaration(decl: Declaration): boolean {
     } catch {
         return true;
     }
-    return hasUnsafeUrl(parsed.nodes);
+    return hasUnsafeFunction(parsed.nodes);
 }
