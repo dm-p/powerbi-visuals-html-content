@@ -15,6 +15,104 @@ import { RenderFormat } from './types';
 import { sanitizeCss } from './css-sanitizer';
 
 /**
+ * Per-tag attribute allowlist for sanitize-html, replacing the previous
+ * { '*': ['*'] } catch-all. Designed to shrink the HTML-layer attack
+ * surface without breaking legitimate report-author content.
+ *
+ * Globals (apply to every allowed tag):
+ *   class, id, title, lang, dir, style, role, aria-*, data-*, tabindex
+ *
+ * Per-tag entries add to the global set rather than replacing it
+ * (sanitize-html merges them).
+ *
+ * Explicitly NOT allowed anywhere — dropped from any tag where they appear:
+ *   srcdoc, formaction, action, ping, background, poster, srcset.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ALLOWED_ATTRIBUTES: any = {
+    '*': [
+        'class', 'id', 'title', 'lang', 'dir', 'style', 'role',
+        'aria-*', 'data-*', 'tabindex'
+    ],
+    'a': ['href', 'target', 'rel', 'download', 'hreflang', 'type'],
+    'img': ['src', 'alt', 'width', 'height', 'loading', 'decoding'],
+    'source': ['src', 'type', 'media'],
+    'table': ['align', 'valign'],
+    'td': ['colspan', 'rowspan', 'headers', 'scope', 'abbr', 'align', 'valign'],
+    'th': ['colspan', 'rowspan', 'headers', 'scope', 'abbr', 'align', 'valign'],
+    'col': ['span'],
+    'colgroup': ['span'],
+    'time': ['datetime'],
+    'blockquote': ['cite'],
+    'q': ['cite'],
+    'ol': ['start', 'type', 'reversed'],
+    'li': ['value'],
+    'details': ['open'],
+    'meter': ['value', 'min', 'max', 'low', 'high', 'optimum'],
+    'progress': ['value', 'max'],
+
+    // SVG. Note sanitize-html lowercases tag names, so keys here must be
+    // lowercase to match VisualConstants.allowedTags entries like
+    // 'lineargradient', 'radialgradient', 'clippath'.
+    'svg': [
+        'viewbox', 'xmlns', 'xmlns:xlink', 'width', 'height',
+        'preserveaspectratio', 'fill', 'stroke', 'stroke-width', 'opacity'
+    ],
+    'path': [
+        'd', 'fill', 'stroke', 'stroke-width', 'fill-opacity',
+        'stroke-opacity', 'stroke-linecap', 'stroke-linejoin',
+        'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'transform',
+        'clip-path', 'mask', 'filter'
+    ],
+    'g': [
+        'fill', 'stroke', 'stroke-width', 'opacity', 'transform',
+        'clip-path', 'mask', 'filter'
+    ],
+    'circle': ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width', 'opacity'],
+    'ellipse': ['cx', 'cy', 'rx', 'ry', 'fill', 'stroke', 'stroke-width', 'opacity'],
+    'rect': [
+        'x', 'y', 'width', 'height', 'rx', 'ry',
+        'fill', 'stroke', 'stroke-width', 'opacity'
+    ],
+    'line': ['x1', 'x2', 'y1', 'y2', 'stroke', 'stroke-width', 'opacity'],
+    'polyline': ['points', 'fill', 'stroke', 'stroke-width', 'opacity'],
+    'polygon': ['points', 'fill', 'stroke', 'stroke-width', 'opacity'],
+    'text': [
+        'x', 'y', 'dx', 'dy', 'text-anchor', 'font-family', 'font-size',
+        'font-weight', 'fill', 'stroke', 'dominant-baseline',
+        'alignment-baseline', 'transform'
+    ],
+    'tspan': [
+        'x', 'y', 'dx', 'dy', 'text-anchor', 'font-family', 'font-size',
+        'font-weight', 'fill'
+    ],
+    'use': ['x', 'y', 'width', 'height', 'xlink:href', 'href'],
+    'defs': [],
+    'symbol': ['viewbox', 'preserveaspectratio'],
+    'lineargradient': ['x1', 'x2', 'y1', 'y2', 'gradientunits', 'gradienttransform'],
+    'radialgradient': ['cx', 'cy', 'r', 'fx', 'fy', 'gradientunits', 'gradienttransform'],
+    'stop': ['offset', 'stop-color', 'stop-opacity'],
+    'clippath': ['clippathunits'],
+    'mask': ['x', 'y', 'width', 'height', 'maskunits', 'maskcontentunits'],
+    'filter': ['x', 'y', 'width', 'height', 'filterunits'],
+    'pattern': [
+        'x', 'y', 'width', 'height', 'patternunits', 'patterncontentunits',
+        'patterntransform'
+    ],
+    'image': ['x', 'y', 'width', 'height', 'href', 'xlink:href', 'preserveaspectratio'],
+    'marker': [
+        'markerunits', 'refx', 'refy', 'markerwidth', 'markerheight',
+        'orient', 'viewbox', 'preserveaspectratio'
+    ],
+    'view': ['viewbox', 'preserveaspectratio'],
+    'textpath': ['href', 'xlink:href', 'startoffset', 'method', 'spacing'],
+    'animate': ['attributename', 'from', 'to', 'dur', 'begin', 'end', 'repeatcount', 'values', 'keytimes', 'keysplines', 'fill'],
+    'animatemotion': ['path', 'dur', 'begin', 'end', 'repeatcount', 'rotate'],
+    'animatetransform': ['attributename', 'type', 'from', 'to', 'dur', 'begin', 'end', 'repeatcount', 'values', 'fill'],
+    'set': ['attributename', 'to', 'begin', 'dur']
+};
+
+/**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
  * to sanitize-html. sanitize-html's transformTags callback does not
  * expose tag text, so we use a regex pass over the raw input to extract
@@ -62,13 +160,26 @@ export const getSanitizedContent = (content: string) => {
     } = VisualConstants;
     const preprocessed = preprocessStyleTags(content);
     return sanitizeHtml(preprocessed, {
-              allowedAttributes: { '*': ['*'] },
+              allowedAttributes: ALLOWED_ATTRIBUTES,
               allowedTags,
               allowVulnerableTags: true,
               allowedSchemes,
               allowedSchemesByTag,
               transformTags: {
                   '*': (tagName: string, attribs: Record<string, string>) => {
+                      // Detect event-handler attributes (onload, onclick, ...) BEFORE
+                      // the per-tag allowlist strips them. The presence of any such
+                      // attribute marks the entire tag for removal via a sentinel
+                      // data-* attribute that exclusiveFilter checks below. We mark
+                      // here (not in exclusiveFilter directly) because the tightened
+                      // allowedAttributes runs before exclusiveFilter and would
+                      // otherwise hide the on* attributes from it.
+                      const hasEventAttribute = Object.keys(attribs).some(
+                          (a) => /^on[a-z]+$/i.test(a)
+                      );
+                      if (hasEventAttribute) {
+                          attribs['data-sanitize-drop'] = '1';
+                      }
                       // Sanitize data URIs in src attributes
                       if (attribs.src && typeof attribs.src === 'string' && attribs.src.startsWith('data:')) {
                           attribs.src = getSanitizedDataUri(attribs.src);
@@ -102,7 +213,13 @@ export const getSanitizedContent = (content: string) => {
               },
               exclusiveFilter: (frame: { tag: string; text: string; attribs: Record<string, string> }) => {
                   try {
-                      // Test for event attributes (onload, onclick, etc.) - anchored and case-insensitive
+                      // Drop tags marked by transformTags as containing event handlers
+                      // (the marker survives the per-tag allowlist as a data-* attr).
+                      if (frame.attribs['data-sanitize-drop'] === '1') {
+                          return true;
+                      }
+                      // Belt-and-braces: also test for any event attributes still on
+                      // the frame (in case future allowlist tweaks let one through).
                       const eventAttributeFailure = Object.keys(
                           frame.attribs
                       ).some(attr => {
