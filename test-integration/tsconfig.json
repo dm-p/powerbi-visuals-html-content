@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "target": "es2020",
-        "module": "es2020",
+        "module": "commonjs",
         "moduleResolution": "node",
         "lib": ["es2020", "dom"],
         "types": ["node", "@playwright/test"],
@@ -11,5 +11,5 @@
         "resolveJsonModule": true,
         "noEmit": true
     },
-    "include": ["**/*.ts"]
+    "include": ["**/*.ts", "../src/sanitize-pipeline.ts", "../src/types.ts", "../src/visual-constants.ts"]
 }

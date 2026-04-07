@@ -1,6 +1,6 @@
 import { Page, BrowserContext } from '@playwright/test';
 import * as path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 
 /**
  * The CSP applied to the sandbox fixture, mirroring the real Power BI
@@ -44,9 +44,6 @@ export interface RenderResult {
     pageErrors: string[];
     networkRequests: string[];
 }
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const SANDBOX_FIXTURE = pathToFileURL(
     path.resolve(__dirname, 'fixtures', 'sandbox.html')
