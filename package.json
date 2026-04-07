@@ -35,6 +35,8 @@
         "lodash": "^4.17.21",
         "marked": "^15.0.7",
         "overlayscrollbars": "^1.13.3",
+        "postcss": "^8.5.8",
+        "postcss-value-parser": "^4.2.0",
         "powerbi-visuals-api": "~5.11.0",
         "powerbi-visuals-tools": "^7.0.3",
         "powerbi-visuals-utils-dataviewutils": "^6.0.3",
