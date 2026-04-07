@@ -22,6 +22,71 @@
  */
 
 import postcss, { Root, Declaration } from 'postcss';
+import valueParser, { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
+
+const SAFE_IMAGE_MIME_TYPES = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/gif',
+    'image/webp',
+    'image/bmp'
+]);
+
+const URL_CONTAINER_FUNCTIONS = new Set([
+    'linear-gradient',
+    'radial-gradient',
+    'conic-gradient',
+    'repeating-linear-gradient',
+    'repeating-radial-gradient',
+    'repeating-conic-gradient',
+    'image-set',
+    '-webkit-image-set',
+    'cross-fade',
+    '-webkit-cross-fade'
+]);
+
+function extractUrlArgument(node: FunctionNode): string {
+    const child = node.nodes.find(n => n.type === 'word' || n.type === 'string');
+    if (!child) return '';
+    return String((child as any).value || '').trim();
+}
+
+function isSafeImageDataUri(rawUrl: string): boolean {
+    const url = rawUrl.trim().toLowerCase();
+    if (!url) return false;
+    if (!url.startsWith('data:')) return false;
+    const semi = url.indexOf(';');
+    const comma = url.indexOf(',');
+    const end = Math.min(
+        semi === -1 ? url.length : semi,
+        comma === -1 ? url.length : comma
+    );
+    const mime = url.slice(5, end);
+    if (mime === 'image/svg+xml') return false;
+    return SAFE_IMAGE_MIME_TYPES.has(mime);
+}
+
+function hasUnsafeUrl(nodes: ValueNode[]): boolean {
+    for (const node of nodes) {
+        if (node.type !== 'function') continue;
+        const fn = node as FunctionNode;
+        const name = fn.value.toLowerCase();
+        if (name === 'url') {
+            const arg = extractUrlArgument(fn);
+            if (!isSafeImageDataUri(arg)) {
+                return true;
+            }
+            continue;
+        }
+        if (URL_CONTAINER_FUNCTIONS.has(name)) {
+            if (hasUnsafeUrl(fn.nodes)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 export type SanitizeCssMode = 'declaration-list' | 'stylesheet';
 
@@ -68,25 +133,33 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
 }
 
 /**
- * The single rule implemented in Task 9: drop any declaration whose value
- * contains a `url(...)` token whose argument is not an allowlisted image
- * data URI. Tasks 10-13 will replace this with a structured value walker.
+ * Drop any declaration whose value contains a `url()` token — at any
+ * nesting depth — whose argument is not an allowlisted image data URI.
+ *
+ * The value is parsed into a postcss-value-parser AST and walked via
+ * `hasUnsafeUrl`, which recurses into gradient, image-set, and cross-fade
+ * functions (and their `-webkit-` variants) to catch url() tokens nested
+ * inside them. CSS custom properties (`--foo`) are covered because the
+ * walker operates on decl.value, which postcss populates the same way
+ * for custom properties as for standard ones.
+ *
+ * If postcss-value-parser fails to parse the value, the declaration is
+ * dropped as a safe default.
+ *
+ * Tasks 11-13 will add at-rule allowlisting, non-url() scheme variants
+ * (javascript:/vbscript:/blob:), denied function checks (expression,
+ * -moz-binding, behavior), and the defense-in-depth final pass.
  */
 function isDangerousDeclaration(decl: Declaration): boolean {
     const value = decl.value;
-    if (!value || !value.toLowerCase().includes('url(')) {
-        return false;
-    }
-    const urlMatch = value.match(/url\s*\(\s*['"]?\s*([^'")\s]+)/i);
-    if (!urlMatch) {
+    if (!value) return false;
+    if (!/url\s*\(/i.test(value)) return false;
+
+    let parsed;
+    try {
+        parsed = valueParser(value);
+    } catch {
         return true;
     }
-    const target = urlMatch[1].toLowerCase();
-    if (!target.startsWith('data:image/')) {
-        return true;
-    }
-    if (target.startsWith('data:image/svg+xml')) {
-        return true;
-    }
-    return false;
+    return hasUnsafeUrl(parsed.nodes);
 }
