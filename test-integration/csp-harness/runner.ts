@@ -3,22 +3,29 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 /**
- * The CSP applied to the sandbox iframe. Kept in sync with
+ * The CSP applied to the sandbox fixture, mirroring the real Power BI
+ * custom-visual CSP captured empirically from powerbi.com (Kaspersky
+ * sources stripped). Kept in sync with
  * test-integration/csp-harness/fixtures/sandbox.html and csp-policy.md.
  *
  * UPDATE PROCESS: see csp-policy.md "Update process" section.
+ *
+ * Note on permissiveness: this policy is deliberately loose because the
+ * real Power BI sandbox is loose — it allows https://app.powerbi.com,
+ * data:, and blob: broadly, with 'unsafe-inline' and 'unsafe-eval'
+ * everywhere. Under this CSP, many malicious payloads will fail with
+ * console errors (e.g. net::ERR_INVALID_URL for malformed data: URIs)
+ * rather than with securitypolicyviolation events. The fixture listens
+ * to both signals — either is treated as a cert failure.
  */
-export const POWER_BI_VISUAL_CSP =
-    "default-src 'none'; " +
-    "script-src 'unsafe-inline' 'unsafe-eval'; " +
-    "style-src 'unsafe-inline'; " +
-    "img-src data:; " +
-    "font-src 'none'; " +
-    "connect-src 'none'; " +
-    "frame-src 'none'; " +
-    "object-src 'none'; " +
-    "base-uri 'none'; " +
-    "form-action 'none';";
+export const POWER_BI_VISUAL_CSP = [
+    "default-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'",
+    "script-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'",
+    "style-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'",
+    "img-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'",
+    "connect-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'",
+    "child-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'"
+].join('; ') + ';';
 
 export interface CspViolation {
     blockedURI: string;

@@ -7,34 +7,11 @@ that the Playwright integration harness uses to simulate the Power BI certified-
 visual environment. The harness is the contract — if a sanitized payload triggers
 zero `securitypolicyviolation` events here, it should pass MS certification.
 
-## Published CSP (from Microsoft documentation)
-
-**Sources consulted:**
-
-- https://learn.microsoft.com/en-us/power-bi/developer/visuals/custom-visual-develop-tutorial (returned HTTP 404 — page no longer exists)
-- https://learn.microsoft.com/en-us/power-bi/developer/visuals/develop-power-bi-visuals (fetched successfully — overview page only, no CSP or sandbox information)
-- https://learn.microsoft.com/en-us/power-bi/developer/visuals/power-bi-custom-visuals-faq (fetched successfully — certification/organizational FAQ, no CSP or sandbox information)
-- https://learn.microsoft.com/en-us/power-bi/developer/visuals/sandbox-environment (redirected to `develop-circle-card` tutorial — no CSP or sandbox attribute text found)
-
-**Date last checked:** 2026-04-07
-
-**Finding:** Microsoft's published documentation does not specify a concrete
-Content Security Policy for custom visuals as of this date. None of the four
-pages above contain a `Content-Security-Policy` header value, a list of CSP
-directives, or an enumeration of the iframe `sandbox` token set applied to
-certified visuals in production. The certification FAQ describes the review
-process (code review, static analysis, XSS testing, data-leakage checks) but
-does not publish the runtime CSP that enforces those requirements.
-
-The Replica policy below is a strict-superset starting point; empirical
-inspection of the live powerbi.com iframe headers is required before first
-harness run and must be captured in the "Empirical CSP" section below by the
-repository maintainer.
-
 ## Empirical CSP (from live powerbi.com inspection)
 
 **Source:** Browser DevTools → Network tab → visual iframe response headers
-**Date last checked:** _TBD — not yet captured_
+**Date last checked:** 2026-03-07 (DM-P)
+
 **How to reproduce:**
 
 1. Open powerbi.com, sign in.
@@ -50,24 +27,62 @@ repository maintainer.
 6. Paste both below, replacing the placeholder block, and update the
    "Date last checked" line above.
 
-> ⚠ **PLACEHOLDER — NOT YET CAPTURED.** Do not treat the harness as a
-> certification gate until these values are filled in by a maintainer with
-> a logged-in powerbi.com session.
+Observed CSP (one directive per line for readability — real header is a
+single-line value with `;` separators). Browser-environment noise (antivirus
+injected sources such as `*.kaspersky-labs.com`) has been stripped so the
+record is reproducible on any machine:
 
 ```text
-<PLACEHOLDER — maintainer must paste the observed CSP header here>
-<PLACEHOLDER — maintainer must paste the observed sandbox attribute here>
+default-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+script-src  https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+style-src   https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+img-src     https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+connect-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+child-src   https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
 ```
+
+Observed sandbox attributes:
+
+```text
+allow-scripts
+```
+
+Notes on the empirical policy:
+
+-   There is **no** `font-src`, `object-src`, `base-uri`, `form-action`, or
+    `frame-src` directive — each of these falls back to `default-src`, which
+    allows `https://app.powerbi.com`, `data:`, `blob:`, and the two inline
+    keywords. `child-src` (deprecated in CSP3 but still honored by Chromium)
+    is used instead of `frame-src`/`worker-src`.
+-   The sandbox has `allow-scripts` but **not** `allow-same-origin`, so the
+    visual runs in a null-origin sandbox in production.
+-   `'unsafe-inline' 'unsafe-eval'` appear in `img-src`, `connect-src`, and
+    `style-src` where they have no effect — these keywords are only meaningful
+    for `script-src` and `style-src`. Harmless but cosmetically noisy; we
+    mirror it verbatim for fidelity.
+-   The sources removed during cleanup were `https://me.kis.v2.scr.kaspersky-labs.com`
+    and `wss://me.kis.v2.scr.kaspersky-labs.com`, appearing in `connect-src`,
+    `script-src`, `img-src`, `child-src`, and `style-src`. These are injected
+    by the maintainer's local Kaspersky installation and are not part of the
+    real Power BI policy.
+
+**Harness signal implications:** the empirical policy is much more permissive
+than a strict-null replica. Under this CSP, many malicious payloads will
+**not** trigger a `securitypolicyviolation` event — they'll surface as
+`console.error` entries instead (e.g. `net::ERR_INVALID_URL` for a malformed
+`data:` URI). The fixture listens to both signals; both are treated as cert
+failures. The corpus should not be tuned to "prefer CSP violations" over
+"console errors" — either one means the sanitizer missed something.
 
 This step cannot be scripted from this repository because it requires a
 logged-in powerbi.com session. It is a manual pre-flight for the harness.
 
 ## Replica policy (what the harness uses)
 
-The harness uses the **stricter** of published vs empirical wherever they differ.
-Until the empirical values are captured, the harness uses the strict-superset
-starting point below — chosen to exercise every directive the sanitizer in
-`src/domPurify.ts` could plausibly trip over.
+The harness mirrors the empirical policy captured above, with Kaspersky
+sources stripped. This is Option A from the design brainstorm (best-effort
+replica) rather than a stricter-superset defensive baseline: false positives
+would be more expensive than they're worth during a cert resubmission cycle.
 
 **CSP:**
 
@@ -78,52 +93,76 @@ starting point below — chosen to exercise every directive the sanitizer in
 > `test-integration/csp-harness/runner.ts` is the canonical serialized form.
 
 ```text
-default-src 'none';
-script-src 'unsafe-inline' 'unsafe-eval';
-style-src 'unsafe-inline';
-img-src data:;
-font-src 'none';
-connect-src 'none';
-frame-src 'none';
-object-src 'none';
-base-uri 'none';
-form-action 'none';
+default-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+script-src  https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+style-src   https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+img-src     https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+connect-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
+child-src   https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';
 ```
 
 **Sandbox attributes:**
 
-```
-allow-scripts allow-same-origin
+```text
+allow-scripts
 ```
 
-Rationale for the starting point:
+> **Sandbox-attribute caveat:** the harness fixture is loaded as a top-level
+> page under Playwright, not inside a parent iframe. Iframe `sandbox`
+> attributes can only be applied by a parent document, so this value is
+> **documented but not enforced** by the current harness. The main signal
+> (CSP violations + console errors) does not depend on sandbox enforcement
+> to catch what we care about. If a future finding turns out to depend on
+> sandbox enforcement specifically, the fixture would need to be restructured
+> so Playwright loads a wrapper page that embeds the sanitized-content
+> document in an iframe with this sandbox attribute.
 
-- `default-src 'none'` — deny-by-default; any resource type not explicitly
-  allowed below is blocked and will emit a `securitypolicyviolation` event.
-- `script-src 'unsafe-inline' 'unsafe-eval'` — Power BI visuals historically
-  execute inline script and use `eval`-like constructs (D3, templating). The
-  HTML-content visual specifically runs inline `<script>` blocks from the
-  sanitized payload, so the replica must permit them to match production.
-- `style-src 'unsafe-inline'` — inline `style="..."` attributes and `<style>`
-  blocks are the primary styling vector for HTML content payloads.
-- `img-src data:` — base64 data URIs are the only image source the sanitizer
-  currently allows (see `allowedSchemes` in `src/domPurify.ts`); `http(s):` is
-  deliberately excluded to catch regressions.
-- `font-src 'none'`, `connect-src 'none'`, `frame-src 'none'`, `object-src 'none'`,
-  `base-uri 'none'`, `form-action 'none'` — close every remaining exfiltration
-  and navigation vector. If a sanitized payload somehow smuggles in a
-  `<link rel="stylesheet" href="http://evil">`, a fetch, a nested iframe, an
-  `<object>`, a `<base href>`, or a form POST, the harness will surface it as
-  a violation.
+### What this replica catches and what it doesn't
+
+**Caught via `securitypolicyviolation` events:**
+
+-   Any outbound request to a host other than `https://app.powerbi.com` —
+    e.g. `<img src="https://attacker.example/x.png">`, `<link href="https://…">`,
+    `url(https://…)` in CSS, `@import url(https://…)`, etc.
+-   `blob:` URLs pointing at foreign origins (if such a thing is constructed).
+-   `javascript:` URLs in href/src attributes — `script-src` doesn't allow
+    inline javascript protocol URLs.
+
+**Caught via `console.error` / `pageerror` events:**
+
+-   Malformed URIs like `data:1234***qwerty` — browser emits
+    `net::ERR_INVALID_URL` even though the URI is nominally allowed by the
+    permissive `data:` source.
+-   Invalid CSS expressions, malformed HTML parse errors, etc.
+-   **This is the signal that caught the original MS cert finding** — the
+    empirical CSP permits `data:` in `img-src`, so a CSP violation would not
+    have fired for the reported payload. The cert review rejected it on the
+    console error alone.
+
+**Not caught by the harness (and shouldn't be):**
+
+-   Allowed `data:image/png;base64,...` content — legitimate images.
+-   Allowed `https://app.powerbi.com` requests — same-origin is permitted.
+-   Inline scripts via `<script>` tags — `'unsafe-inline'` is in force.
+    (These should still be rejected by the sanitizer because the allowed-tag
+    list blocks `<script>` at the HTML layer, but the _CSP_ would permit them
+    if they got through.)
+
+The sanitizer's job is strictly broader than what this CSP catches, so the
+corpus includes payloads (e.g. `<script>` tags, event handlers) whose
+harness signal is "the sanitized output has no `<script>` substring and no
+CSP/console events fire because nothing executes". That's still a valid
+test — the fixture assertion covers both "nothing bad got through" and
+"nothing bad was executed".
 
 ## Update process
 
-- **Quarterly:** review published MS docs for CSP changes. **Bump the
-  "Date last checked" line above even if no changes were found** — a stale
-  date makes this whole file harder to trust.
-- **Before every cert submission:** re-run the empirical inspection above and
-  diff against the policy in `runner.ts` (`POWER_BI_VISUAL_CSP` constant). If
-  they differ, update both the constant and this file, and re-run
-  `npm run test:integration` and `npm run cert-check`.
-- **When this file changes:** update the `POWER_BI_VISUAL_CSP` constant in
-  `test-integration/csp-harness/runner.ts` to match.
+-   **Quarterly:** review published MS docs for CSP changes. **Bump the
+    "Date last checked" line above even if no changes were found** — a stale
+    date makes this whole file harder to trust.
+-   **Before every cert submission:** re-run the empirical inspection above and
+    diff against the policy in `runner.ts` (`POWER_BI_VISUAL_CSP` constant). If
+    they differ, update both the constant and this file, and re-run
+    `npm run test:integration` and `npm run cert-check`.
+-   **When this file changes:** update the `POWER_BI_VISUAL_CSP` constant in
+    `test-integration/csp-harness/runner.ts` to match.

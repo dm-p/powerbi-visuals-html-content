@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <!--
+        CSP mirrors the real powerbi.com custom-visual sandbox (captured
+        empirically 2026-03-07, Kaspersky sources stripped). Kept in sync
+        with test-integration/csp-harness/csp-policy.md and the
+        POWER_BI_VISUAL_CSP constant in runner.ts. See csp-policy.md for
+        the update process.
+    -->
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
+          content="default-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'; script-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'; style-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'; img-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval'; child-src https://app.powerbi.com data: blob: 'unsafe-inline' 'unsafe-eval';">
     <title>CSP Replica Sandbox</title>
 </head>
 <body>
