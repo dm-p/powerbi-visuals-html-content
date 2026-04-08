@@ -26,7 +26,17 @@
  */
 
 import postcss, { Root, Declaration } from 'postcss';
-import valueParser, { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
+import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
+
+// postcss-value-parser is a CommonJS module whose types declare the parser
+// function as the module export. Importing it as `import valueParser from ...`
+// requires esModuleInterop or allowSyntheticDefaultImports — the repo
+// tsconfig sets neither, and vitest's transform happens to tolerate the
+// default-import form but pbiviz package's strict ts-loader pass does not.
+// Using require() + a type-only import matches the existing pattern for
+// `pretty` in src/domain-utils.ts and keeps runtime semantics identical.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const valueParser: (value: string) => { nodes: ValueNode[] } = require('postcss-value-parser');
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
