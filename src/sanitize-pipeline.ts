@@ -1,12 +1,11 @@
 // External dependencies
 import * as config from '../config/visual.json';
-// Namespace import shape works for both the main tsconfig (module: es6,
-// no strict/esModuleInterop) and the test-integration tsconfig (strict).
-// Cast to `any` to call — the exported namespace is callable at runtime
-// but TS only surfaces that under esModuleInterop.
-import * as sanitizeHtmlNs from 'sanitize-html';
+// Namespace import for compatibility with the project tsconfig
+// (no esModuleInterop). The runtime export is callable for jsdom binding.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sanitizeHtml: any = (sanitizeHtmlNs as any).default || sanitizeHtmlNs;
+import * as DOMPurifyNs from 'dompurify';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DOMPurify: any = (DOMPurifyNs as any).default || DOMPurifyNs;
 import { marked } from 'marked';
 
 // Internal dependencies
@@ -15,21 +14,20 @@ import { RenderFormat } from './types';
 import { sanitizeCss } from './css-sanitizer';
 
 /**
- * Per-tag attribute allowlist for sanitize-html, replacing the previous
- * { '*': ['*'] } catch-all. Designed to shrink the HTML-layer attack
- * surface without breaking legitimate report-author content.
+ * Per-tag attribute allowlist enforced by the DOMPurify
+ * `uponSanitizeAttribute` hook. DOMPurify's `ALLOWED_ATTR` is global,
+ * so per-tag enforcement is a hook responsibility.
  *
  * Globals (apply to every allowed tag):
  *   class, id, title, lang, dir, style, role, aria-*, data-*, tabindex
  *
- * Per-tag entries add to the global set rather than replacing it
- * (sanitize-html merges them).
- *
- * Explicitly NOT allowed anywhere — dropped from any tag where they appear:
+ * Explicitly NOT allowed anywhere:
  *   srcdoc, formaction, action, ping, background, poster, srcset.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ALLOWED_ATTRIBUTES: any = {
+type AttributeAllowlist = {
+    [tag: string]: string[];
+};
+const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     '*': [
         'class', 'id', 'title', 'lang', 'dir', 'style', 'role',
         'aria-*', 'data-*', 'tabindex'
@@ -50,10 +48,15 @@ const ALLOWED_ATTRIBUTES: any = {
     'details': ['open'],
     'meter': ['value', 'min', 'max', 'low', 'high', 'optimum'],
     'progress': ['value', 'max'],
+    // del, ins, output were added to VisualConstants.allowedTags in
+    // commit 3e440c9 (PR #139). Each has legitimate tag-specific
+    // attributes per the HTML spec; without these entries the attribs
+    // are dropped and only the globals survive.
+    'del': ['cite', 'datetime'],
+    'ins': ['cite', 'datetime'],
+    'output': ['for', 'form', 'name'],
 
-    // SVG. Note sanitize-html lowercases tag names, so keys here must be
-    // lowercase to match VisualConstants.allowedTags entries like
-    // 'lineargradient', 'radialgradient', 'clippath'.
+    // SVG. Lowercase keys to match DOMPurify's lowercased tagName.
     'svg': [
         'viewbox', 'xmlns', 'xmlns:xlink', 'width', 'height',
         'preserveaspectratio', 'fill', 'stroke', 'stroke-width', 'opacity'
@@ -86,7 +89,9 @@ const ALLOWED_ATTRIBUTES: any = {
         'x', 'y', 'dx', 'dy', 'text-anchor', 'font-family', 'font-size',
         'font-weight', 'fill'
     ],
-    'use': ['x', 'y', 'width', 'height', 'xlink:href', 'href'],
+    // Note: <use> is intentionally NOT in VisualConstants.allowedTags, so
+    // DOMPurify drops it before any per-tag attribute logic could run. No
+    // entry needed here.
     'defs': [],
     'symbol': ['viewbox', 'preserveaspectratio'],
     'lineargradient': ['x1', 'x2', 'y1', 'y2', 'gradientunits', 'gradienttransform'],
@@ -113,10 +118,22 @@ const ALLOWED_ATTRIBUTES: any = {
 };
 
 /**
+ * Flat union of every attribute name appearing anywhere in
+ * ALLOWED_ATTRIBUTES, used as DOMPurify's global ALLOWED_ATTR. Per-tag
+ * enforcement happens in the uponSanitizeAttribute hook.
+ */
+function getFlatAttributeAllowlist(): string[] {
+    const set = new Set<string>();
+    for (const attrs of Object.values(ALLOWED_ATTRIBUTES)) {
+        for (const attr of attrs) set.add(attr);
+    }
+    return Array.from(set);
+}
+const FLAT_ATTR_ALLOWLIST = getFlatAttributeAllowlist();
+
+/**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
- * to sanitize-html. sanitize-html's transformTags callback does not
- * expose tag text, so we use a regex pass over the raw input to extract
- * <style> bodies, sanitize them, and re-inject. Case-insensitive.
+ * to DOMPurify. Case-insensitive.
  */
 function preprocessStyleTags(input: string): string {
     return input.replace(
@@ -132,10 +149,31 @@ function preprocessStyleTags(input: string): string {
 }
 
 /**
+ * Lazily bind DOMPurify to the current window. In a real browser the
+ * default import is already pre-bound. Under jsdom we need to call
+ * `DOMPurify(window)` once.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let purifyInstance: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getPurify(): any {
+    if (purifyInstance) return purifyInstance;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dp: any = DOMPurify;
+    if (typeof dp.sanitize === 'function') {
+        purifyInstance = dp;
+    } else if (typeof window !== 'undefined') {
+        purifyInstance = dp(window);
+    } else {
+        purifyInstance = dp;
+    }
+    return purifyInstance;
+}
+
+/**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
  * use in the visual for our data. If we're specifying in the configuration that
- * we should sanitize, do this also, so that we're not injecting any malicious
- * code into the DOM and keep to certification requirements.
+ * we should sanitize, do this also.
  */
 export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
     const parse = Range.prototype.createContextualFragment.bind(
@@ -148,132 +186,147 @@ export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
 };
 
 /**
- * Sanitize the supplied HTML string, based on the configuration settings. This will remove any
- * potentially dangerous content, such as javascript, and ensure that we are only allowing the tags and
- * attributes that we want to be able to use.
+ * Sanitize the supplied HTML string using DOMPurify.
  */
-export const getSanitizedContent = (content: string) => {
-    const {
-        allowedSchemes,
-        allowedSchemesByTag,
-        allowedTags
-    } = VisualConstants;
+export const getSanitizedContent = (content: string): string => {
     const preprocessed = preprocessStyleTags(content);
-    return sanitizeHtml(preprocessed, {
-              allowedAttributes: ALLOWED_ATTRIBUTES,
-              allowedTags,
-              allowVulnerableTags: true,
-              allowedSchemes,
-              allowedSchemesByTag,
-              transformTags: {
-                  '*': (tagName: string, attribs: Record<string, string>) => {
-                      // Detect event-handler attributes (onload, onclick, ...) BEFORE
-                      // the per-tag allowlist strips them. The presence of any such
-                      // attribute marks the entire tag for removal via a sentinel
-                      // data-* attribute that exclusiveFilter checks below. We mark
-                      // here (not in exclusiveFilter directly) because the tightened
-                      // allowedAttributes runs before exclusiveFilter and would
-                      // otherwise hide the on* attributes from it.
-                      const hasEventAttribute = Object.keys(attribs).some(
-                          (a) => /^on[a-z]+$/i.test(a)
-                      );
-                      if (hasEventAttribute) {
-                          attribs['data-sanitize-drop'] = '1';
-                      }
-                      // NFKC-normalize URL-bearing attribute values to defeat
-                      // Unicode obfuscation of dangerous schemes — e.g. fullwidth
-                      // 'ｊavascript:' becomes 'javascript:' after normalization,
-                      // which then matches sanitize-html's allowedSchemes check
-                      // and is rejected. Browsers do this normalization themselves
-                      // when parsing URLs; we mirror it so the scheme check can
-                      // see what the browser will see.
-                      for (const urlAttr of ['href', 'src', 'xlink:href']) {
-                          const v = attribs[urlAttr];
-                          if (typeof v === 'string') {
-                              attribs[urlAttr] = v.normalize('NFKC');
-                          }
-                      }
-                      // Sanitize data URIs in src attributes
-                      if (attribs.src && typeof attribs.src === 'string' && attribs.src.startsWith('data:')) {
-                          attribs.src = getSanitizedDataUri(attribs.src);
-                      }
-                      // Sanitize data URIs in href attributes for SVG/images
-                      if (attribs.href && typeof attribs.href === 'string' && attribs.href.startsWith('data:')) {
-                          attribs.href = getSanitizedDataUri(attribs.href);
-                      }
-                      // Sanitize xlink:href (SVG attribute that can carry javascript: or data: URIs)
-                      if (attribs['xlink:href'] && typeof attribs['xlink:href'] === 'string') {
-                          if (attribs['xlink:href'].startsWith('data:')) {
-                              attribs['xlink:href'] = getSanitizedDataUri(attribs['xlink:href']);
-                          } else if (/^javascript\s*:/i.test(attribs['xlink:href'])) {
-                              delete attribs['xlink:href'];
-                          }
-                      }
-                      // Sanitize inline style attribute via the CSS sanitizer.
-                      if (attribs.style && typeof attribs.style === 'string') {
-                          const sanitizedStyle = sanitizeCss(attribs.style, 'declaration-list');
-                          if (sanitizedStyle === '') {
-                              delete attribs.style;
-                          } else {
-                              attribs.style = sanitizedStyle;
-                          }
-                      }
-                      return {
-                          tagName,
-                          attribs: getStrippedAttributes(attribs)
-                      };
-                  }
-              },
-              exclusiveFilter: (frame: { tag: string; text: string; attribs: Record<string, string> }) => {
-                  try {
-                      // Drop tags marked by transformTags as containing event handlers
-                      // (the marker survives the per-tag allowlist as a data-* attr).
-                      if (frame.attribs['data-sanitize-drop'] === '1') {
-                          return true;
-                      }
-                      // Belt-and-braces: also test for any event attributes still on
-                      // the frame (in case future allowlist tweaks let one through).
-                      const eventAttributeFailure = Object.keys(
-                          frame.attribs
-                      ).some(attr => {
-                          return /^on[a-z]+$/i.test(attr);
-                      });
+    const purify = getPurify();
 
-                      return eventAttributeFailure;
-                  } catch (e) {
-                      return true;
-                  }
-              }
-          });
-};
+    // Hook 1: per-attribute sanitization. Per-tag allowlist enforcement,
+    // NFKC normalization on URL attributes, data: URI sanitization,
+    // inline style sanitization, dangerous-pattern check.
+    purify.addHook('uponSanitizeAttribute', (
+        currentNode: Element,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        hookEvent: any
+    ) => {
+        const attrName: string = hookEvent.attrName.toLowerCase();
+        const tagName: string = currentNode.tagName
+            ? currentNode.tagName.toLowerCase()
+            : '';
+        let value: string = hookEvent.attrValue;
 
-/**
- * It still might be possible to encode 'javascript' into an attribute, so
- * we'll strip out any attributes that contain this, or any other potential
- * scripting patterns.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const getStrippedAttributes = (attribs: any): any => {
-    for (const [key, value] of Object.entries(attribs)) {
-        // Check attribute values for dangerous patterns (case-insensitive)
-        if (typeof value === 'string') {
-            const lowerValue = value.toLowerCase();
-            const hasDangerousPattern = VisualConstants.scriptingPatterns.some(pattern =>
-                lowerValue.includes(pattern.toLowerCase())
-            );
+        // NFKC normalize URL-bearing attribute values to defeat Unicode
+        // obfuscation of dangerous schemes, and strip control characters
+        // (browsers ignore C0 controls when parsing URLs, so e.g.
+        // `java\x00script:` is parsed as `javascript:` and must be
+        // rejected by the same scheme check).
+        if (attrName === 'href' || attrName === 'src' || attrName === 'xlink:href') {
+            // eslint-disable-next-line no-control-regex
+            value = value.normalize('NFKC').replace(/[\x00-\x1F\x7F\uFFFD]/g, '');
+            hookEvent.attrValue = value;
+        }
 
-            if (hasDangerousPattern) {
-                delete attribs[key];
-                continue;
+        // Per-tag attribute allowlist enforcement
+        const allowedForTag = ALLOWED_ATTRIBUTES[tagName] || [];
+        const allowedGlobal = ALLOWED_ATTRIBUTES['*'] || [];
+        const merged = [...allowedGlobal, ...allowedForTag];
+        const isAllowed = merged.some((pattern) => {
+            if (pattern.endsWith('-*')) {
+                return attrName.startsWith(pattern.slice(0, -1));
+            }
+            return pattern === attrName;
+        });
+        if (!isAllowed) {
+            hookEvent.keepAttr = false;
+            return;
+        }
+
+        // data: URI sanitization for src/href/xlink:href
+        if ((attrName === 'src' || attrName === 'href' || attrName === 'xlink:href') && value.startsWith('data:')) {
+            const sanitized = getSanitizedDataUri(value);
+            if (sanitized === 'data:,' || sanitized === '') {
+                hookEvent.keepAttr = false;
+                return;
+            }
+            hookEvent.attrValue = sanitized;
+            return;
+        }
+
+        // Inline style sanitization
+        if (attrName === 'style') {
+            const sanitizedStyle = sanitizeCss(value, 'declaration-list');
+            if (sanitizedStyle === '') {
+                hookEvent.keepAttr = false;
+                return;
+            }
+            // Normalize whitespace around the property/value separator
+            // and trailing semicolons. sanitize-html previously re-serialized
+            // through postcss after our hook ran, which collapsed `color: red`
+            // to `color:red`. Without that second pass we mimic the same
+            // normalization here so the harness fixtures (which encode the
+            // post-postcss-default form) keep matching.
+            hookEvent.attrValue = sanitizedStyle
+                .split(';')
+                .map(d => d.trim().replace(/^([^:]+?)\s*:\s*/, '$1:'))
+                .filter(d => d.length > 0)
+                .join(';');
+            return;
+        }
+
+        // Defense-in-depth: drop xlink:href if it carries javascript:
+        if (attrName === 'xlink:href' && /^javascript\s*:/i.test(value)) {
+            hookEvent.keepAttr = false;
+            return;
+        }
+
+        // Defense-in-depth: scriptingPatterns check on the value
+        const lowerValue = value.toLowerCase();
+        const hasDangerous = VisualConstants.scriptingPatterns.some((p) =>
+            lowerValue.includes(p.toLowerCase())
+        );
+        if (hasDangerous) {
+            hookEvent.keepAttr = false;
+            return;
+        }
+    });
+
+    // Hook 2: per-element sanitization. If any element has an on*
+    // event-handler attribute, drop the entire element (not just the
+    // handler) by removing it from its parent before DOMPurify processes
+    // its attributes.
+    purify.addHook('uponSanitizeElement', (currentNode: Element) => {
+        if (!currentNode || !currentNode.attributes) return;
+        for (let i = 0; i < currentNode.attributes.length; i++) {
+            const attr = currentNode.attributes[i];
+            if (/^on[a-z]+$/i.test(attr.name)) {
+                if (currentNode.parentNode) {
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+                return;
             }
         }
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dpConfig: any = {
+        ALLOWED_TAGS: VisualConstants.allowedTags,
+        ALLOWED_ATTR: FLAT_ATTR_ALLOWLIST,
+        // Allow data: in URL-bearing attrs (sanitized in the hook).
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+        ALLOW_UNKNOWN_PROTOCOLS: false,
+        ALLOW_DATA_ATTR: true,
+        ALLOW_ARIA_ATTR: true,
+        FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base'],
+        FORBID_ATTR: ['srcdoc', 'formaction', 'action', 'ping', 'background', 'poster', 'srcset'],
+        ADD_TAGS: ['style'],
+        FORCE_BODY: true,
+        IN_PLACE: false,
+        RETURN_DOM: false,
+        RETURN_DOM_FRAGMENT: false
+    };
+
+    try {
+        return purify.sanitize(preprocessed, dpConfig);
+    } finally {
+        // Hooks are global per instance — tear them down so they don't
+        // leak across calls (or across tests).
+        purify.removeAllHooks();
     }
-    return attribs;
 };
 
 /**
- * Sanitize CSS content to remove dangerous patterns that could lead to XSS or data exfiltration.
- * This is critical for both <style> tag content and custom stylesheets.
+ * Sanitize CSS content (custom stylesheet entry point).
  */
 export const getSanitizedCss = (css: string): string => {
     if (!css || typeof css !== 'string') {
@@ -285,10 +338,7 @@ export const getSanitizedCss = (css: string): string => {
 /**
  * Sanitize a data: URI for use in img src / href / xlink:href attributes.
  * Only allows specific safe image MIME types AND requires the URI to be
- * base64-encoded — real binary image data is always base64. A
- * `data:image/png,<plain-text>` URI is always smuggling (typically HTML
- * or text masquerading as an image) and is rejected even though the
- * declared MIME type is on the allowlist.
+ * base64-encoded.
  */
 export const getSanitizedDataUri = (dataUri: string): string => {
     if (!dataUri || !dataUri.startsWith('data:')) {
@@ -298,7 +348,6 @@ export const getSanitizedDataUri = (dataUri: string): string => {
     const mimeMatch = dataUri.match(/^data:([^;,]+)/i);
     if (mimeMatch) {
         const mimeType = mimeMatch[1].toLowerCase();
-        // Whitelist of safe image MIME types
         const safeMimeTypes = [
             'image/png',
             'image/jpeg',
@@ -313,10 +362,6 @@ export const getSanitizedDataUri = (dataUri: string): string => {
             return 'data:,';
         }
 
-        // Require base64 encoding. Real binary images can only be
-        // expressed as base64; a data:image/* without ;base64, is
-        // always carrying plain-text content (HTML/SVG/script) and
-        // smuggling it past the MIME-type check.
         if (!/^data:[^,]*;base64,/i.test(dataUri)) {
             console.warn(
                 `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
@@ -329,11 +374,7 @@ export const getSanitizedDataUri = (dataUri: string): string => {
 };
 
 /**
- * Test-only entry point that returns the sanitized HTML *string* (not a
- * DOM fragment) for a given input. Used by the integration harness to feed
- * payloads through the exact production sanitization pipeline.
- *
- * Do not call this from production code — use getParsedHtmlAsDom instead.
+ * Test-only entry point that returns the sanitized HTML *string*.
  */
 export const getSanitizedHtmlForTesting = (
     content: string,
