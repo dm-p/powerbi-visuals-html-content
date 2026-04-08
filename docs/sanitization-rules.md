@@ -200,6 +200,1293 @@ This is a safety net, not the primary mechanism — the parser-based rules are t
 The examples below show specific input/output pairs taken from the sanitizer's regression test corpus. They're auto-generated from the test fixtures, so they always reflect the current rule set.
 
 <!-- WORKED_EXAMPLES_START — Task 21's generate-sanitization-docs.ts script populates this section. Do not edit by hand. -->
+
+
+### Microsoft certification report payloads
+
+The exact payloads flagged by Microsoft's certification review.
+
+#### Inline style with content:url() pointing at a non-image data URI. Browser attempts to fetch and triggers img-src CSP violation.
+
+**Input:**
+
+```html
+<div style="content:url(data:1234***qwerty)">Hello</div>
+```
+
+**Output:**
+
+```html
+<div>Hello</div>
+```
+
+#### Image element with non-image data URI in src attribute. Browser attempts to load and triggers img-src CSP violation.
+
+**Input:**
+
+```html
+<img src="data:1234***qwerty" alt="x">
+```
+
+**Output:**
+
+```html
+<img alt="x">
+```
+
+### CSS `url()` across CSS properties
+
+Every CSS property that accepts a `url()` function, asserted against unsafe arguments.
+
+#### background property with external URL.
+
+**Input:**
+
+```html
+<div style="background: url(https://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### background-image with external URL.
+
+**Input:**
+
+```html
+<div style="background-image: url(https://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### cursor property with external URL.
+
+**Input:**
+
+```html
+<div style="cursor: url(https://attacker.example/x.cur), auto">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### list-style-image with external URL.
+
+**Input:**
+
+```html
+<ul style="list-style-image: url(https://attacker.example/x.png)"><li>x</li></ul>
+```
+
+**Output:**
+
+```html
+<ul><li>x</li></ul>
+```
+
+#### border-image with external URL.
+
+**Input:**
+
+```html
+<div style="border-image: url(https://attacker.example/x.png) 30">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### mask with external URL.
+
+**Input:**
+
+```html
+<div style="mask: url(https://attacker.example/x.svg)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### mask-image with external URL.
+
+**Input:**
+
+```html
+<div style="mask-image: url(https://attacker.example/x.svg)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### -webkit-mask with external URL.
+
+**Input:**
+
+```html
+<div style="-webkit-mask: url(https://attacker.example/x.svg)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### shape-outside with external URL.
+
+**Input:**
+
+```html
+<div style="shape-outside: url(https://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### clip-path with external URL.
+
+**Input:**
+
+```html
+<div style="clip-path: url(https://attacker.example/x.svg#c)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### filter with external URL.
+
+**Input:**
+
+```html
+<div style="filter: url(https://attacker.example/x.svg#f)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### offset-path with external URL.
+
+**Input:**
+
+```html
+<div style="offset-path: url(https://attacker.example/x.svg#p)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### CSS custom property carrying url() that is referenced via var().
+
+**Input:**
+
+```html
+<div style="--bg: url(https://attacker.example/x.png); background: var(--bg)">x</div>
+```
+
+**Output:**
+
+```html
+<div style="background:var(--bg)">x</div>
+```
+
+### CSS `url()` scheme variants
+
+Every scheme or pseudo-scheme that might appear inside a `url()` argument.
+
+#### https url() in background.
+
+**Input:**
+
+```html
+<div style="background: url(https://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### http url() in background.
+
+**Input:**
+
+```html
+<div style="background: url(http://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### protocol-relative url() in background.
+
+**Input:**
+
+```html
+<div style="background: url(//attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### relative url() in background.
+
+**Input:**
+
+```html
+<div style="background: url(/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### data:text/html in background.
+
+**Input:**
+
+```html
+<div style="background: url(data:text/html,<script>alert(1)</script>)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### data:text/javascript in background.
+
+**Input:**
+
+```html
+<div style="background: url(data:text/javascript,alert(1))">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### data:text/css in background.
+
+**Input:**
+
+```html
+<div style="background: url(data:text/css,body{background:red})">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### data:font/woff in @font-face — must be blocked because @font-face is dropped.
+
+**Input:**
+
+```html
+<style>@font-face { font-family: x; src: url(data:font/woff,abc) }</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### data:image/svg+xml is blocked even though it is image/* — SVG can carry scripts.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### blob: scheme in background.
+
+**Input:**
+
+```html
+<div style="background: url(blob:https://attacker.example/x)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### filesystem: scheme in background.
+
+**Input:**
+
+```html
+<div style="background: url(filesystem:https://attacker.example/persistent/x)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### javascript: scheme in background url().
+
+**Input:**
+
+```html
+<div style="background: url(javascript:alert(1))">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### Empty url().
+
+**Input:**
+
+```html
+<div style="background: url()">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### Whitespace-only url().
+
+**Input:**
+
+```html
+<div style="background: url( )">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+### Data URI MIME smuggling
+
+Data URIs that declare a safe MIME type but carry unsafe content.
+
+#### image/png declared but content is HTML.
+
+**Input:**
+
+```html
+<img src="data:image/png,<html><body>hi</body></html>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Whitespace inserted into MIME type to evade pattern match.
+
+**Input:**
+
+```html
+<img src="data: image/png ,abc">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Tab character inserted into MIME type.
+
+**Input:**
+
+```html
+<img src="data:image/png	,abc">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Control character (0x01) inserted into MIME type.
+
+**Input:**
+
+```html
+<img src="data:image/png,abc">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+### CSS at-rules
+
+At-rules that load external resources or bypass other rules.
+
+#### @import with external URL.
+
+**Input:**
+
+```html
+<style>@import url(https://attacker.example/x.css);</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### @font-face with external src.
+
+**Input:**
+
+```html
+<style>@font-face { font-family: x; src: url(https://attacker.example/x.woff); }</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### @namespace with external URL.
+
+**Input:**
+
+```html
+<style>@namespace url(https://attacker.example/);</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### @document with external URL match.
+
+**Input:**
+
+```html
+<style>@document url(https://attacker.example/) { body { color: red; } }</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### @import nested inside @media.
+
+**Input:**
+
+```html
+<style>@media screen { @import url(https://attacker.example/x.css); }</style>
+```
+
+**Output:**
+
+```html
+<style>@media screen { }</style>
+```
+
+### Event handler attributes
+
+HTML `on*` attributes that execute script.
+
+#### onclick handler.
+
+**Input:**
+
+```html
+<div onclick="alert(1)">x</div>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onload handler on img.
+
+**Input:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo=" onload="alert(1)">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onerror handler on img with bad src.
+
+**Input:**
+
+```html
+<img src="x" onerror="alert(1)">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onmouseover handler.
+
+**Input:**
+
+```html
+<div onmouseover="alert(1)">x</div>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onfocus handler on input.
+
+**Input:**
+
+```html
+<input onfocus="alert(1)" autofocus>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onanimationstart handler.
+
+**Input:**
+
+```html
+<div onanimationstart="alert(1)">x</div>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### ontransitionend handler.
+
+**Input:**
+
+```html
+<div ontransitionend="alert(1)">x</div>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OnClick mixed case.
+
+**Input:**
+
+```html
+<div OnClick="alert(1)">x</div>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### onbegin on SVG animate.
+
+**Input:**
+
+```html
+<svg><animate onbegin="alert(1)" attributeName="x" /></svg>
+```
+
+**Output:**
+
+```html
+<svg></svg>
+```
+
+### SVG-specific vectors
+
+Payloads that only work inside SVG contexts.
+
+#### script element inside svg.
+
+**Input:**
+
+```html
+<svg><script>alert(1)</script></svg>
+```
+
+**Output:**
+
+```html
+<svg></svg>
+```
+
+#### foreignObject containing HTML script.
+
+**Input:**
+
+```html
+<svg><foreignObject><script>alert(1)</script></foreignObject></svg>
+```
+
+**Output:**
+
+```html
+<svg></svg>
+```
+
+#### animate with javascript: in to attribute.
+
+**Input:**
+
+```html
+<svg><animate attributeName="href" to="javascript:alert(1)" /></svg>
+```
+
+**Output:**
+
+```html
+<svg><animate></animate></svg>
+```
+
+#### set element with javascript: target.
+
+**Input:**
+
+```html
+<svg><set attributeName="href" to="javascript:alert(1)" /></svg>
+```
+
+**Output:**
+
+```html
+<svg><set></set></svg>
+```
+
+#### use with javascript: xlink:href.
+
+**Input:**
+
+```html
+<svg><use xlink:href="javascript:alert(1)" /></svg>
+```
+
+**Output:**
+
+```html
+<svg></svg>
+```
+
+#### use with data:image/svg+xml xlink:href.
+
+**Input:**
+
+```html
+<svg><use xlink:href="data:image/svg+xml,<svg/>" /></svg>
+```
+
+**Output:**
+
+```html
+<svg></svg>
+```
+
+### Disallowed HTML elements
+
+HTML elements blocked at the tag level.
+
+#### iframe element.
+
+**Input:**
+
+```html
+<iframe src="https://attacker.example"></iframe>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### object element with data attribute.
+
+**Input:**
+
+```html
+<object data="https://attacker.example/x.swf"></object>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### embed element.
+
+**Input:**
+
+```html
+<embed src="https://attacker.example/x.swf">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### meta http-equiv refresh.
+
+**Input:**
+
+```html
+<meta http-equiv="refresh" content="0;url=https://attacker.example">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### base href with javascript:.
+
+**Input:**
+
+```html
+<base href="javascript:alert(1)//">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### form with formaction.
+
+**Input:**
+
+```html
+<form><button formaction="javascript:alert(1)">go</button></form>
+```
+
+**Output:**
+
+```html
+go
+```
+
+#### link rel=stylesheet pointing externally.
+
+**Input:**
+
+```html
+<link rel="stylesheet" href="https://attacker.example/x.css">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### link rel=import.
+
+**Input:**
+
+```html
+<link rel="import" href="https://attacker.example/x.html">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### input type=image with javascript: src.
+
+**Input:**
+
+```html
+<input type="image" src="javascript:alert(1)">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+### Disallowed HTML attributes
+
+HTML attributes blocked at the attribute level.
+
+#### iframe srcdoc (executes as document) — also iframe is dropped.
+
+**Input:**
+
+```html
+<iframe srcdoc="<script>alert(1)</script>"></iframe>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### formaction attribute on a button.
+
+**Input:**
+
+```html
+<button formaction="https://attacker.example">go</button>
+```
+
+**Output:**
+
+```html
+go
+```
+
+#### ping attribute on a tag.
+
+**Input:**
+
+```html
+<a href="https://example.com" ping="https://attacker.example">x</a>
+```
+
+**Output:**
+
+```html
+<a href="https://example.com">x</a>
+```
+
+#### background attribute on body (legacy).
+
+**Input:**
+
+```html
+<body background="https://attacker.example/x.png"></body>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### srcset on img — explicitly dropped per spec section 3.
+
+**Input:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo=" srcset="https://attacker.example/x.png 2x">
+```
+
+**Output:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo=">
+```
+
+### Encoding and obfuscation
+
+Unicode and whitespace obfuscation of dangerous tokens.
+
+#### HTML entity encoding of javascript:.
+
+**Input:**
+
+```html
+<a href="&#x6A;avascript:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Mixed case JaVaScRiPt:.
+
+**Input:**
+
+```html
+<a href="JaVaScRiPt:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Tab inserted into javascript scheme.
+
+**Input:**
+
+```html
+<a href="java	script:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Newline inserted into javascript scheme.
+
+**Input:**
+
+```html
+<a href="java
+script:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Leading whitespace before scheme.
+
+**Input:**
+
+```html
+<a href="   javascript:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Null byte in scheme.
+
+**Input:**
+
+```html
+<a href="java script:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+#### Fullwidth Unicode javascript.
+
+**Input:**
+
+```html
+<a href="ｊavascript:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
+```
+
+### OWASP XSS Filter Evasion Cheat Sheet
+
+Representative entries from the OWASP XSS Filter Evasion list.
+
+#### OWASP: img with onerror.
+
+**Input:**
+
+```html
+<IMG SRC=x onerror="alert('XSS')">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OWASP: image with javascript: href via dynsrc.
+
+**Input:**
+
+```html
+<IMG DYNSRC="javascript:alert('XSS')">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### OWASP: BGSOUND element.
+
+**Input:**
+
+```html
+<BGSOUND SRC="javascript:alert('XSS')">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OWASP: svg onload.
+
+**Input:**
+
+```html
+<svg onload="alert(1)">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OWASP: marquee with onstart.
+
+**Input:**
+
+```html
+<marquee onstart="alert(1)">x</marquee>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OWASP: style expression() (legacy IE).
+
+**Input:**
+
+```html
+<div style="width: expression(alert(1))">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### OWASP: meta charset utf-7 attack.
+
+**Input:**
+
+```html
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-7">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+#### OWASP: ISINDEX action.
+
+**Input:**
+
+```html
+<ISINDEX TYPE=IMAGE SRC="javascript:alert('XSS')">
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
+```
+
+### Partial-survival cases
+
+Mixed safe and unsafe content where only the unsafe part must drop.
+
+#### Style with safe color and unsafe background — color survives, background dropped.
+
+**Input:**
+
+```html
+<div style="color: red; background: url(https://attacker.example/x.png)">x</div>
+```
+
+**Output:**
+
+```html
+<div style="color:red">x</div>
+```
+
+#### Multiple safe declarations and one unsafe — only the unsafe one drops.
+
+**Input:**
+
+```html
+<div style="font-size: 14px; color: blue; cursor: url(https://attacker.example/c.cur), auto; padding: 4px">x</div>
+```
+
+**Output:**
+
+```html
+<div style="font-size:14px;color:blue;padding:4px">x</div>
+```
+
+### Clean baseline (safe content)
+
+Legitimate content that must continue to render unchanged.
+
+#### A simple paragraph of text wrapped in a <p> tag. The most common real-world case — must render unchanged.
+
+**Input:**
+
+```html
+<p>Hello, world.</p>
+```
+
+**Output:**
+
+```html
+<p>Hello, world.</p>
+```
+
+#### Basic inline text formatting (bold, italic, underline). Standard rich-text output from a report author.
+
+**Input:**
+
+```html
+<p><strong>Bold</strong> <em>italic</em> <u>under</u></p>
+```
+
+**Output:**
+
+```html
+<p><strong>Bold</strong> <em>italic</em> <u>under</u></p>
+```
+
+#### An image embedded as a base64 PNG data URI — the recommended way to include images in a sanitized visual.
+
+**Input:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=" alt="dot">
+```
+
+**Output:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=" alt="dot">
+```
+
+#### An inline style attribute using only safe properties (color and font-weight) with no external resource references.
+
+**Input:**
+
+```html
+<p style="color: red; font-weight: bold">red bold</p>
+```
+
+**Output:**
+
+```html
+<p style="color:red;font-weight:bold">red bold</p>
+```
+
 <!-- WORKED_EXAMPLES_END -->
 
 ---

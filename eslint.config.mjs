@@ -5,6 +5,7 @@ export default [
     {
         ignores: [
             'bin/**',
+            'scripts/**',
             'node_modules/**',
             'dist/**',
             'coverage/**',
