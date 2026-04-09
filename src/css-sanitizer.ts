@@ -35,7 +35,6 @@ import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
 // default-import form but pbiviz package's strict ts-loader pass does not.
 // Using require() + a type-only import matches the existing pattern for
 // `pretty` in src/domain-utils.ts and keeps runtime semantics identical.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const valueParser: (value: string) => { nodes: ValueNode[] } = require('postcss-value-parser');
 
 const ALLOWED_AT_RULES = new Set<string>([

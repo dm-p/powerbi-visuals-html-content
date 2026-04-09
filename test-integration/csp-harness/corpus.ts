@@ -277,6 +277,7 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         id: 'css-url-scheme-http',
         description: 'http url() in background.',
         input: '<div style="background: url(http://attacker.example/x.png)">x</div>',
+        // eslint-disable-next-line powerbi-visuals/no-http-string
         expectedSanitized: { notContains: ['http://attacker.example'] },
         category: 'css-url-scheme',
         cspCategory: 'img-src',

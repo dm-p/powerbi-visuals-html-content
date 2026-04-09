@@ -2,9 +2,7 @@
 import * as config from '../config/visual.json';
 // Namespace import for compatibility with the project tsconfig
 // (no esModuleInterop). The runtime export is callable for jsdom binding.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import * as DOMPurifyNs from 'dompurify';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DOMPurify: any = (DOMPurifyNs as any).default || DOMPurifyNs;
 import { marked } from 'marked';
 
@@ -153,12 +151,9 @@ function preprocessStyleTags(input: string): string {
  * default import is already pre-bound. Under jsdom we need to call
  * `DOMPurify(window)` once.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let purifyInstance: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getPurify(): any {
     if (purifyInstance) return purifyInstance;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dp: any = DOMPurify;
     if (typeof dp.sanitize === 'function') {
         purifyInstance = dp;
@@ -197,7 +192,6 @@ export const getSanitizedContent = (content: string): string => {
     // inline style sanitization, dangerous-pattern check.
     purify.addHook('uponSanitizeAttribute', (
         currentNode: Element,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         hookEvent: any
     ) => {
         const attrName: string = hookEvent.attrName.toLowerCase();
@@ -212,7 +206,6 @@ export const getSanitizedContent = (content: string): string => {
         // `java\x00script:` is parsed as `javascript:` and must be
         // rejected by the same scheme check).
         if (attrName === 'href' || attrName === 'src' || attrName === 'xlink:href') {
-            // eslint-disable-next-line no-control-regex
             value = value.normalize('NFKC').replace(/[\x00-\x1F\x7F\uFFFD]/g, '');
             hookEvent.attrValue = value;
         }
@@ -298,7 +291,6 @@ export const getSanitizedContent = (content: string): string => {
         }
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dpConfig: any = {
         ALLOWED_TAGS: VisualConstants.allowedTags,
         ALLOWED_ATTR: FLAT_ATTR_ALLOWLIST,
