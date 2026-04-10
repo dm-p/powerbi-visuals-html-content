@@ -42,6 +42,16 @@ describe('sanitizeCss', () => {
             expect(out).not.toContain('svg+xml');
             expect(out).not.toContain('background');
         });
+
+        it('drops a url(data:image/png,...) without base64 encoding (P0 review fix)', () => {
+            const out = sanitizeCss(
+                'background: url(data:image/png,<svg/onload=alert(1)>)',
+                'declaration-list'
+            );
+            expect(out).not.toContain('data:image/png');
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('background');
+        });
     });
 
     describe('stylesheet mode', () => {

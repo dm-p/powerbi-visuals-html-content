@@ -187,6 +187,11 @@ export const getSanitizedContent = (content: string): string => {
     const preprocessed = preprocessStyleTags(content);
     const purify = getPurify();
 
+    // Ensure a clean hook slate before registering. If a prior call
+    // crashed between addHook and the try/finally cleanup, orphaned
+    // hooks would otherwise accumulate on the cached singleton.
+    purify.removeAllHooks();
+
     // Hook 1: per-attribute sanitization. Per-tag allowlist enforcement,
     // NFKC normalization on URL attributes, data: URI sanitization,
     // inline style sanitization, dangerous-pattern check.
@@ -223,6 +228,22 @@ export const getSanitizedContent = (content: string): string => {
         if (!isAllowed) {
             hookEvent.keepAttr = false;
             return;
+        }
+
+        // Per-tag URL scheme enforcement. VisualConstants.allowedSchemesByTag
+        // specifies which schemes each tag is allowed to use (e.g. img: only
+        // data:, a: only http/https). If the tag has an entry, enforce it;
+        // if it doesn't, fall through to the data: URI sanitizer below.
+        if (attrName === 'src' || attrName === 'href' || attrName === 'xlink:href') {
+            const schemesByTag = VisualConstants.allowedSchemesByTag[tagName];
+            if (schemesByTag) {
+                const schemeMatch = value.match(/^([a-z][a-z0-9+.\-]*)\s*:/i);
+                const scheme = schemeMatch ? schemeMatch[1].toLowerCase() : '';
+                if (!schemesByTag.includes(scheme)) {
+                    hookEvent.keepAttr = false;
+                    return;
+                }
+            }
         }
 
         // data: URI sanitization for src/href/xlink:href
@@ -274,12 +295,31 @@ export const getSanitizedContent = (content: string): string => {
         }
     });
 
-    // Hook 2: per-element sanitization. If any element has an on*
-    // event-handler attribute, drop the entire element (not just the
-    // handler) by removing it from its parent before DOMPurify processes
-    // its attributes.
+    // Hook 2: per-element sanitization.
+    //  - If any element has an on* event-handler attribute, drop the
+    //    entire element by removing it from its parent.
+    //  - For <style> tags: run sanitizeCss on the text content as a
+    //    defense-in-depth backstop. preprocessStyleTags already sanitized
+    //    the body via regex extraction, but if the regex was defeated
+    //    (e.g. by a '>' inside an attribute value or an unclosed tag),
+    //    this hook catches the fallthrough. DOMPurify's ADD_TAGS:['style']
+    //    preserves the element — without this hook, an unsanitized body
+    //    would reach the DOM.
     purify.addHook('uponSanitizeElement', (currentNode: Element) => {
-        if (!currentNode || !currentNode.attributes) return;
+        if (!currentNode) return;
+
+        // Style-tag backstop: sanitize the text content through postcss
+        // so preprocessStyleTags bypasses don't reach the DOM.
+        if (currentNode.nodeName && currentNode.nodeName.toLowerCase() === 'style') {
+            const raw = currentNode.textContent || '';
+            if (raw.trim()) {
+                const sanitized = sanitizeCss(raw, 'stylesheet');
+                currentNode.textContent = sanitized;
+            }
+            return;
+        }
+
+        if (!currentNode.attributes) return;
         for (let i = 0; i < currentNode.attributes.length; i++) {
             const attr = currentNode.attributes[i];
             if (/^on[a-z]+$/i.test(attr.name)) {
@@ -338,28 +378,33 @@ export const getSanitizedDataUri = (dataUri: string): string => {
     }
 
     const mimeMatch = dataUri.match(/^data:([^;,]+)/i);
-    if (mimeMatch) {
-        const mimeType = mimeMatch[1].toLowerCase();
-        const safeMimeTypes = [
-            'image/png',
-            'image/jpeg',
-            'image/jpg',
-            'image/gif',
-            'image/webp',
-            'image/bmp'
-        ];
+    if (!mimeMatch) {
+        // No extractable MIME type (e.g. 'data:,payload', 'data:;base64,...').
+        // RFC 2397 defaults missing MIME to text/plain — not on our allowlist.
+        console.warn('Blocked data URI with no extractable MIME type');
+        return 'data:,';
+    }
 
-        if (!safeMimeTypes.includes(mimeType)) {
-            console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
-            return 'data:,';
-        }
+    const mimeType = mimeMatch[1].toLowerCase();
+    const safeMimeTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'image/gif',
+        'image/webp',
+        'image/bmp'
+    ];
 
-        if (!/^data:[^,]*;base64,/i.test(dataUri)) {
-            console.warn(
-                `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
-            );
-            return 'data:,';
-        }
+    if (!safeMimeTypes.includes(mimeType)) {
+        console.warn(`Blocked data URI with unsafe MIME type: ${mimeType.slice(0, 64)}`);
+        return 'data:,';
+    }
+
+    if (!/^data:[^,]*;base64,/i.test(dataUri)) {
+        console.warn(
+            `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
+        );
+        return 'data:,';
     }
 
     return dataUri;

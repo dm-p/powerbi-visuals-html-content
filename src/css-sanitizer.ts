@@ -156,7 +156,13 @@ function isSafeImageDataUri(rawUrl: string): boolean {
     );
     const mime = url.slice(5, end);
     if (mime === 'image/svg+xml') return false;
-    return SAFE_IMAGE_MIME_TYPES.has(mime);
+    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
+    // Real binary image data is always base64-encoded. A data:image/*
+    // URI without ;base64, is always smuggling plain-text content (HTML,
+    // SVG, script) behind an image MIME declaration. This mirrors the
+    // same check in getSanitizedDataUri (sanitize-pipeline.ts).
+    if (!/;base64,/i.test(rawUrl)) return false;
+    return true;
 }
 
 function hasUnsafeFunction(nodes: ValueNode[]): boolean {
