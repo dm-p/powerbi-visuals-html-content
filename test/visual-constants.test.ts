@@ -145,10 +145,10 @@ describe('VisualConstants', () => {
             });
         });
 
-        it('should include SVG animation tags', () => {
-            const animTags = ['animate', 'animatemotion', 'animatetransform'];
+        it('should NOT include SVG animation tags (SMIL can override sanitized attributes)', () => {
+            const animTags = ['animate', 'animatemotion', 'animatetransform', 'set'];
             animTags.forEach(tag => {
-                expect(VisualConstants.allowedTags).toContain(tag);
+                expect(VisualConstants.allowedTags).not.toContain(tag);
             });
         });
 

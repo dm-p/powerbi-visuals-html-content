@@ -1,0 +1,8 @@
+/// Root location for repo, as Power Query doesn't have the ability to get local folder, and relative locations cannot be loaded
+expression RepoRoot = "[add current path here]" meta [IsParameterQuery=true, Type="Any", IsParameterQueryRequired=true]
+	lineageTag: ef1e821b-a10c-41a9-ae23-186603f85557
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Text
+

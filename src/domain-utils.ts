@@ -7,9 +7,6 @@ import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 // External dependencies
 import { select, Selection } from 'd3-selection';
 import * as OverlayScrollbars from 'overlayscrollbars';
-import * as config from '../config/visual.json';
-import * as sanitizeHtml from 'sanitize-html';
-import { marked } from 'marked';
 const pretty = require('pretty');
 
 // Internal dependencies
@@ -20,212 +17,19 @@ import {
 } from './visual-settings';
 import { IHtmlEntry } from './view-model';
 import { RenderFormat } from './types';
+import { getParsedHtmlAsDom, getSanitizedCss } from './sanitize-pipeline';
 
-/**
- * Parse the supplied HTML string and then return as a DOM fragment that we can
- * use in the visual for our data. If we're specifying in the configuration that
- * we should sanitize, do this also, so that we're not injecting any malicious
- * code into the DOM and keep to certification requirements.
- */
-export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
-    const parse = Range.prototype.createContextualFragment.bind(
-        document.createRange()
-    );
-    const converted =
-        format === 'markdown' ? marked.parse(content).toString() : content;
-    const dom = config.sanitize ? getSanitizedContent(converted) : converted;
-    return parse(dom);
-};
+// Re-export sanitize pipeline entry points so existing callers that import
+// from './domain-utils' continue to work after the Task 7 extraction.
+export { getParsedHtmlAsDom } from './sanitize-pipeline';
 
-/**
- * Sanitize the supplied HTML string, based on the configuration settings. This will remove any
- * potentially dangerous content, such as javascript, and ensure that we are only allowing the tags and
- * attributes that we want to be able to use.
- */
-const getSanitizedContent = (content: string) => {
-    const {
-        allowedSchemes,
-        allowedSchemesByTag,
-        allowedTags
-    } = VisualConstants;
-    return sanitizeHtml(content, {
-              allowedAttributes: { '*': ['*'] },
-              allowedTags,
-              allowedSchemes,
-              allowedSchemesByTag,
-              transformTags: {
-                  '*': (tagName, attribs) => {
-                      // Sanitize data URIs in src attributes
-                      if (attribs.src && typeof attribs.src === 'string' && attribs.src.startsWith('data:')) {
-                          attribs.src = getSanitizedDataUri(attribs.src);
-                      }
-                      // Sanitize data URIs in href attributes for SVG/images
-                      if (attribs.href && typeof attribs.href === 'string' && attribs.href.startsWith('data:')) {
-                          attribs.href = getSanitizedDataUri(attribs.href);
-                      }
-                      // Sanitize xlink:href (SVG attribute that can carry javascript: or data: URIs)
-                      if (attribs['xlink:href'] && typeof attribs['xlink:href'] === 'string') {
-                          if (attribs['xlink:href'].startsWith('data:')) {
-                              attribs['xlink:href'] = getSanitizedDataUri(attribs['xlink:href']);
-                          } else if (/^javascript\s*:/i.test(attribs['xlink:href'])) {
-                              delete attribs['xlink:href'];
-                          }
-                      }
-                      return {
-                          tagName,
-                          attribs: getStrippedAttributes(attribs)
-                      };
-                  }
-              },
-              exclusiveFilter: frame => {
-                  try {
-                      // Test for dangerous CSS patterns in <style> tags
-                      let cssContentFail = false;
-                      if (frame.tag === 'style' && frame.text) {
-                          // Use comprehensive CSS sanitization check
-                          for (const pattern of VisualConstants.cssDangerousPatterns) {
-                              if (pattern.test(frame.text)) {
-                                  console.warn(`Blocked <style> tag containing dangerous pattern: ${pattern}`);
-                                  cssContentFail = true;
-                                  break;
-                              }
-                          }
-                          // Also check for non-image data URIs in style content
-                          if (!cssContentFail) {
-                              const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
-                              const matches = frame.text.match(dataUriPattern);
-                              if (matches) {
-                                  for (const match of matches) {
-                                      const mimeMatch = match.match(/data:([^;,\s)]+)/i);
-                                      if (mimeMatch && !mimeMatch[1].toLowerCase().startsWith('image/')) {
-                                          console.warn(`Blocked <style> tag with non-image data URI: ${mimeMatch[1]}`);
-                                          cssContentFail = true;
-                                          break;
-                                      }
-                                  }
-                              }
-                          }
-                      }
-
-                      // Test for event attributes (onload, onclick, etc.) - anchored and case-insensitive
-                      const eventAttributeFailure = Object.keys(
-                          frame.attribs
-                      ).some(attr => {
-                          return /^on[a-z]+$/i.test(attr);
-                      });
-
-                      const fail = cssContentFail || eventAttributeFailure;
-                      return fail;
-                  } catch (e) {
-                      return true;
-                  }
-              }
-          });
-};
-
-/**
- * It still might be possible to encode 'javascript' into an attribute, so
- * we'll strip out any attributes that contain this, or any other potential
- * scripting patterns.
- */
-const getStrippedAttributes = (
-    attribs: sanitizeHtml.Attributes
-): sanitizeHtml.Attributes => {
-    for (const [key, value] of Object.entries(attribs)) {
-        // Check attribute values for dangerous patterns (case-insensitive)
-        if (typeof value === 'string') {
-            const lowerValue = value.toLowerCase();
-            const hasDangerousPattern = VisualConstants.scriptingPatterns.some(pattern =>
-                lowerValue.includes(pattern.toLowerCase())
-            );
-
-            if (hasDangerousPattern) {
-                delete attribs[key];
-                continue;
-            }
-
-            // Check inline style attributes against CSS dangerous patterns
-            if (key.toLowerCase() === 'style') {
-                const hasDangerousCss = VisualConstants.cssDangerousPatterns.some(
-                    pattern => pattern.test(value)
-                );
-                if (hasDangerousCss) {
-                    delete attribs[key];
-                }
-            }
-        }
-    }
-    return attribs;
-};
-
-/**
- * Sanitize CSS content to remove dangerous patterns that could lead to XSS or data exfiltration.
- * This is critical for both <style> tag content and custom stylesheets.
- */
-const getSanitizedCss = (css: string): string => {
-    if (!css || typeof css !== 'string') {
-        return '';
-    }
-
-    // Check for dangerous CSS patterns and block the entire stylesheet if found
-    for (const pattern of VisualConstants.cssDangerousPatterns) {
-        if (pattern.test(css)) {
-            console.warn(`Blocked CSS containing dangerous pattern: ${pattern}`);
-            return '/* CSS blocked: contains potentially dangerous content */';
-        }
-    }
-
-    // Additional checks for data URIs in CSS - only allow safe image types
-    const dataUriPattern = /url\s*\(\s*['"]?\s*data:([^;,\s)]+)/gi;
-    const matches = css.match(dataUriPattern);
-
-    if (matches) {
-        for (const match of matches) {
-            const mimeMatch = match.match(/data:([^;,\s)]+)/i);
-            if (mimeMatch) {
-                const mimeType = mimeMatch[1].toLowerCase();
-                // Only allow image MIME types
-                if (!mimeType.startsWith('image/')) {
-                    console.warn(`Blocked CSS data URI with non-image MIME type: ${mimeType}`);
-                    return '/* CSS blocked: data URI contains non-image content */';
-                }
-            }
-        }
-    }
-
-    return css;
-};
-
-/**
- * Sanitize CSS specifically for data URIs in img src attributes.
- * Only allows specific safe image MIME types.
- */
-const getSanitizedDataUri = (dataUri: string): string => {
-    if (!dataUri || !dataUri.startsWith('data:')) {
-        return dataUri;
-    }
-
-    const mimeMatch = dataUri.match(/^data:([^;,]+)/i);
-    if (mimeMatch) {
-        const mimeType = mimeMatch[1].toLowerCase();
-        // Whitelist of safe image MIME types
-        const safeMimeTypes = [
-            'image/png',
-            'image/jpeg',
-            'image/jpg',
-            'image/gif',
-            'image/webp',
-            'image/bmp'
-        ];
-
-        if (!safeMimeTypes.includes(mimeType)) {
-            console.warn(`Blocked data URI with unsafe MIME type: ${mimeType}`);
-            return 'data:,';
-        }
-    }
-
-    return dataUri;
-};
+// The sanitization functions previously defined inline here (getSanitizedContent,
+// getStrippedAttributes, getSanitizedCss, getSanitizedDataUri, and the original
+// getParsedHtmlAsDom) have been moved to ./sanitize-pipeline so they can be
+// imported by the Playwright integration harness without pulling in d3,
+// overlayscrollbars, or powerbi-visuals-api at test load time.
+// getParsedHtmlAsDom is re-exported above; getSanitizedCss is imported above
+// and used by resolveStyling below.
 
 /**
  * Use to determine if we should include stylesheet logic, based on whether it has been supplied or not.

@@ -1,0 +1,70 @@
+import './setup-dom';
+import { test, expect } from '@playwright/test';
+import { createHarness, formatFailure, RenderResult } from './csp-harness/runner';
+import { MALICIOUS_PAYLOADS, CLEAN_PAYLOADS } from './csp-harness/corpus';
+import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+
+// Sanity: assert ids are unique across both arrays. Catches copy-paste
+// duplicates that the corpus's structural type checking can't.
+const allIds = [...MALICIOUS_PAYLOADS, ...CLEAN_PAYLOADS].map(p => p.id);
+const dupes = allIds.filter((id, i) => allIds.indexOf(id) !== i);
+if (dupes.length > 0) {
+    throw new Error(`Duplicate payload ids in corpus: ${dupes.join(', ')}`);
+}
+
+function expectClean(payloadId: string, result: RenderResult) {
+    const failure = formatFailure(payloadId, result);
+    expect(result.violations, failure).toHaveLength(0);
+    expect(result.consoleErrors, failure).toHaveLength(0);
+    expect(result.consoleWarnings, failure).toHaveLength(0);
+    expect(result.pageErrors, failure).toHaveLength(0);
+    expect(result.networkRequests, failure).toHaveLength(0);
+}
+
+test.describe('CSP regression — malicious payloads', () => {
+    for (const payload of MALICIOUS_PAYLOADS) {
+        test(`payload ${payload.id}: ${payload.description}`, async ({ page, context }) => {
+            const harness = await createHarness(page, context);
+            const sanitized = getSanitizedHtmlForTesting(payload.input, 'html');
+
+            if (payload.expectedSanitized.notContains) {
+                for (const needle of payload.expectedSanitized.notContains) {
+                    expect(sanitized, `payload ${payload.id} sanitizer string check`)
+                        .not.toContain(needle);
+                }
+            }
+            if (payload.expectedSanitized.contains) {
+                for (const needle of payload.expectedSanitized.contains) {
+                    expect(sanitized, `payload ${payload.id} sanitizer string check`)
+                        .toContain(needle);
+                }
+            }
+
+            const result = await harness.render(sanitized);
+            expectClean(payload.id, result);
+        });
+    }
+});
+
+test.describe('CSP regression — clean baselines', () => {
+    for (const payload of CLEAN_PAYLOADS) {
+        test(`baseline ${payload.id}: ${payload.description}`, async ({ page, context }) => {
+            const harness = await createHarness(page, context);
+            const sanitized = getSanitizedHtmlForTesting(payload.input, 'html');
+
+            if (payload.expectedSanitized.notContains) {
+                for (const needle of payload.expectedSanitized.notContains) {
+                    expect(sanitized).not.toContain(needle);
+                }
+            }
+            if (payload.expectedSanitized.contains) {
+                for (const needle of payload.expectedSanitized.contains) {
+                    expect(sanitized).toContain(needle);
+                }
+            }
+
+            const result = await harness.render(sanitized);
+            expectClean(payload.id, result);
+        });
+    }
+});

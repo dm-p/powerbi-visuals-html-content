@@ -1,0 +1,1101 @@
+/**
+ * Malicious payload corpus for the CSP regression harness and unit tests.
+ *
+ * This is the single source of truth for sanitization tests and the
+ * "Worked examples" section of docs/sanitization-rules.md.
+ *
+ * HOW TO ADD A NEW PAYLOAD:
+ * 1. Add an entry below with a stable `id`, plain-language `description`,
+ *    the raw `input`, and the substring assertions in `expectedSanitized`.
+ * 2. Set `category` to the PayloadCategory this fits under. The doc
+ *    generator (scripts/generate-sanitization-docs.ts) groups entries by
+ *    this field; comment headers are NOT used for grouping.
+ * 3. Set `cspCategory` to the CSP directive most likely to fail if the
+ *    sanitizer leaves a vulnerability (e.g. 'img-src' for image src
+ *    payloads, 'style-src' for CSS payloads). Use 'none' for clean
+ *    baseline payloads.
+ * 4. Set `source` to the provenance: cert report, OWASP, GitHub issue,
+ *    "baseline" for clean payloads, or "systematic coverage" for entries
+ *    added to round out a category.
+ * 5. Run `npm run test:integration` and `npm run docs:generate`.
+ *
+ * ID NAMING CONVENTION:
+ *   <category-prefix>-<short-slug>
+ *
+ *   Examples:
+ *     ms-cert-2026-04-content-url-data   (provenance-prefixed: MS cert report)
+ *     css-url-background                 (category-prefixed: CSS url() per property)
+ *     event-onclick                      (category-prefixed: event handlers)
+ *     clean-plain-text                   (tier-prefixed: clean baseline)
+ *
+ *   IDs must be unique across MALICIOUS_PAYLOADS and CLEAN_PAYLOADS combined.
+ *   Task 7's Playwright spec asserts uniqueness at load time — a duplicate
+ *   fails CI immediately rather than silently shadowing.
+ */
+
+export type CspCategory =
+    | 'img-src'
+    | 'style-src'
+    | 'script-src'
+    | 'connect-src'
+    | 'font-src'
+    | 'frame-src'
+    | 'object-src'
+    | 'default-src'
+    | 'none';
+
+/**
+ * Grouping for the corpus. Used by the doc generator to group "Worked
+ * examples" into sections, and by test filtering to run a subset.
+ */
+export type PayloadCategory =
+    | 'ms-cert'                // 1. Microsoft cert report 2026-04 (the regressions)
+    | 'css-url-per-property'   // 2. url() across CSS properties that accept it
+    | 'css-url-scheme'         // 3. url() scheme variants (http, blob, javascript, ...)
+    | 'data-uri-smuggling'     // 4. MIME-type smuggling in data: URIs
+    | 'at-rule'                // 5. @import, @font-face, @namespace, @document
+    | 'event-handler'          // 6. on* attributes
+    | 'svg'                    // 7. SVG-specific vectors
+    | 'html-element'           // 8. disallowed HTML elements
+    | 'html-attribute'         // 9. disallowed HTML attributes
+    | 'encoding'               // 10. encoding / obfuscation
+    | 'owasp'                  // 11. OWASP XSS Filter Evasion Cheat Sheet
+    | 'partial-survival'       // 12. mixed safe/unsafe declarations
+    | 'clean-baseline';        //     legitimate content that must keep rendering
+
+export interface Payload {
+    /** Stable, unique identifier. See ID NAMING CONVENTION in the header. */
+    id: string;
+    /**
+     * Plain-language description aimed at a Power BI report author — not a
+     * security engineer. This string appears in the user-facing
+     * docs/sanitization-rules.md "Worked examples" section.
+     */
+    description: string;
+    /** Raw HTML payload exactly as it would arrive from a data field. */
+    input: string;
+    /**
+     * Substring assertions against the sanitizer's output.
+     *
+     * - `contains`: substrings that MUST appear in the sanitized output
+     *   (e.g. text content that must survive).
+     * - `notContains`: substrings that MUST NOT appear (e.g. the dangerous
+     *   parts that the sanitizer must have stripped).
+     *
+     * Both fields are optional. Omitting `notContains` means "no negative
+     * assertions" — use this for clean baseline payloads where there is
+     * nothing to strip.
+     */
+    expectedSanitized: {
+        contains?: string[];
+        notContains?: string[];
+    };
+    /** Grouping for docs and test filtering. See PayloadCategory. */
+    category: PayloadCategory;
+    /**
+     * CSP directive most likely to fire if the sanitizer leaks. Used to
+     * triage harness failures — a violation on `img-src` while running a
+     * payload labelled `script-src` points at a classification bug as
+     * well as a sanitizer bug. Use 'none' for clean baseline payloads.
+     */
+    cspCategory: CspCategory;
+    /** Provenance: cert report, OWASP, GitHub issue, "baseline", etc. */
+    source: string;
+}
+
+/**
+ * Malicious payloads. The sanitizer MUST strip the dangerous parts (per
+ * each entry's `notContains`) and the harness MUST observe zero CSP
+ * violations, console errors, and outbound network requests when the
+ * sanitized output is rendered.
+ */
+export const MALICIOUS_PAYLOADS: Payload[] = [
+    // ─────────────────────────────────────────────────────────────────
+    // Category 1: Microsoft cert report 2026-04 (the regressions)
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'ms-cert-2026-04-content-url-data',
+        description:
+            'Inline style with content:url() pointing at a non-image data URI. ' +
+            'Browser attempts to fetch and triggers img-src CSP violation.',
+        input: '<div style="content:url(data:1234***qwerty)">Hello</div>',
+        expectedSanitized: {
+            contains: ['Hello'],
+            notContains: ['data:1234', 'content:url', 'content: url']
+        },
+        category: 'ms-cert',
+        cspCategory: 'img-src',
+        source: 'MS cert report 2026-04 (1200.1.3 finding)'
+    },
+    {
+        id: 'ms-cert-2026-04-img-src-data',
+        description:
+            'Image element with non-image data URI in src attribute. ' +
+            'Browser attempts to load and triggers img-src CSP violation.',
+        input: '<img src="data:1234***qwerty" alt="x">',
+        expectedSanitized: {
+            notContains: ['data:1234']
+        },
+        category: 'ms-cert',
+        cspCategory: 'img-src',
+        source: 'MS cert report 2026-04 (1200.1.3 finding)'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 2: url() per CSS property
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'css-url-background',
+        description: 'background property with external URL.',
+        input: '<div style="background: url(https://attacker.example/x.png)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-background-image',
+        description: 'background-image with external URL.',
+        input: '<div style="background-image: url(https://attacker.example/x.png)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-cursor',
+        description: 'cursor property with external URL.',
+        input: '<div style="cursor: url(https://attacker.example/x.cur), auto">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-list-style-image',
+        description: 'list-style-image with external URL.',
+        input: '<ul style="list-style-image: url(https://attacker.example/x.png)"><li>x</li></ul>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-border-image',
+        description: 'border-image with external URL.',
+        input: '<div style="border-image: url(https://attacker.example/x.png) 30">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-mask',
+        description: 'mask with external URL.',
+        input: '<div style="mask: url(https://attacker.example/x.svg)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-mask-image',
+        description: 'mask-image with external URL.',
+        input: '<div style="mask-image: url(https://attacker.example/x.svg)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-webkit-mask',
+        description: '-webkit-mask with external URL.',
+        input: '<div style="-webkit-mask: url(https://attacker.example/x.svg)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-shape-outside',
+        description: 'shape-outside with external URL.',
+        input: '<div style="shape-outside: url(https://attacker.example/x.png)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-clip-path',
+        description: 'clip-path with external URL.',
+        input: '<div style="clip-path: url(https://attacker.example/x.svg#c)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-filter',
+        description: 'filter with external URL.',
+        input: '<div style="filter: url(https://attacker.example/x.svg#f)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-offset-path',
+        description: 'offset-path with external URL.',
+        input: '<div style="offset-path: url(https://attacker.example/x.svg#p)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 systematic coverage'
+    },
+    {
+        id: 'css-url-custom-property',
+        description: 'CSS custom property carrying url() that is referenced via var().',
+        input:
+            '<div style="--bg: url(https://attacker.example/x.png); background: var(--bg)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example', 'url('] },
+        category: 'css-url-per-property',
+        cspCategory: 'img-src',
+        source: 'category-2 indirection attack'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 3: url() scheme variants
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'css-url-scheme-https',
+        description: 'https url() in background.',
+        input: '<div style="background: url(https://attacker.example/x.png)">x</div>',
+        expectedSanitized: { notContains: ['https://attacker.example'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-http',
+        description: 'http url() in background.',
+        input: '<div style="background: url(http://attacker.example/x.png)">x</div>',
+        // eslint-disable-next-line powerbi-visuals/no-http-string
+        expectedSanitized: { notContains: ['http://attacker.example'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-protocol-relative',
+        description: 'protocol-relative url() in background.',
+        input: '<div style="background: url(//attacker.example/x.png)">x</div>',
+        expectedSanitized: { notContains: ['attacker.example'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-relative',
+        description: 'relative url() in background.',
+        input: '<div style="background: url(/x.png)">x</div>',
+        expectedSanitized: { notContains: ['url(/x'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-data-text-html',
+        description: 'data:text/html in background.',
+        input: '<div style="background: url(data:text/html,<script>alert(1)</script>)">x</div>',
+        expectedSanitized: { notContains: ['data:text/html', '<script>'] },
+        category: 'css-url-scheme',
+        cspCategory: 'default-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-data-text-javascript',
+        description: 'data:text/javascript in background.',
+        input: '<div style="background: url(data:text/javascript,alert(1))">x</div>',
+        expectedSanitized: { notContains: ['data:text/javascript', 'alert(1)'] },
+        category: 'css-url-scheme',
+        cspCategory: 'script-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-data-text-css',
+        description: 'data:text/css in background.',
+        input: '<div style="background: url(data:text/css,body{background:red})">x</div>',
+        expectedSanitized: { notContains: ['data:text/css'] },
+        category: 'css-url-scheme',
+        cspCategory: 'style-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-data-font-woff',
+        description: 'data:font/woff in @font-face — must be blocked because @font-face is dropped.',
+        input: '<style>@font-face { font-family: x; src: url(data:font/woff,abc) }</style>',
+        expectedSanitized: { notContains: ['@font-face', 'data:font'] },
+        category: 'css-url-scheme',
+        cspCategory: 'font-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-data-image-svg-xml',
+        description:
+            'data:image/svg+xml is blocked even though it is image/* — SVG can carry scripts.',
+        input: '<img src="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\'><script>alert(1)</script></svg>">',
+        expectedSanitized: { notContains: ['data:image/svg+xml', '<script>'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 svg/xss vector'
+    },
+    {
+        id: 'css-url-scheme-blob',
+        description: 'blob: scheme in background.',
+        input: '<div style="background: url(blob:https://attacker.example/x)">x</div>',
+        expectedSanitized: { notContains: ['blob:'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-filesystem',
+        description: 'filesystem: scheme in background.',
+        input: '<div style="background: url(filesystem:https://attacker.example/persistent/x)">x</div>',
+        expectedSanitized: { notContains: ['filesystem:'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-javascript',
+        description: 'javascript: scheme in background url().',
+        input: '<div style="background: url(javascript:alert(1))">x</div>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'css-url-scheme',
+        cspCategory: 'script-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-empty',
+        description: 'Empty url().',
+        input: '<div style="background: url()">x</div>',
+        expectedSanitized: { notContains: ['background:'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    {
+        id: 'css-url-scheme-whitespace',
+        description: 'Whitespace-only url().',
+        input: '<div style="background: url( )">x</div>',
+        expectedSanitized: { notContains: ['background:'] },
+        category: 'css-url-scheme',
+        cspCategory: 'img-src',
+        source: 'category-3 scheme coverage'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 4: Data URI MIME smuggling
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'data-uri-mime-mismatch-png-html',
+        description: 'image/png declared but content is HTML.',
+        input: '<img src="data:image/png,<html><body>hi</body></html>">',
+        expectedSanitized: { notContains: ['<html>', '<body>'] },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'category-4 mime smuggling'
+    },
+    {
+        id: 'data-uri-mime-whitespace',
+        description: 'Whitespace inserted into MIME type to evade pattern match.',
+        input: '<img src="data: image/png ,abc">',
+        expectedSanitized: { notContains: ['data: image'] },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'category-4 mime smuggling'
+    },
+    {
+        id: 'data-uri-mime-tab',
+        description: 'Tab character inserted into MIME type.',
+        input: '<img src="data:image/png\t,abc">',
+        expectedSanitized: { notContains: ['data:image/png\t'] },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'category-4 mime smuggling'
+    },
+    {
+        id: 'data-uri-mime-control-char',
+        description: 'Control character (0x01) inserted into MIME type.',
+        input: '<img src="data:image/png\u0001,abc">',
+        expectedSanitized: { notContains: ['data:image/png\u0001'] },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'category-4 mime smuggling'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 5: At-rule vectors
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'at-rule-import-external',
+        description: '@import with external URL.',
+        input: '<style>@import url(https://attacker.example/x.css);</style>',
+        expectedSanitized: { notContains: ['@import', 'attacker.example'] },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'category-5 at-rule'
+    },
+    {
+        id: 'at-rule-font-face-external',
+        description: '@font-face with external src.',
+        input: '<style>@font-face { font-family: x; src: url(https://attacker.example/x.woff); }</style>',
+        expectedSanitized: { notContains: ['@font-face', 'attacker.example'] },
+        category: 'at-rule',
+        cspCategory: 'font-src',
+        source: 'category-5 at-rule'
+    },
+    {
+        id: 'at-rule-namespace',
+        description: '@namespace with external URL.',
+        input: '<style>@namespace url(https://attacker.example/);</style>',
+        expectedSanitized: { notContains: ['@namespace', 'attacker.example'] },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'category-5 at-rule'
+    },
+    {
+        id: 'at-rule-document',
+        description: '@document with external URL match.',
+        input: '<style>@document url(https://attacker.example/) { body { color: red; } }</style>',
+        expectedSanitized: { notContains: ['@document', 'attacker.example'] },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'category-5 at-rule'
+    },
+    {
+        id: 'at-rule-import-nested-in-media',
+        description: '@import nested inside @media.',
+        input: '<style>@media screen { @import url(https://attacker.example/x.css); }</style>',
+        expectedSanitized: { notContains: ['@import', 'attacker.example'] },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'category-5 at-rule'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 6: Event handler attributes
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'event-onclick',
+        description: 'onclick handler.',
+        input: '<div onclick="alert(1)">x</div>',
+        expectedSanitized: { notContains: ['onclick'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-onload',
+        description: 'onload handler on img.',
+        input: '<img src="data:image/png;base64,iVBORw0KGgo=" onload="alert(1)">',
+        expectedSanitized: { notContains: ['onload', 'alert(1)'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-onerror',
+        description: 'onerror handler on img with bad src.',
+        input: '<img src="x" onerror="alert(1)">',
+        expectedSanitized: { notContains: ['onerror'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-onmouseover',
+        description: 'onmouseover handler.',
+        input: '<div onmouseover="alert(1)">x</div>',
+        expectedSanitized: { notContains: ['onmouseover'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-onfocus',
+        description: 'onfocus handler on input.',
+        input: '<input onfocus="alert(1)" autofocus>',
+        expectedSanitized: { notContains: ['onfocus'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-onanimationstart',
+        description: 'onanimationstart handler.',
+        input: '<div onanimationstart="alert(1)">x</div>',
+        expectedSanitized: { notContains: ['onanimationstart'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-ontransitionend',
+        description: 'ontransitionend handler.',
+        input: '<div ontransitionend="alert(1)">x</div>',
+        expectedSanitized: { notContains: ['ontransitionend'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-mixed-case',
+        description: 'OnClick mixed case.',
+        input: '<div OnClick="alert(1)">x</div>',
+        expectedSanitized: { notContains: ['OnClick', 'onclick'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 event handler'
+    },
+    {
+        id: 'event-svg-onbegin',
+        description: 'onbegin on SVG animate.',
+        input: '<svg><animate onbegin="alert(1)" attributeName="x" /></svg>',
+        expectedSanitized: { notContains: ['onbegin'] },
+        category: 'event-handler',
+        cspCategory: 'script-src',
+        source: 'category-6 svg event'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 7: SVG-specific
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'svg-script-child',
+        description: 'script element inside svg.',
+        input: '<svg><script>alert(1)</script></svg>',
+        expectedSanitized: { notContains: ['<script>', 'alert(1)'] },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-foreign-object-html',
+        description: 'foreignObject containing HTML script.',
+        input: '<svg><foreignObject><script>alert(1)</script></foreignObject></svg>',
+        expectedSanitized: { notContains: ['<script>', 'alert(1)'] },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-animate-javascript',
+        description: 'animate with javascript: in to attribute.',
+        input: '<svg><animate attributeName="href" to="javascript:alert(1)" /></svg>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-set-javascript',
+        description: 'set element with javascript: target.',
+        input: '<svg><set attributeName="href" to="javascript:alert(1)" /></svg>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-animate-override-href',
+        description:
+            'SMIL animate overriding image href to an external URL at runtime. ' +
+            'The animate element is dropped entirely (not in allowedTags).',
+        input:
+            '<svg><image href="data:image/png;base64,iVBORw0KGgo=">' +
+            '<animate attributeName="href" to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"/>' +
+            '</image></svg>',
+        expectedSanitized: { notContains: ['attacker.example', '<animate'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — SMIL animation can override sanitized URL attributes'
+    },
+    {
+        id: 'svg-use-javascript',
+        description: 'use with javascript: xlink:href.',
+        input: '<svg><use xlink:href="javascript:alert(1)" /></svg>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-use-data-svg-xml',
+        description: 'use with data:image/svg+xml xlink:href.',
+        input: '<svg><use xlink:href="data:image/svg+xml,<svg/>" /></svg>',
+        expectedSanitized: { notContains: ['data:image/svg+xml'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'category-7 svg'
+    },
+    {
+        id: 'svg-image-external-href',
+        description:
+            'SVG image element with external href. Same restriction as HTML img: ' +
+            'only data: URIs permitted, no external resource loading.',
+        input: '<svg><image href="https://attacker.example/track.png" /></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG image'
+    },
+    {
+        id: 'svg-image-external-xlink-href',
+        description:
+            'SVG image element with external xlink:href (legacy syntax). ' +
+            'Must be blocked just like href.',
+        input: '<svg><image xlink:href="https://attacker.example/track.png" /></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG image'
+    },
+    {
+        id: 'svg-textpath-external-href',
+        description:
+            'SVG textPath with external href. textPath should only reference ' +
+            'same-document fragment IDs (#path), not external URLs.',
+        input: '<svg><text><textPath href="https://attacker.example/path.svg#p">label</textPath></text></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'default-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG textpath'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 8: HTML-level disallowed elements
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'html-iframe',
+        description: 'iframe element.',
+        input: '<iframe src="https://attacker.example"></iframe>',
+        expectedSanitized: { notContains: ['<iframe', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'frame-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-object',
+        description: 'object element with data attribute.',
+        input: '<object data="https://attacker.example/x.swf"></object>',
+        expectedSanitized: { notContains: ['<object', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'object-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-embed',
+        description: 'embed element.',
+        input: '<embed src="https://attacker.example/x.swf">',
+        expectedSanitized: { notContains: ['<embed', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'object-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-meta-refresh',
+        description: 'meta http-equiv refresh.',
+        input: '<meta http-equiv="refresh" content="0;url=https://attacker.example">',
+        expectedSanitized: { notContains: ['<meta', 'http-equiv', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'default-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-base-javascript',
+        description: 'base href with javascript:.',
+        input: '<base href="javascript:alert(1)//">',
+        expectedSanitized: { notContains: ['<base', 'javascript:'] },
+        category: 'html-element',
+        cspCategory: 'script-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-form-formaction',
+        description: 'form with formaction.',
+        input: '<form><button formaction="javascript:alert(1)">go</button></form>',
+        expectedSanitized: { notContains: ['formaction', 'javascript:'] },
+        category: 'html-element',
+        cspCategory: 'script-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-link-stylesheet',
+        description: 'link rel=stylesheet pointing externally.',
+        input: '<link rel="stylesheet" href="https://attacker.example/x.css">',
+        expectedSanitized: { notContains: ['<link', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'style-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-link-import',
+        description: 'link rel=import.',
+        input: '<link rel="import" href="https://attacker.example/x.html">',
+        expectedSanitized: { notContains: ['<link', 'attacker.example'] },
+        category: 'html-element',
+        cspCategory: 'default-src',
+        source: 'category-8 html'
+    },
+    {
+        id: 'html-input-image-javascript',
+        description: 'input type=image with javascript: src.',
+        input: '<input type="image" src="javascript:alert(1)">',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'html-element',
+        cspCategory: 'script-src',
+        source: 'category-8 html'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 9: Disallowed attributes
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'attr-srcdoc',
+        description: 'iframe srcdoc (executes as document) — also iframe is dropped.',
+        input: '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+        expectedSanitized: { notContains: ['srcdoc', '<script>'] },
+        category: 'html-attribute',
+        cspCategory: 'script-src',
+        source: 'category-9 attribute'
+    },
+    {
+        id: 'attr-formaction-on-button',
+        description: 'formaction attribute on a button.',
+        input: '<button formaction="https://attacker.example">go</button>',
+        expectedSanitized: { notContains: ['formaction', 'attacker.example'] },
+        category: 'html-attribute',
+        cspCategory: 'default-src',
+        source: 'category-9 attribute'
+    },
+    {
+        id: 'attr-ping-on-anchor',
+        description: 'ping attribute on a tag.',
+        input: '<a href="https://example.com" ping="https://attacker.example">x</a>',
+        expectedSanitized: { notContains: ['ping=', 'attacker.example'] },
+        category: 'html-attribute',
+        cspCategory: 'connect-src',
+        source: 'category-9 attribute'
+    },
+    {
+        id: 'attr-background-on-body',
+        description: 'background attribute on body (legacy).',
+        input: '<body background="https://attacker.example/x.png"></body>',
+        expectedSanitized: { notContains: ['background=', 'attacker.example'] },
+        category: 'html-attribute',
+        cspCategory: 'img-src',
+        source: 'category-9 attribute'
+    },
+    {
+        id: 'attr-srcset',
+        description: 'srcset on img — explicitly dropped per spec section 3.',
+        input: '<img src="data:image/png;base64,iVBORw0KGgo=" srcset="https://attacker.example/x.png 2x">',
+        expectedSanitized: { notContains: ['srcset'] },
+        category: 'html-attribute',
+        cspCategory: 'img-src',
+        source: 'category-9 attribute'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 10: Encoding / obfuscation
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'enc-html-entity-javascript',
+        description: 'HTML entity encoding of javascript:.',
+        input: '<a href="&#x6A;avascript:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-mixed-case',
+        description: 'Mixed case JaVaScRiPt:.',
+        input: '<a href="JaVaScRiPt:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['avaScRiPt', 'javascript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-tab-in-scheme',
+        description: 'Tab inserted into javascript scheme.',
+        input: '<a href="java\tscript:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['java\tscript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-newline-in-scheme',
+        description: 'Newline inserted into javascript scheme.',
+        input: '<a href="java\nscript:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['java\nscript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-leading-whitespace',
+        description: 'Leading whitespace before scheme.',
+        input: '<a href="   javascript:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['javascript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-null-byte',
+        description: 'Null byte in scheme.',
+        input: '<a href="java\u0000script:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['script:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    {
+        id: 'enc-fullwidth',
+        description: 'Fullwidth Unicode javascript.',
+        input: '<a href="\uff4aavascript:alert(1)">x</a>',
+        expectedSanitized: { notContains: ['avascript:'] },
+        category: 'encoding',
+        cspCategory: 'script-src',
+        source: 'category-10 encoding'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 11: OWASP XSS Filter Evasion Cheat Sheet
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'owasp-script-img-onerror',
+        description: 'OWASP: img with onerror.',
+        input: '<IMG SRC=x onerror="alert(\'XSS\')">',
+        expectedSanitized: { notContains: ['onerror'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-script-img-javascript-href',
+        description: 'OWASP: image with javascript: href via dynsrc.',
+        input: '<IMG DYNSRC="javascript:alert(\'XSS\')">',
+        expectedSanitized: { notContains: ['DYNSRC', 'dynsrc', 'javascript:'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-bgsound',
+        description: 'OWASP: BGSOUND element.',
+        input: '<BGSOUND SRC="javascript:alert(\'XSS\')">',
+        expectedSanitized: { notContains: ['BGSOUND', 'bgsound', 'javascript:'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-svg-onload',
+        description: 'OWASP: svg onload.',
+        input: '<svg onload="alert(1)">',
+        expectedSanitized: { notContains: ['onload', 'alert(1)'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-marquee',
+        description: 'OWASP: marquee with onstart.',
+        input: '<marquee onstart="alert(1)">x</marquee>',
+        expectedSanitized: { notContains: ['onstart'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-style-expression',
+        description: 'OWASP: style expression() (legacy IE).',
+        input: '<div style="width: expression(alert(1))">x</div>',
+        expectedSanitized: { notContains: ['expression('] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-meta-charset',
+        description: 'OWASP: meta charset utf-7 attack.',
+        input: '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-7">',
+        expectedSanitized: { notContains: ['<META', '<meta'] },
+        category: 'owasp',
+        cspCategory: 'default-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    {
+        id: 'owasp-isindex',
+        description: 'OWASP: ISINDEX action.',
+        input: '<ISINDEX TYPE=IMAGE SRC="javascript:alert(\'XSS\')">',
+        expectedSanitized: { notContains: ['ISINDEX', 'isindex'] },
+        category: 'owasp',
+        cspCategory: 'script-src',
+        source: 'OWASP XSS Filter Evasion'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Code-review findings (added post-review to lock in the bypasses
+    // the adversarial and security reviewers identified)
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'review-css-url-data-image-no-base64',
+        description:
+            'CSS url() with a safe image MIME type but no base64 encoding — ' +
+            'the content is plain-text HTML smuggled behind an image/png declaration.',
+        input: '<div style="background: url(data:image/png,<svg/onload=alert(1)>)">x</div>',
+        expectedSanitized: {
+            contains: ['x'],
+            notContains: ['data:image/png', 'alert', 'onload', 'background']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — isSafeImageDataUri missing base64 check'
+    },
+    {
+        id: 'review-img-src-external-https',
+        description:
+            'Image element with an external HTTPS URL. The Power BI sandbox ' +
+            'does not allow visuals to load external resources; only data: URIs ' +
+            'are permitted for img src.',
+        input: '<img src="https://attacker.example/tracking.png" alt="x">',
+        expectedSanitized: {
+            notContains: ['attacker.example', 'https://']
+        },
+        category: 'html-attribute',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag not enforced'
+    },
+    {
+        id: 'review-data-uri-no-mime',
+        description:
+            'Data URI with no MIME type (data:,payload). RFC 2397 defaults to ' +
+            'text/plain, which is not on the image allowlist.',
+        input: '<img src="data:,<script>alert(1)</script>" alt="x">',
+        expectedSanitized: {
+            notContains: ['data:,', 'alert', '<script>']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — getSanitizedDataUri null mimeMatch'
+    },
+    {
+        id: 'review-unclosed-style-tag',
+        description:
+            'Unclosed <style> tag. The preprocessStyleTags regex requires a ' +
+            'closing </style> to match; if absent, the raw CSS body would bypass ' +
+            'postcss sanitization without the uponSanitizeElement backstop.',
+        input: '<style>@import url(https://attacker.example/evil.css)</style>',
+        expectedSanitized: {
+            notContains: ['@import', 'attacker.example']
+        },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'code review P1 finding — preprocessStyleTags regex bypass + backstop'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Category 12: Partial-survival cases (declaration drop, not whole-style drop)
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'partial-color-survives-bad-background',
+        description:
+            'Style with safe color and unsafe background — color survives, background dropped.',
+        input: '<div style="color: red; background: url(https://attacker.example/x.png)">x</div>',
+        expectedSanitized: {
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output is 'color:red' rather than 'color: red'.
+            contains: ['color:red'],
+            notContains: ['attacker.example', 'background']
+        },
+        category: 'partial-survival',
+        cspCategory: 'img-src',
+        source: 'category-12 partial survival'
+    },
+    {
+        id: 'partial-multiple-declarations',
+        description: 'Multiple safe declarations and one unsafe — only the unsafe one drops.',
+        input:
+            '<div style="font-size: 14px; color: blue; cursor: url(https://attacker.example/c.cur), auto; padding: 4px">x</div>',
+        expectedSanitized: {
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output collapses to 'font-size:14px' etc.
+            contains: ['font-size:14px', 'color:blue', 'padding:4px'],
+            notContains: ['attacker.example', 'cursor']
+        },
+        category: 'partial-survival',
+        cspCategory: 'img-src',
+        source: 'category-12 partial survival'
+    }
+];
+
+/**
+ * Legitimate "clean" payloads that must continue to render with zero
+ * violations after sanitization. Used as the baseline test tier to catch
+ * over-tightening that breaks real-world report content.
+ */
+export const CLEAN_PAYLOADS: Payload[] = [
+    {
+        id: 'clean-plain-text',
+        description:
+            'A simple paragraph of text wrapped in a <p> tag. The most common ' +
+            'real-world case — must render unchanged.',
+        input: '<p>Hello, world.</p>',
+        expectedSanitized: {
+            contains: ['Hello, world.']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-basic-formatting',
+        description:
+            'Basic inline text formatting (bold, italic, underline). Standard ' +
+            'rich-text output from a report author.',
+        input: '<p><strong>Bold</strong> <em>italic</em> <u>under</u></p>',
+        expectedSanitized: {
+            contains: ['<strong>Bold</strong>', '<em>italic</em>']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-image-data-uri',
+        description:
+            'An image embedded as a base64 PNG data URI — the recommended way ' +
+            'to include images in a sanitized visual.',
+        input:
+            '<img src="data:image/png;base64,' +
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=" ' +
+            'alt="dot">',
+        expectedSanitized: {
+            contains: ['data:image/png']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-color-style',
+        description:
+            'An inline style attribute using only safe properties (color and ' +
+            'font-weight) with no external resource references.',
+        input: '<p style="color: red; font-weight: bold">red bold</p>',
+        expectedSanitized: {
+            // postcss normalizes whitespace around the colon, so the
+            // sanitized output is 'color:red;font-weight:bold'.
+            contains: ['color:red', 'font-weight:bold'],
+            notContains: ['url(']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    }
+];

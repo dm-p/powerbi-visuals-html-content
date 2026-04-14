@@ -1,5 +1,3 @@
-// External dependencies
-import * as sanitizeHtml from 'sanitize-html';
 // Internal dependencies
 import { visual } from '../pbiviz.json';
 
@@ -51,24 +49,147 @@ export const VisualConstants = {
         // Power BI only supports http and https protocols for links
         // mailto: and tel: are not supported by Power BI's launchUrl()
         a: ['http', 'https'],
-        // For AppSource certification, img tags must NOT load external resources
-        // Only data: URIs are permitted (sanitized by getSanitizedDataUri function)
-        img: ['data']
+        // For AppSource certification, img and SVG image tags must NOT load
+        // external resources. Only data: URIs are permitted (sanitized by
+        // getSanitizedDataUri in sanitize-pipeline.ts).
+        img: ['data'],
+        image: ['data'],
+        // textpath href references a <path> element for text layout.
+        // Only same-document fragment refs (#id) are valid; external URLs
+        // would trigger a fetch. Empty-scheme matches #fragment values.
+        textpath: ['']
     },
+    // The full set of HTML and SVG element names the visual permits in
+    // sanitized output. Tag names are lowercase to match DOMPurify's
+    // normalization. The list is the union of three groups:
+    //
+    //   - Standard HTML elements suitable for rich-text report content
+    //     (block, inline, table, ruby, list, semantic sectioning, etc.)
+    //   - Power BI / project-specific additions (img, style)
+    //   - SVG elements including filter primitives, gradients, animation,
+    //     and markup elements (added in PR #139, commit 3e440c9)
+    //
+    // Anything not in this list is dropped entirely by the sanitizer.
     allowedTags: [
-        ...sanitizeHtml.defaults.allowedTags,
+        // HTML — block + sectioning
+        'address',
+        'article',
+        'aside',
+        'blockquote',
+        'div',
+        'dd',
+        'details',
+        'dl',
+        'dt',
+        'figcaption',
+        'figure',
+        'footer',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'header',
+        'hgroup',
+        'hr',
+        'main',
+        'menu',
+        'nav',
+        'ol',
+        'output',
+        'p',
+        'pre',
+        'search',
+        'section',
+        'summary',
+        'ul',
+        'li',
+        // HTML — inline + phrasing
+        'a',
+        'abbr',
+        'b',
+        'bdi',
+        'bdo',
+        'br',
+        'cite',
+        'code',
+        'data',
+        'del',
+        'dfn',
+        'em',
+        'i',
+        'ins',
+        'kbd',
+        'mark',
+        'meter',
+        'progress',
+        'q',
+        'rb',
+        'rp',
+        'rt',
+        'rtc',
+        'ruby',
+        's',
+        'samp',
+        'small',
+        'span',
+        'strong',
+        'sub',
+        'sup',
+        'time',
+        'u',
+        'var',
+        'wbr',
+        // HTML — table
+        'caption',
+        'col',
+        'colgroup',
+        'table',
+        'tbody',
+        'td',
+        'tfoot',
+        'th',
+        'thead',
+        'tr',
+        // Project-specific additions
         'img',
+        'style',
+        // SVG — root, structural, shape
         'svg',
-        'animate',
-        'animatemotion',
-        'animatetransform',
         'circle',
         'clippath',
         'defs',
         'desc',
-        'del',
-        'details',
         'ellipse',
+        'g',
+        'image',
+        'line',
+        'marker',
+        'mask',
+        'metadata',
+        'path',
+        'pattern',
+        'polygon',
+        'polyline',
+        'rect',
+        'stop',
+        'symbol',
+        'text',
+        'textpath',
+        'title',
+        'tspan',
+        'view',
+        // SVG — gradients
+        'lineargradient',
+        'radialgradient',
+        // SVG — animation: REMOVED. SMIL animation elements can override
+        // sanitized URL attributes at runtime (e.g. <animate attributeName="href"
+        // to="https://attacker.example/...">) bypassing scheme enforcement.
+        // No legitimate use case in Power BI report content justifies the
+        // attack surface. See PR #141 review discussion.
+        // SVG — filter primitives
+        'filter',
         'feblend',
         'fecolormatrix',
         'fecomponenttransfer',
@@ -93,36 +214,7 @@ export const VisualConstants = {
         'fespecularlighting',
         'fespotlight',
         'fetile',
-        'feturbulence',
-        'filter',
-        'g',
-        'image',
-        'ins',
-        'line',
-        'lineargradient',
-        'marker',
-        'mask',
-        'meter',
-        'metadata',
-        'output',
-        'path',
-        'pattern',
-        'polygon',
-        'polyline',
-        'progress',
-        'radialgradient',
-        'rect',
-        'search',
-        'set',
-        'stop',
-        'style',
-        'summary',
-        'symbol',
-        'text',
-        'textpath',
-        'title',
-        'tspan',
-        'view'
+        'feturbulence'
     ],
     scriptingPatterns: [
         'javascript:',

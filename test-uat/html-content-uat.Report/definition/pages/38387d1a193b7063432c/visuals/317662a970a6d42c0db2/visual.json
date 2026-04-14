@@ -1,0 +1,350 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.4.0/schema.json",
+  "name": "317662a970a6d42c0db2",
+  "position": {
+    "x": 8,
+    "y": 0,
+    "z": 0,
+    "height": 720,
+    "width": 1272,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "id"
+                }
+              },
+              "queryRef": "corpus.id",
+              "nativeQueryRef": "id"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "description"
+                }
+              },
+              "queryRef": "corpus.description",
+              "nativeQueryRef": "description"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "type"
+                }
+              },
+              "queryRef": "corpus.type",
+              "nativeQueryRef": "type"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "category"
+                }
+              },
+              "queryRef": "corpus.category",
+              "nativeQueryRef": "category"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "cspCategory"
+                }
+              },
+              "queryRef": "corpus.cspCategory",
+              "nativeQueryRef": "cspCategory"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "source"
+                }
+              },
+              "queryRef": "corpus.source",
+              "nativeQueryRef": "source"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "input"
+                }
+              },
+              "queryRef": "corpus.input",
+              "nativeQueryRef": "input"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "sanitizedOutput"
+                }
+              },
+              "queryRef": "corpus.sanitizedOutput",
+              "nativeQueryRef": "sanitizedOutput"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "columnWidth": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "217.58337919219935D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "corpus.description"
+          }
+        },
+        {
+          "properties": {},
+          "selector": {
+            "metadata": "corpus.id"
+          }
+        },
+        {
+          "properties": {},
+          "selector": {
+            "metadata": "corpus.type"
+          }
+        },
+        {
+          "properties": {},
+          "selector": {
+            "metadata": "corpus.category"
+          }
+        },
+        {
+          "properties": {},
+          "selector": {
+            "metadata": "corpus.cspCategory"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "176.39028448023933D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "corpus.input"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "134.0283400809716D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "corpus.sanitizedOutput"
+          }
+        }
+      ],
+      "values": [
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "8D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "stylePreset": [
+        {
+          "properties": {
+            "name": {
+              "expr": {
+                "Literal": {
+                  "Value": "'None'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "d9608d42b580d7301964",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "id"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "4084732c761da195b001",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "description"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "be663411b5414ad4d4c5",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "type"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "33dc5b4c5c264ae1c310",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "category"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "fabe68f74cd46a840c9d",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "cspCategory"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "065979127900ac73399e",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "source"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "b27cad9a9ad1402c97b8",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "input"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "c03ec15bc42b3218ad9e",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "corpus"
+              }
+            },
+            "Property": "sanitizedOutput"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
+  }
+}
