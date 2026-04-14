@@ -642,6 +642,17 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'img-src',
         source: 'code review P1 finding — allowedSchemesByTag missing SVG image'
     },
+    {
+        id: 'svg-textpath-external-href',
+        description:
+            'SVG textPath with external href. textPath should only reference ' +
+            'same-document fragment IDs (#path), not external URLs.',
+        input: '<svg><text><textPath href="https://attacker.example/path.svg#p">label</textPath></text></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'default-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG textpath'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 8: HTML-level disallowed elements
     // ─────────────────────────────────────────────────────────────────

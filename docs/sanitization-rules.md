@@ -1042,6 +1042,20 @@ Payloads that only work inside SVG contexts.
 <svg><image></image></svg>
 ```
 
+#### SVG textPath with external href. textPath should only reference same-document fragment IDs (#path), not external URLs.
+
+**Input:**
+
+```html
+<svg><text><textPath href="https://attacker.example/path.svg#p">label</textPath></text></svg>
+```
+
+**Output:**
+
+```html
+<svg><text><textPath>label</textPath></text></svg>
+```
+
 ### Disallowed HTML elements
 
 HTML elements blocked at the tag level.

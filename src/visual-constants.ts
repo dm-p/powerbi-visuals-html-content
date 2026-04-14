@@ -53,7 +53,11 @@ export const VisualConstants = {
         // external resources. Only data: URIs are permitted (sanitized by
         // getSanitizedDataUri in sanitize-pipeline.ts).
         img: ['data'],
-        image: ['data']
+        image: ['data'],
+        // textpath href references a <path> element for text layout.
+        // Only same-document fragment refs (#id) are valid; external URLs
+        // would trigger a fetch. Empty-scheme matches #fragment values.
+        textpath: ['']
     },
     // The full set of HTML and SVG element names the visual permits in
     // sanitized output. Tag names are lowercase to match DOMPurify's
