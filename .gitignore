@@ -75,3 +75,7 @@ webpack.statistics.html
 /playwright-report/
 /harness-baseline.log
 /harness-after-*.log
+
+# Power BI report
+**/.pbi/localSettings.json
+**/.pbi/cache.abf

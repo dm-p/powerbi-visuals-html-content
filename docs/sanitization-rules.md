@@ -680,6 +680,34 @@ Data URIs that declare a safe MIME type but carry unsafe content.
 <img>
 ```
 
+#### CSS url() with a safe image MIME type but no base64 encoding — the content is plain-text HTML smuggled behind an image/png declaration.
+
+**Input:**
+
+```html
+<div style="background: url(data:image/png,<svg/onload=alert(1)>)">x</div>
+```
+
+**Output:**
+
+```html
+<div>x</div>
+```
+
+#### Data URI with no MIME type (data:,payload). RFC 2397 defaults to text/plain, which is not on the image allowlist.
+
+**Input:**
+
+```html
+<img src="data:,<script>alert(1)</script>" alt="x">
+```
+
+**Output:**
+
+```html
+<img alt="x">
+```
+
 ### CSS at-rules
 
 At-rules that load external resources or bypass other rules.
@@ -752,6 +780,20 @@ At-rules that load external resources or bypass other rules.
 
 ```html
 <style>@media screen { }</style>
+```
+
+#### Unclosed <style> tag. The preprocessStyleTags regex requires a closing </style> to match; if absent, the raw CSS body would bypass postcss sanitization without the uponSanitizeElement backstop.
+
+**Input:**
+
+```html
+<style>@import url(https://attacker.example/evil.css)</style>
+```
+
+**Output:**
+
+```html
+(empty — entire input was dropped)
 ```
 
 ### Event handler attributes
@@ -1176,6 +1218,20 @@ go
 <img src="data:image/png;base64,iVBORw0KGgo=">
 ```
 
+#### Image element with an external HTTPS URL. The Power BI sandbox does not allow visuals to load external resources; only data: URIs are permitted for img src.
+
+**Input:**
+
+```html
+<img src="https://attacker.example/tracking.png" alt="x">
+```
+
+**Output:**
+
+```html
+<img alt="x">
+```
+
 ### Encoding and obfuscation
 
 Unicode and whitespace obfuscation of dangerous tokens.
@@ -1488,6 +1544,39 @@ Legitimate content that must continue to render unchanged.
 ```
 
 <!-- WORKED_EXAMPLES_END -->
+
+---
+
+## UAT testing with the corpus
+
+A CSV export of the full test corpus is available for manual UAT in Power BI Desktop. The CSV includes every malicious and clean payload alongside the sanitized output produced by the current sanitizer, making it straightforward to bind the HTML Content visual to the data and verify behavior as an end user.
+
+**Regenerating the CSV:**
+
+```bash
+npm run uat:generate
+```
+
+This writes `test-uat/corpus.csv` with the following columns:
+
+| Column | Description |
+|---|---|
+| `id` | Stable unique identifier for the payload |
+| `description` | Plain-language description of the attack vector or baseline case |
+| `type` | `malicious` or `clean` |
+| `category` | Grouping (e.g. `css-url-per-property`, `event-handler`, `clean-baseline`) |
+| `cspCategory` | CSP directive most likely to fire if the sanitizer leaks (`none` for clean payloads) |
+| `source` | Provenance: cert report, OWASP, code review, baseline, etc. |
+| `input` | Raw HTML payload exactly as it would arrive from a data field |
+| `sanitizedOutput` | The sanitizer's output for the current rule set |
+
+**To use in Power BI Desktop:**
+
+1. Open Power BI Desktop and use **Get Data > Text/CSV** to import `test-uat/corpus.csv`.
+2. Add the HTML Content visual to a page and bind it to the `input` or `sanitizedOutput` column.
+3. Use slicers on `type`, `category`, and `cspCategory` to filter to specific test groups.
+
+Re-run `npm run uat:generate` after any change to the corpus or sanitizer to keep the CSV in sync.
 
 ---
 

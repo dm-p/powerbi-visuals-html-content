@@ -11,5 +11,10 @@
         "resolveJsonModule": true,
         "noEmit": true
     },
-    "include": ["**/*.ts", "../src/sanitize-pipeline.ts", "../src/types.ts", "../src/visual-constants.ts"]
+    "include": [
+        "**/*.ts",
+        "../src/sanitize-pipeline.ts",
+        "../src/types.ts",
+        "../src/visual-constants.ts"
+    ]
 }

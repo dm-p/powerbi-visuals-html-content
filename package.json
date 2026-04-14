@@ -17,7 +17,8 @@
         "test:all": "npm run test && npm run test:integration && npm run docs:check",
         "cert-check": "npm run package && npm run test:integration",
         "docs:generate": "tsx scripts/generate-sanitization-docs.ts",
-        "docs:check": "tsx scripts/generate-sanitization-docs.ts --check"
+        "docs:check": "tsx scripts/generate-sanitization-docs.ts --check",
+        "uat:generate": "tsx scripts/generate-uat-corpus.ts"
     },
     "devDependencies": {
         "@playwright/test": "^1.59.1",

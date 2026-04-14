@@ -894,6 +894,65 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'OWASP XSS Filter Evasion'
     },
     // ─────────────────────────────────────────────────────────────────
+    // Code-review findings (added post-review to lock in the bypasses
+    // the adversarial and security reviewers identified)
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'review-css-url-data-image-no-base64',
+        description:
+            'CSS url() with a safe image MIME type but no base64 encoding — ' +
+            'the content is plain-text HTML smuggled behind an image/png declaration.',
+        input: '<div style="background: url(data:image/png,<svg/onload=alert(1)>)">x</div>',
+        expectedSanitized: {
+            contains: ['x'],
+            notContains: ['data:image/png', 'alert', 'onload', 'background']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — isSafeImageDataUri missing base64 check'
+    },
+    {
+        id: 'review-img-src-external-https',
+        description:
+            'Image element with an external HTTPS URL. The Power BI sandbox ' +
+            'does not allow visuals to load external resources; only data: URIs ' +
+            'are permitted for img src.',
+        input: '<img src="https://attacker.example/tracking.png" alt="x">',
+        expectedSanitized: {
+            notContains: ['attacker.example', 'https://']
+        },
+        category: 'html-attribute',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag not enforced'
+    },
+    {
+        id: 'review-data-uri-no-mime',
+        description:
+            'Data URI with no MIME type (data:,payload). RFC 2397 defaults to ' +
+            'text/plain, which is not on the image allowlist.',
+        input: '<img src="data:,<script>alert(1)</script>" alt="x">',
+        expectedSanitized: {
+            notContains: ['data:,', 'alert', '<script>']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — getSanitizedDataUri null mimeMatch'
+    },
+    {
+        id: 'review-unclosed-style-tag',
+        description:
+            'Unclosed <style> tag. The preprocessStyleTags regex requires a ' +
+            'closing </style> to match; if absent, the raw CSS body would bypass ' +
+            'postcss sanitization without the uponSanitizeElement backstop.',
+        input: '<style>@import url(https://attacker.example/evil.css)</style>',
+        expectedSanitized: {
+            notContains: ['@import', 'attacker.example']
+        },
+        category: 'at-rule',
+        cspCategory: 'style-src',
+        source: 'code review P1 finding — preprocessStyleTags regex bypass + backstop'
+    },
+    // ─────────────────────────────────────────────────────────────────
     // Category 12: Partial-survival cases (declaration drop, not whole-style drop)
     // ─────────────────────────────────────────────────────────────────
     {
