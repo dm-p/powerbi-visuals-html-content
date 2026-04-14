@@ -132,6 +132,13 @@ const FLAT_ATTR_ALLOWLIST = getFlatAttributeAllowlist();
 /**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
  * to DOMPurify. Case-insensitive.
+ *
+ * NOTE: the [^>]* in the opening-tag pattern stops at the first `>`
+ * character, so a `<style data-x=">" ...>` attribute containing `>`
+ * would cause a mis-parse. This is NOT the primary defense — the
+ * uponSanitizeElement hook below re-sanitizes every <style> element's
+ * textContent after DOMPurify has parsed the DOM correctly. That
+ * backstop is load-bearing for this edge case.
  */
 function preprocessStyleTags(input: string): string {
     return input.replace(

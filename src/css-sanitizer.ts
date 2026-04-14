@@ -91,6 +91,12 @@ const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
     /data\s*:\s*text\/javascript/i,
     /data\s*:\s*application\/javascript/i,
     /data\s*:\s*application\/x-javascript/i,
+    // Intentionally broad: matches `data:image` anywhere in the value,
+    // including inside string literals (e.g. content: "data:image/png example").
+    // The url()-token pre-strip above prevents false positives for safe
+    // data URIs *inside* url() tokens, but a bare string literal containing
+    // the text "data:image" will still be flagged. This is an acceptable
+    // false positive — security-first over edge-case string preservation.
     /data\s*:\s*image/i
 ];
 
