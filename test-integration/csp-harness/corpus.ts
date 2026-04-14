@@ -620,6 +620,28 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'img-src',
         source: 'category-7 svg'
     },
+    {
+        id: 'svg-image-external-href',
+        description:
+            'SVG image element with external href. Same restriction as HTML img: ' +
+            'only data: URIs permitted, no external resource loading.',
+        input: '<svg><image href="https://attacker.example/track.png" /></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG image'
+    },
+    {
+        id: 'svg-image-external-xlink-href',
+        description:
+            'SVG image element with external xlink:href (legacy syntax). ' +
+            'Must be blocked just like href.',
+        input: '<svg><image xlink:href="https://attacker.example/track.png" /></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — allowedSchemesByTag missing SVG image'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 8: HTML-level disallowed elements
     // ─────────────────────────────────────────────────────────────────

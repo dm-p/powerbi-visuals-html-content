@@ -49,9 +49,11 @@ export const VisualConstants = {
         // Power BI only supports http and https protocols for links
         // mailto: and tel: are not supported by Power BI's launchUrl()
         a: ['http', 'https'],
-        // For AppSource certification, img tags must NOT load external resources
-        // Only data: URIs are permitted (sanitized by getSanitizedDataUri function)
-        img: ['data']
+        // For AppSource certification, img and SVG image tags must NOT load
+        // external resources. Only data: URIs are permitted (sanitized by
+        // getSanitizedDataUri in sanitize-pipeline.ts).
+        img: ['data'],
+        image: ['data']
     },
     // The full set of HTML and SVG element names the visual permits in
     // sanitized output. Tag names are lowercase to match DOMPurify's

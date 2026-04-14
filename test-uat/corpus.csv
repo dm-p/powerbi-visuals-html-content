@@ -52,6 +52,8 @@ svg-animate-javascript,animate with javascript: in to attribute.,malicious,svg,s
 svg-set-javascript,set element with javascript: target.,malicious,svg,script-src,category-7 svg,"<svg><set attributeName=""href"" to=""javascript:alert(1)"" /></svg>",<svg><set></set></svg>
 svg-use-javascript,use with javascript: xlink:href.,malicious,svg,script-src,category-7 svg,"<svg><use xlink:href=""javascript:alert(1)"" /></svg>",<svg></svg>
 svg-use-data-svg-xml,use with data:image/svg+xml xlink:href.,malicious,svg,img-src,category-7 svg,"<svg><use xlink:href=""data:image/svg+xml,<svg/>"" /></svg>",<svg></svg>
+svg-image-external-href,"SVG image element with external href. Same restriction as HTML img: only data: URIs permitted, no external resource loading.",malicious,svg,img-src,code review P1 finding — allowedSchemesByTag missing SVG image,"<svg><image href=""https://attacker.example/track.png"" /></svg>",<svg><image></image></svg>
+svg-image-external-xlink-href,SVG image element with external xlink:href (legacy syntax). Must be blocked just like href.,malicious,svg,img-src,code review P1 finding — allowedSchemesByTag missing SVG image,"<svg><image xlink:href=""https://attacker.example/track.png"" /></svg>",<svg><image></image></svg>
 html-iframe,iframe element.,malicious,html-element,frame-src,category-8 html,"<iframe src=""https://attacker.example""></iframe>",
 html-object,object element with data attribute.,malicious,html-element,object-src,category-8 html,"<object data=""https://attacker.example/x.swf""></object>",
 html-embed,embed element.,malicious,html-element,object-src,category-8 html,"<embed src=""https://attacker.example/x.swf"">",

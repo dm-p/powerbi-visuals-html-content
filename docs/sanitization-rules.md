@@ -1014,6 +1014,34 @@ Payloads that only work inside SVG contexts.
 <svg></svg>
 ```
 
+#### SVG image element with external href. Same restriction as HTML img: only data: URIs permitted, no external resource loading.
+
+**Input:**
+
+```html
+<svg><image href="https://attacker.example/track.png" /></svg>
+```
+
+**Output:**
+
+```html
+<svg><image></image></svg>
+```
+
+#### SVG image element with external xlink:href (legacy syntax). Must be blocked just like href.
+
+**Input:**
+
+```html
+<svg><image xlink:href="https://attacker.example/track.png" /></svg>
+```
+
+**Output:**
+
+```html
+<svg><image></image></svg>
+```
+
 ### Disallowed HTML elements
 
 HTML elements blocked at the tag level.
