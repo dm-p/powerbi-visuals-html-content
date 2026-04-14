@@ -109,10 +109,8 @@ const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     ],
     'view': ['viewbox', 'preserveaspectratio'],
     'textpath': ['href', 'xlink:href', 'startoffset', 'method', 'spacing'],
-    'animate': ['attributename', 'from', 'to', 'dur', 'begin', 'end', 'repeatcount', 'values', 'keytimes', 'keysplines', 'fill'],
-    'animatemotion': ['path', 'dur', 'begin', 'end', 'repeatcount', 'rotate'],
-    'animatetransform': ['attributename', 'type', 'from', 'to', 'dur', 'begin', 'end', 'repeatcount', 'values', 'fill'],
-    'set': ['attributename', 'to', 'begin', 'dur']
+    // SMIL animation elements (animate, animatemotion, animatetransform,
+    // set) removed from allowedTags — no attribute entries needed.
 };
 
 /**

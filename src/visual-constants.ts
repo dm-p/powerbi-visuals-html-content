@@ -183,11 +183,11 @@ export const VisualConstants = {
         // SVG — gradients
         'lineargradient',
         'radialgradient',
-        // SVG — animation
-        'animate',
-        'animatemotion',
-        'animatetransform',
-        'set',
+        // SVG — animation: REMOVED. SMIL animation elements can override
+        // sanitized URL attributes at runtime (e.g. <animate attributeName="href"
+        // to="https://attacker.example/...">) bypassing scheme enforcement.
+        // No legitimate use case in Power BI report content justifies the
+        // attack surface. See PR #141 review discussion.
         // SVG — filter primitives
         'filter',
         'feblend',

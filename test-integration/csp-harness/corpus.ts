@@ -603,6 +603,20 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'category-7 svg'
     },
     {
+        id: 'svg-animate-override-href',
+        description:
+            'SMIL animate overriding image href to an external URL at runtime. ' +
+            'The animate element is dropped entirely (not in allowedTags).',
+        input:
+            '<svg><image href="data:image/png;base64,iVBORw0KGgo=">' +
+            '<animate attributeName="href" to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"/>' +
+            '</image></svg>',
+        expectedSanitized: { notContains: ['attacker.example', '<animate'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — SMIL animation can override sanitized URL attributes'
+    },
+    {
         id: 'svg-use-javascript',
         description: 'use with javascript: xlink:href.',
         input: '<svg><use xlink:href="javascript:alert(1)" /></svg>',

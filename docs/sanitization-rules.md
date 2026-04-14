@@ -40,7 +40,7 @@ The visual permits the following elements (everything else is dropped):
 `img`, `style`
 
 #### SVG
-`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, the SVG animation tags (`animate`, `animatemotion`, `animatetransform`, `set`), and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.).
+`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.). SVG animation elements (`animate`, `animatemotion`, `animatetransform`, `set`) are **not** permitted — SMIL animation can override sanitized attributes at runtime.
 
 ### HTML attributes
 
@@ -969,7 +969,7 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg><animate></animate></svg>
+<svg></svg>
 ```
 
 #### set element with javascript: target.
@@ -983,7 +983,21 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg><set></set></svg>
+<svg></svg>
+```
+
+#### SMIL animate overriding image href to an external URL at runtime. The animate element is dropped entirely (not in allowedTags).
+
+**Input:**
+
+```html
+<svg><image href="data:image/png;base64,iVBORw0KGgo="><animate attributeName="href" to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"/></image></svg>
+```
+
+**Output:**
+
+```html
+<svg><image href="data:image/png;base64,iVBORw0KGgo="></image></svg>
 ```
 
 #### use with javascript: xlink:href.
