@@ -31,7 +31,7 @@
         "@types/pretty": "^2.0.0",
         "@vitest/ui": "^4.0.16",
         "d3-selection": "^3.0.0",
-        "dompurify": "^3.3.3",
+        "dompurify": "^3.4.0",
         "eslint": "^10.0.0",
         "eslint-plugin-powerbi-visuals": "^1.1.1",
         "fs": "^0.0.1-security",
