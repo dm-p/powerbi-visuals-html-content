@@ -1097,5 +1097,190 @@ export const CLEAN_PAYLOADS: Payload[] = [
         category: 'clean-baseline',
         cspCategory: 'none',
         source: 'baseline'
+    },
+    {
+        id: 'clean-svg-basic-shapes',
+        description:
+            'A small inline SVG with the most common primitive shapes — circle, ' +
+            'rect, and line — using basic fill and stroke. Should render as ' +
+            'three side-by-side shapes.',
+        input:
+            '<svg width="180" height="40" viewBox="0 0 180 40">' +
+            '<circle cx="20" cy="20" r="15" fill="steelblue"/>' +
+            '<rect x="60" y="5" width="30" height="30" fill="orange"/>' +
+            '<line x1="120" y1="20" x2="170" y2="20" stroke="#333" stroke-width="3"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['<svg', 'circle', 'steelblue', 'orange', 'stroke-width']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-responsive-viewbox',
+        description:
+            'An SVG that scales to fill its container using viewBox plus 100% ' +
+            'width and height with preserveAspectRatio. The standard pattern ' +
+            'for responsive maps and dashboards.',
+        input:
+            '<svg viewBox="0 0 100 100" width="100%" height="100%" ' +
+            'preserveAspectRatio="xMidYMid meet">' +
+            '<rect x="10" y="10" width="80" height="80" fill="#0078d4"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['viewBox', 'preserveAspectRatio', 'width="100%"', 'height="100%"']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-overlay-with-opacity',
+        description:
+            'A semi-transparent rectangle overlay on top of a solid shape, using ' +
+            'fill-opacity. Common pattern for highlighting a region of a chart.',
+        input:
+            '<svg width="120" height="40" viewBox="0 0 120 40">' +
+            '<rect x="0" y="0" width="120" height="40" fill="steelblue"/>' +
+            '<rect x="40" y="0" width="40" height="40" fill="red" fill-opacity="0.4"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['fill-opacity', 'steelblue', 'red']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-text-styling',
+        description:
+            'SVG text with the styling a chart axis or legend typically uses — ' +
+            'italic font-style, text-anchor, and rotated tick label via transform.',
+        input:
+            '<svg width="160" height="60" viewBox="0 0 160 60">' +
+            '<text x="10" y="20" text-anchor="start" font-style="italic" font-size="14">Axis label</text>' +
+            '<text x="80" y="50" text-anchor="middle" transform="rotate(-45 80 50)">Q1 2025</text>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['font-style', 'italic', 'text-anchor', 'rotate(-45']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-stroke-styling',
+        description:
+            'A dashed grid line, a rounded line cap, and a polyline sparkline ' +
+            'with rounded joins. Exercises stroke-dasharray, stroke-linecap, ' +
+            'and stroke-linejoin on the shapes that use them most often.',
+        input:
+            '<svg width="160" height="40" viewBox="0 0 160 40">' +
+            '<line x1="0" y1="20" x2="160" y2="20" stroke="#ccc" stroke-dasharray="4,2"/>' +
+            '<line x1="10" y1="30" x2="150" y2="30" stroke="#000" stroke-width="3" stroke-linecap="round"/>' +
+            '<polyline points="0,35 30,15 60,25 90,8 120,18 150,4" ' +
+            'fill="none" stroke="#0078d4" stroke-width="2" ' +
+            'stroke-linejoin="round" stroke-linecap="round"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'polyline']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-filter-drop-shadow',
+        description:
+            'A drop shadow applied to a path via the canonical SVG filter chain — ' +
+            'feGaussianBlur, feOffset, and feMerge. Exercises filter primitives ' +
+            'with their distinctive camelCase attributes.',
+        input:
+            '<svg width="160" height="60" viewBox="0 0 160 60">' +
+            '<defs>' +
+            '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">' +
+            '<feGaussianBlur in="SourceAlpha" stdDeviation="2"/>' +
+            '<feOffset dx="1" dy="1" result="off"/>' +
+            '<feMerge><feMergeNode in="off"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+            '</filter>' +
+            '</defs>' +
+            '<rect x="20" y="15" width="120" height="30" fill="#0078d4" filter="url(#shadow)"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['stdDeviation', 'feGaussianBlur', 'feOffset', 'feMergeNode', 'filter="url(#shadow)"']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-linear-gradient',
+        description:
+            'A rectangle filled with a horizontal linear gradient defined in <defs> ' +
+            'and referenced via fill="url(#id)". Tests gradient definitions, ' +
+            'gradientUnits, and stop-color.',
+        input:
+            '<svg width="160" height="40" viewBox="0 0 160 40">' +
+            '<defs>' +
+            '<linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0">' +
+            '<stop offset="0%" stop-color="#0078d4"/>' +
+            '<stop offset="100%" stop-color="#50e6ff"/>' +
+            '</linearGradient>' +
+            '</defs>' +
+            '<rect x="0" y="0" width="160" height="40" fill="url(#g1)"/>' +
+            '</svg>',
+        expectedSanitized: {
+            contains: ['linearGradient', 'gradientUnits', 'stop-color', 'fill="url(#g1)"']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-sparkline',
+        description:
+            'A small inline sparkline showing a trend line with an end-point ' +
+            'marker — the kind of chart a report author would embed next to a ' +
+            'KPI value.',
+        input:
+            '<svg width="120" height="30" viewBox="0 0 120 30" xmlns="http://www.w3.org/2000/svg">' +
+            '<g transform="translate(2,2)">' +
+            '<path d="M0,20 L20,10 L40,15 L60,5 L80,12 L100,3" ' +
+            'fill="none" stroke="#0078d4" stroke-width="1.5" ' +
+            'stroke-linecap="round" stroke-linejoin="round"/>' +
+            '<circle cx="100" cy="3" r="2" fill="#0078d4"/>' +
+            '</g></svg>',
+        expectedSanitized: {
+            contains: ['viewBox', 'translate(2,2)', 'M0,20', 'stroke-linecap', 'stroke-linejoin']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
+    },
+    {
+        id: 'clean-svg-bar-chart',
+        description:
+            'A small bar chart with two bars, an x-axis baseline, a tick line, ' +
+            'and a rotated italic tick label. Exercises text-anchor, font-style, ' +
+            'transform, and group nesting in a recognizable chart shape.',
+        input:
+            '<svg width="200" height="120" viewBox="0 0 200 120">' +
+            '<g class="axis" transform="translate(0,100)">' +
+            '<line x1="0" y1="0" x2="200" y2="0" stroke="#333"/>' +
+            '<g class="tick" transform="translate(20,0)">' +
+            '<line y2="6" stroke="#333"/>' +
+            '<text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text>' +
+            '</g></g>' +
+            '<g class="bars">' +
+            '<rect x="10" y="40" width="20" height="60" fill="steelblue"/>' +
+            '<rect x="40" y="20" width="20" height="80" fill="steelblue"/>' +
+            '</g></svg>',
+        expectedSanitized: {
+            contains: ['text-anchor', 'font-style', 'steelblue', 'translate(0,100)']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'baseline'
     }
 ];
