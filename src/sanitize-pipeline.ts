@@ -25,6 +25,16 @@ import { sanitizeCss } from './css-sanitizer';
 type AttributeAllowlist = {
     [tag: string]: string[];
 };
+
+// Derived from VisualConstants.svgTags so adding/removing an SVG tag
+// in one place updates both the allowed-tags list and the sanitizer's
+// HTML-vs-SVG branch.
+const SVG_TAGS = new Set<string>(VisualConstants.svgTags);
+
+const SVG_ATTRIBUTE_DENYLIST = new Set<string>([
+    'srcdoc', 'formaction', 'action', 'ping', 'background', 'poster', 'srcset'
+]);
+
 const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     '*': [
         'class', 'id', 'title', 'lang', 'dir', 'style', 'role',
@@ -112,20 +122,6 @@ const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     // SMIL animation elements (animate, animatemotion, animatetransform,
     // set) removed from allowedTags — no attribute entries needed.
 };
-
-/**
- * Flat union of every attribute name appearing anywhere in
- * ALLOWED_ATTRIBUTES, used as DOMPurify's global ALLOWED_ATTR. Per-tag
- * enforcement happens in the uponSanitizeAttribute hook.
- */
-function getFlatAttributeAllowlist(): string[] {
-    const set = new Set<string>();
-    for (const attrs of Object.values(ALLOWED_ATTRIBUTES)) {
-        for (const attr of attrs) set.add(attr);
-    }
-    return Array.from(set);
-}
-const FLAT_ATTR_ALLOWLIST = getFlatAttributeAllowlist();
 
 /**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
@@ -220,20 +216,35 @@ export const getSanitizedContent = (content: string): string => {
             hookEvent.attrValue = value;
         }
 
-        // Per-tag attribute allowlist enforcement
-        const allowedForTag = ALLOWED_ATTRIBUTES[tagName] || [];
-        const allowedGlobal = ALLOWED_ATTRIBUTES['*'] || [];
-        const merged = [...allowedGlobal, ...allowedForTag];
-        const isAllowed = merged.some((pattern) => {
-            if (pattern.endsWith('-*')) {
-                return attrName.startsWith(pattern.slice(0, -1));
+        const isSvgTag = SVG_TAGS.has(tagName);
+
+        // Keep strict per-tag allowlist behavior for HTML tags. For SVG
+        // tags, use a denylist so legitimate presentation/filter attrs are
+        // not dropped whenever we miss a tag-specific entry.
+        if (!isSvgTag) {
+            const allowedForTag = ALLOWED_ATTRIBUTES[tagName] || [];
+            const allowedGlobal = ALLOWED_ATTRIBUTES['*'] || [];
+            const merged = [...allowedGlobal, ...allowedForTag];
+            const isAllowed = merged.some((pattern) => {
+                if (pattern.endsWith('-*')) {
+                    return attrName.startsWith(pattern.slice(0, -1));
+                }
+                return pattern === attrName;
+            });
+            if (!isAllowed) {
+                hookEvent.keepAttr = false;
+                return;
             }
-            return pattern === attrName;
-        });
-        if (!isAllowed) {
+        } else if (/^on[a-z]+$/i.test(attrName) || SVG_ATTRIBUTE_DENYLIST.has(attrName)) {
             hookEvent.keepAttr = false;
             return;
         }
+        // For SVG tags, attrs that survive all the enforcement checks below
+        // get `forceKeepAttr = true` set at the end of the hook — DOMPurify's
+        // built-in attr allowlist would otherwise drop legitimate
+        // presentation/filter attrs (stdDeviation, fill-opacity, etc.).
+        // Setting it early would override later `keepAttr = false` from URL
+        // scheme / scripting-pattern checks, leaking attacker-controlled URLs.
 
         // Per-tag URL scheme enforcement. VisualConstants.allowedSchemesByTag
         // specifies which schemes each tag is allowed to use (e.g. img: only
@@ -259,6 +270,7 @@ export const getSanitizedContent = (content: string): string => {
                 return;
             }
             hookEvent.attrValue = sanitized;
+            if (isSvgTag) hookEvent.forceKeepAttr = true;
             return;
         }
 
@@ -280,6 +292,7 @@ export const getSanitizedContent = (content: string): string => {
                 .map(d => d.trim().replace(/^([^:]+?)\s*:\s*/, '$1:'))
                 .filter(d => d.length > 0)
                 .join(';');
+            if (isSvgTag) hookEvent.forceKeepAttr = true;
             return;
         }
 
@@ -297,6 +310,12 @@ export const getSanitizedContent = (content: string): string => {
         if (hasDangerous) {
             hookEvent.keepAttr = false;
             return;
+        }
+
+        // SVG tag, all enforcement checks passed: force-keep so DOMPurify's
+        // built-in attr allowlist doesn't drop legitimate SVG attrs.
+        if (isSvgTag) {
+            hookEvent.forceKeepAttr = true;
         }
     });
 
@@ -338,7 +357,6 @@ export const getSanitizedContent = (content: string): string => {
 
     const dpConfig: any = {
         ALLOWED_TAGS: VisualConstants.allowedTags,
-        ALLOWED_ATTR: FLAT_ATTR_ALLOWLIST,
         // Allow data: in URL-bearing attrs (sanitized in the hook).
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
         ALLOW_UNKNOWN_PROTOCOLS: false,
