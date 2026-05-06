@@ -47,7 +47,7 @@ The visual permits the following elements (everything else is dropped):
 **Global attributes** (allowed on every element above):
 `class`, `id`, `title`, `lang`, `dir`, `style`, `role`, `aria-*`, `data-*`, `tabindex`
 
-**Element-specific attributes** are allowed on a per-element basis. For example:
+**HTML element-specific attributes** are allowed on a per-element basis. Anything not on the global or element-specific list is dropped:
 
 | Element | Element-specific attributes |
 |---|---|
@@ -60,19 +60,24 @@ The visual permits the following elements (everything else is dropped):
 | `progress` | `value`, `max` |
 | `details` | `open` |
 | `table` cells | `colspan`, `rowspan`, `headers`, `scope` |
-| SVG elements | The standard SVG attribute set for each element (positions, dimensions, styling, gradients, animation timing, etc.) |
 
-Anything not on the global or element-specific list is dropped.
+**SVG attributes** follow a different model. Because the SVG spec defines a sprawling set of presentation, filter, gradient, and accessibility attributes that vary by element, the visual uses a denylist for SVG-namespaced tags: any attribute is allowed *except* event handlers (`on*`) and the dangerous attributes listed under [Disabled HTML attributes](#disabled-html-attributes) below. URL-bearing SVG attributes (`href`, `xlink:href`) are additionally subject to per-tag scheme rules — see [URL schemes](#url-schemes).
 
 ### URL schemes
 
-For attributes that carry URLs (`href`, `src`, `xlink:href`):
+For attributes that carry URLs (`href`, `src`, `xlink:href`), the allowed scheme depends on the element:
 
-- **`https:`** is allowed for `<a href>` (and processed by Power BI's `launchUrl()` API).
-- **`http:`** is allowed for `<a href>` for backwards compatibility.
-- **`data:` URIs** are allowed for `<img src>` and similar image attributes, but **only** if:
-  - The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`. **`image/svg+xml` is rejected** because SVG can carry scripts.
-  - The URI is **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
+| Element | Allowed schemes |
+|---|---|
+| `<a href>` | `https:` (processed by Power BI's `launchUrl()` API), `http:` (backwards compatibility) |
+| `<img src>` | `data:` only — no external resource loading |
+| `<image href>` / `<image xlink:href>` (SVG) | `data:` only — same restriction as `<img>` |
+| `<textPath href>` / `<textPath xlink:href>` (SVG) | Same-document fragment references only (e.g. `#myPath`) — no external URLs |
+
+`data:` URIs (where allowed) must additionally satisfy:
+
+- The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`. **`image/svg+xml` is rejected** because SVG can carry scripts.
+- The URI is **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
 
 All other schemes (`javascript:`, `vbscript:`, `blob:`, `file:`, `ftp:`, `mailto:`, `tel:`, etc.) are rejected.
 
@@ -1597,6 +1602,132 @@ Legitimate content that must continue to render unchanged.
 
 ```html
 <p style="color:red;font-weight:bold">red bold</p>
+```
+
+#### A small inline SVG with the most common primitive shapes — circle, rect, and line — using basic fill and stroke. Should render as three side-by-side shapes.
+
+**Input:**
+
+```html
+<svg width="180" height="40" viewBox="0 0 180 40"><circle cx="20" cy="20" r="15" fill="steelblue"/><rect x="60" y="5" width="30" height="30" fill="orange"/><line x1="120" y1="20" x2="170" y2="20" stroke="#333" stroke-width="3"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="180" height="40" viewBox="0 0 180 40"><circle cx="20" cy="20" r="15" fill="steelblue"></circle><rect x="60" y="5" width="30" height="30" fill="orange"></rect><line x1="120" y1="20" x2="170" y2="20" stroke="#333" stroke-width="3"></line></svg>
+```
+
+#### An SVG that scales to fill its container using viewBox plus 100% width and height with preserveAspectRatio. The standard pattern for responsive maps and dashboards.
+
+**Input:**
+
+```html
+<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"><rect x="10" y="10" width="80" height="80" fill="#0078d4"/></svg>
+```
+
+**Output:**
+
+```html
+<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"><rect x="10" y="10" width="80" height="80" fill="#0078d4"></rect></svg>
+```
+
+#### A semi-transparent rectangle overlay on top of a solid shape, using fill-opacity. Common pattern for highlighting a region of a chart.
+
+**Input:**
+
+```html
+<svg width="120" height="40" viewBox="0 0 120 40"><rect x="0" y="0" width="120" height="40" fill="steelblue"/><rect x="40" y="0" width="40" height="40" fill="red" fill-opacity="0.4"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="120" height="40" viewBox="0 0 120 40"><rect x="0" y="0" width="120" height="40" fill="steelblue"></rect><rect x="40" y="0" width="40" height="40" fill="red" fill-opacity="0.4"></rect></svg>
+```
+
+#### SVG text with the styling a chart axis or legend typically uses — italic font-style, text-anchor, and rotated tick label via transform.
+
+**Input:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><text x="10" y="20" text-anchor="start" font-style="italic" font-size="14">Axis label</text><text x="80" y="50" text-anchor="middle" transform="rotate(-45 80 50)">Q1 2025</text></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><text x="10" y="20" text-anchor="start" font-style="italic" font-size="14">Axis label</text><text x="80" y="50" text-anchor="middle" transform="rotate(-45 80 50)">Q1 2025</text></svg>
+```
+
+#### A dashed grid line, a rounded line cap, and a polyline sparkline with rounded joins. Exercises stroke-dasharray, stroke-linecap, and stroke-linejoin on the shapes that use them most often.
+
+**Input:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><line x1="0" y1="20" x2="160" y2="20" stroke="#ccc" stroke-dasharray="4,2"/><line x1="10" y1="30" x2="150" y2="30" stroke="#000" stroke-width="3" stroke-linecap="round"/><polyline points="0,35 30,15 60,25 90,8 120,18 150,4" fill="none" stroke="#0078d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><line x1="0" y1="20" x2="160" y2="20" stroke="#ccc" stroke-dasharray="4,2"></line><line x1="10" y1="30" x2="150" y2="30" stroke="#000" stroke-width="3" stroke-linecap="round"></line><polyline points="0,35 30,15 60,25 90,8 120,18 150,4" fill="none" stroke="#0078d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+```
+
+#### A drop shadow applied to a path via the canonical SVG filter chain — feGaussianBlur, feOffset, and feMerge. Exercises filter primitives with their distinctive camelCase attributes.
+
+**Input:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"/><feOffset dx="1" dy="1" result="off"/><feMerge><feMergeNode in="off"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect x="20" y="15" width="120" height="30" fill="#0078d4" filter="url(#shadow)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"></feGaussianBlur><feOffset dx="1" dy="1" result="off"></feOffset><feMerge><feMergeNode in="off"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter></defs><rect x="20" y="15" width="120" height="30" fill="#0078d4" filter="url(#shadow)"></rect></svg>
+```
+
+#### A rectangle filled with a horizontal linear gradient defined in <defs> and referenced via fill="url(#id)". Tests gradient definitions, gradientUnits, and stop-color.
+
+**Input:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><defs><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0"><stop offset="0%" stop-color="#0078d4"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient></defs><rect x="0" y="0" width="160" height="40" fill="url(#g1)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><defs><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0"><stop offset="0%" stop-color="#0078d4"></stop><stop offset="100%" stop-color="#50e6ff"></stop></linearGradient></defs><rect x="0" y="0" width="160" height="40" fill="url(#g1)"></rect></svg>
+```
+
+#### A small inline sparkline showing a trend line with an end-point marker — the kind of chart a report author would embed next to a KPI value.
+
+**Input:**
+
+```html
+<svg width="120" height="30" viewBox="0 0 120 30" xmlns="http://www.w3.org/2000/svg"><g transform="translate(2,2)"><path d="M0,20 L20,10 L40,15 L60,5 L80,12 L100,3" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="100" cy="3" r="2" fill="#0078d4"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg width="120" height="30" viewBox="0 0 120 30" xmlns="http://www.w3.org/2000/svg"><g transform="translate(2,2)"><path d="M0,20 L20,10 L40,15 L60,5 L80,12 L100,3" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="100" cy="3" r="2" fill="#0078d4"></circle></g></svg>
+```
+
+#### A small bar chart with two bars, an x-axis baseline, a tick line, and a rotated italic tick label. Exercises text-anchor, font-style, transform, and group nesting in a recognizable chart shape.
+
+**Input:**
+
+```html
+<svg width="200" height="120" viewBox="0 0 200 120"><g class="axis" transform="translate(0,100)"><line x1="0" y1="0" x2="200" y2="0" stroke="#333"/><g class="tick" transform="translate(20,0)"><line y2="6" stroke="#333"/><text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text></g></g><g class="bars"><rect x="10" y="40" width="20" height="60" fill="steelblue"/><rect x="40" y="20" width="20" height="80" fill="steelblue"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg width="200" height="120" viewBox="0 0 200 120"><g class="axis" transform="translate(0,100)"><line x1="0" y1="0" x2="200" y2="0" stroke="#333"></line><g class="tick" transform="translate(20,0)"><line y2="6" stroke="#333"></line><text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text></g></g><g class="bars"><rect x="10" y="40" width="20" height="60" fill="steelblue"></rect><rect x="40" y="20" width="20" height="80" fill="steelblue"></rect></g></svg>
 ```
 
 <!-- WORKED_EXAMPLES_END -->
