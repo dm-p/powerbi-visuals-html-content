@@ -77,6 +77,29 @@ describe('sanitize-pipeline end-to-end', () => {
             expect(out).not.toContain('evil');
             expect(out).not.toContain('background');
         });
+
+        // The <style> body goes through preprocessStyleTags (regex
+        // extraction → sanitizeCss → reinsertion) before DOMPurify sees
+        // it. css-sanitizer.test.ts covers selector behavior in isolation;
+        // these smoke tests verify the pipeline preserves modern selectors
+        // through the full wiring.
+        it('preserves :has() through <style>', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<style>.row:has(.active) .panel { display: block; }</style>',
+                'html'
+            );
+            expect(out).toContain(':has(');
+            expect(out).toContain('.active');
+        });
+
+        it('preserves :has() chained with :hover through <style>', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<style>.row:hover:has(.active) .label { font-weight: bold; }</style>',
+                'html'
+            );
+            expect(out).toContain(':has(');
+            expect(out).toContain(':hover');
+        });
     });
 
     describe('attribute sanitization', () => {

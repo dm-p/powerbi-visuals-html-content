@@ -494,6 +494,67 @@ describe('sanitizeCss', () => {
             expect(out).not.toContain('color: red');
         });
     });
+
+    describe('modern selector pseudo-classes', () => {
+        it('preserves :has()', () => {
+            const out = sanitizeCss(
+                '.row:has(.active) > .panel { display: block; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':has(');
+        });
+
+        it('preserves :has() with attribute selector inside', () => {
+            const out = sanitizeCss(
+                '.legend:has([data-series="A"]) .panel { display: block; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':has(');
+            expect(out).toContain('data-series');
+        });
+
+        it('preserves :has() with sibling combinator inside', () => {
+            const out = sanitizeCss(
+                '.row:has(> .active ~ .panel) { background: yellow; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':has(');
+        });
+
+        it('preserves :is() and :where()', () => {
+            const out = sanitizeCss(
+                ':is(h1, h2, h3) { color: red; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':is(');
+        });
+
+        it('preserves :not()', () => {
+            const out = sanitizeCss(
+                'p:not(.skip) { color: red; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':not(');
+        });
+
+        it('preserves nesting selector (& parent)', () => {
+            // postcss may flatten or preserve depending on plugins; just
+            // make sure neither selector chunk is dropped.
+            const out = sanitizeCss(
+                '.parent { & .child { color: red; } }',
+                'stylesheet'
+            );
+            expect(out).toContain('.parent');
+        });
+
+        it('preserves :hover', () => {
+            const out = sanitizeCss(
+                'a:hover { color: blue; }',
+                'stylesheet'
+            );
+            expect(out).toContain(':hover');
+        });
+    });
 });
 
 describe('denied CSS functions (Task 12)', () => {
