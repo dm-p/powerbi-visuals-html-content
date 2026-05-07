@@ -40,6 +40,7 @@
     ]
   },
   "publicCustomVisuals": [
+    "htmlContent443BE3AD55E043BF878BED274D3A6855",
     "htmlContent443BE3AD55E043BF878BED274D3A6865"
   ],
   "resourcePackages": [
@@ -62,6 +63,7 @@
     "allowChangeFilterTypes": true,
     "useEnhancedTooltips": true,
     "useDefaultAggregateDisplayName": true,
+    "enableDeveloperMode": true,
     "queryLimitOption": "None",
     "customMemoryLimit": "1048576",
     "customTimeoutLimit": "225"

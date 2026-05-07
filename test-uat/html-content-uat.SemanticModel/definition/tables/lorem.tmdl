@@ -1,0 +1,81 @@
+table lorem
+	lineageTag: 02606ea2-81c4-4163-b245-50c332651505
+
+	column id
+		dataType: string
+		lineageTag: 885d5eb6-fbcc-4bbd-ab86-6a0ba24edbb2
+		summarizeBy: none
+		sourceColumn: id
+
+		annotation SummarizationSetBy = Automatic
+
+	column description
+		dataType: string
+		lineageTag: aed1fdd5-e823-43f0-8ae5-d85819b6df12
+		summarizeBy: none
+		sourceColumn: description
+
+		annotation SummarizationSetBy = Automatic
+
+	column type
+		dataType: string
+		lineageTag: 2146b413-9f2a-4537-9162-9576f9c322b1
+		summarizeBy: none
+		sourceColumn: type
+
+		annotation SummarizationSetBy = Automatic
+
+	column category
+		dataType: string
+		lineageTag: 22acbd17-a97b-4ab1-816b-c67b05fdd7f0
+		summarizeBy: none
+		sourceColumn: category
+
+		annotation SummarizationSetBy = Automatic
+
+	column cspCategory
+		dataType: string
+		lineageTag: f9934e41-eeb7-4f44-bfc8-192e0b856299
+		summarizeBy: none
+		sourceColumn: cspCategory
+
+		annotation SummarizationSetBy = Automatic
+
+	column source
+		dataType: string
+		lineageTag: 73bb8e4a-76a4-4d06-b708-388639d78681
+		summarizeBy: none
+		sourceColumn: source
+
+		annotation SummarizationSetBy = Automatic
+
+	column input
+		dataType: string
+		lineageTag: 5dec7d68-a46c-417a-b8e5-41a5b5b368c7
+		summarizeBy: none
+		sourceColumn: input
+
+		annotation SummarizationSetBy = Automatic
+
+	column sanitizedOutput
+		dataType: string
+		lineageTag: c18b11e8-797c-477d-aec3-fd6a22822cb0
+		summarizeBy: none
+		sourceColumn: sanitizedOutput
+
+		annotation SummarizationSetBy = Automatic
+
+	partition lorem = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(RepoRoot & "\lorem.csv"),[Delimiter=",", Columns=8, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"id", type text}, {"description", type text}, {"type", type text}, {"category", type text}, {"cspCategory", type text}, {"source", type text}, {"input", type text}, {"sanitizedOutput", type text}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

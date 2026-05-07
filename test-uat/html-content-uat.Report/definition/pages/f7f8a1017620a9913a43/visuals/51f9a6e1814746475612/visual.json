@@ -1,13 +1,13 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
-  "name": "e3d9592703ad8328e000",
+  "name": "51f9a6e1814746475612",
   "position": {
     "x": 320,
     "y": 0,
-    "z": 4000,
+    "z": 3002,
     "height": 80,
     "width": 1600,
-    "tabOrder": 4000
+    "tabOrder": 3002
   },
   "visual": {
     "visualType": "textbox",
@@ -19,7 +19,7 @@
               {
                 "textRuns": [
                   {
-                    "value": "Add packaged visual to report and replace."
+                    "value": "Top visual has no content settings, bottom visual has overrides to font, size and color"
                   }
                 ],
                 "listType": "ordered"
@@ -27,15 +27,7 @@
               {
                 "textRuns": [
                   {
-                    "value": "Go through all tests; check output in both visuals match expected for selected test."
-                  }
-                ],
-                "listType": "ordered"
-              },
-              {
-                "textRuns": [
-                  {
-                    "value": "Check for console errors; should only have warnings."
+                    "value": "Go through each scenario and check differences are valid in the bottom visual (noting that some styles cannot be overriden)"
                   }
                 ],
                 "listType": "ordered"
