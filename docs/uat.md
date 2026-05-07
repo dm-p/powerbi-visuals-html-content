@@ -34,7 +34,7 @@ The [Test Workbook](../test-uat/html-content-uat.pbip) can be opened in any vers
 
 ### Local Workbook Setup
 
-1. Edit [expressions.tmdl](..\test-uat\html-content-uat.SemanticModel\definition\expressions.tmdl) and edit the `[add current path here]` placeholder for `RepoRoot` to match the path of the current file for your checkout, e.g.:
+1. Edit [expressions.tmdl](../test-uat/html-content-uat.SemanticModel/definition/expressions.tmdl) and edit the `[add current path here]` placeholder for `RepoRoot` to match the path of the current file for your checkout, e.g.:
 
     If you've checked out to `C:\Repos` and left the repo name intact:
     

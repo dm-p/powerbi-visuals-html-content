@@ -72,7 +72,12 @@ For attributes that carry URLs (`href`, `src`, `xlink:href`), the allowed scheme
 | `<a href>` | `https:` (processed by Power BI's `launchUrl()` API), `http:` (backwards compatibility) |
 | `<img src>` | `data:` only — no external resource loading |
 | `<image href>` / `<image xlink:href>` (SVG) | `data:` only — same restriction as `<img>` |
+| `<feImage href>` / `<feImage xlink:href>` (SVG) | `data:` only — same restriction as `<image>` |
 | `<textPath href>` / `<textPath xlink:href>` (SVG) | Same-document fragment references only (e.g. `#myPath`) — no external URLs |
+| `<pattern href>`, `<linearGradient href>`, `<radialGradient href>`, `<filter href>` (SVG) | Same-document fragment references only — no external URLs |
+| Any other SVG tag with `href` / `xlink:href` | **Default-deny** — must have an explicit entry in `allowedSchemesByTag`; missing entries cause the URL attribute to be dropped |
+
+In addition, SVG presentation attributes that accept functional IRI values (`mask`, `clip-path`, `filter`, `marker-*`, `fill`, `stroke`, `cursor`) are scanned for embedded `url(<scheme>:...)` references. The same rules apply to the embedded scheme: empty (fragment-only `url(#id)`) and `data:` are allowed; `http:`, `https:`, `blob:`, etc. are rejected.
 
 `data:` URIs (where allowed) must additionally satisfy:
 
@@ -1073,6 +1078,118 @@ Payloads that only work inside SVG contexts.
 
 ```html
 <svg><text><textPath>label</textPath></text></svg>
+```
+
+#### SVG feImage filter primitive with external href. Same restriction as <image>: only data: URIs are permitted, no external resource loading.
+
+**Input:**
+
+```html
+<svg><filter id="f"><feImage href="https://attacker.example/x.png"/></filter></svg>
+```
+
+**Output:**
+
+```html
+<svg><filter id="f"><feImage></feImage></filter></svg>
+```
+
+#### SVG pattern element with external href. Patterns should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><pattern id="p" href="https://attacker.example/x.svg"><rect width="10" height="10"/></pattern></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><pattern id="p"><rect width="10" height="10"></rect></pattern></defs></svg>
+```
+
+#### SVG linearGradient with external href. Gradients should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><linearGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></linearGradient></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><linearGradient id="g"><stop offset="0%" stop-color="red"></stop></linearGradient></defs></svg>
+```
+
+#### SVG radialGradient with external href. Gradients should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><radialGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></radialGradient></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><radialGradient id="g"><stop offset="0%" stop-color="red"></stop></radialGradient></defs></svg>
+```
+
+#### SVG filter element with external href. Filters should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><filter id="f" href="https://attacker.example/x.svg"><feGaussianBlur stdDeviation="2"/></filter></svg>
+```
+
+**Output:**
+
+```html
+<svg><filter id="f"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter></svg>
+```
+
+#### SVG mask attribute carrying url(https://...). Funciri values on SVG presentation attributes must be scheme-checked, not just the src/href/xlink:href attribute names.
+
+**Input:**
+
+```html
+<svg><rect mask="url(https://attacker.example/m.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG clip-path attribute carrying url(https://...). Same funciri concern as mask.
+
+**Input:**
+
+```html
+<svg><rect clip-path="url(https://attacker.example/c.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG filter attribute carrying url(https://...). Same funciri concern as mask and clip-path.
+
+**Input:**
+
+```html
+<svg><rect filter="url(https://attacker.example/f.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
 ```
 
 ### Disallowed HTML elements
