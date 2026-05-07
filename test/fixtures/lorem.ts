@@ -463,7 +463,7 @@ export const LOREM_PAYLOADS: Payload[] = [
     // CSS variables + modern CSS in <style>-in-data (issue #143 follow-up).
     //
     // Per https://github.com/dm-p/powerbi-visuals-html-content/issues/143
-    // (kriscs1 + oechslein comments) reporters on 1.6.1.0 said their
+    // (comments) reporters on 1.6.1.0 said their
     // <style id="visualUserStylesheet"> content with CSS variables was
     // being stripped after the cert-remediation update. The current
     // branch handles all of these cases (verified by the css-sanitizer
@@ -548,7 +548,7 @@ export const LOREM_PAYLOADS: Payload[] = [
     {
         id: 'lorem-style-tag-reporter-cards',
         description:
-            'Compact reproduction of the kriscs1 / oechslein report — ' +
+            'Compact reproduction of the report — ' +
             ':root variables, themed cards using a MULTI-LINE comma-' +
             'separated selector (.card-wide, .card-wide-link), :hover, ' +
             '@media query containing another multi-line selector, ' +
@@ -621,6 +621,64 @@ export const LOREM_PAYLOADS: Payload[] = [
         },
         category: 'lorem',
         cspCategory: 'none',
-        source: 'issue #143 — kriscs1 / oechslein report content (multi-line selectors)'
+        source: 'issue #143 — report content (multi-line selectors)'
+    },
+    {
+        id: 'lorem-svg-as-img-data-uri-utf8',
+        description:
+            'An SVG embedded as a data URI inside <img src="data:image/svg+xml;utf8,...">. ' +
+            'This is the shape that DAX measures emit when a report author builds an SVG ' +
+            'string and feeds it into HTML Content as an image. The SVG itself is text ' +
+            '(not base64) and must survive sanitization with viewBox, fill, and shape ' +
+            'attributes intact. Browsers sandbox SVG loaded via <img>, so embedded ' +
+            'scripts would not execute even if present (issue #143 follow-up).',
+        input:
+            '<p>Inline SVG via data URI:</p>' +
+            "<img alt='svg-icon' src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'><circle cx='12' cy='12' r='10' fill='%231f77b4'/><rect x='8' y='8' width='8' height='8' fill='white'/></svg>\">",
+        expectedSanitized: {
+            contains: [
+                'data:image/svg+xml',
+                'utf8',
+                "viewBox='0 0 24 24'",
+                "circle cx='12'",
+                "rect x='8'",
+                "fill='%231f77b4'"
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #143 — DAX SVG-as-IMG output pattern'
+    },
+    {
+        id: 'lorem-svg-data-uri-css-background',
+        description:
+            'A small inline SVG used as a CSS background-image via url(data:image/svg+xml;utf8,...). ' +
+            'Common pattern for icons rendered through stylesheet rules rather than <img> tags. ' +
+            'Angle brackets in the SVG are URL-encoded (%3C, %3E) — this is the canonical form ' +
+            'for SVG-in-CSS data URIs because the HTML parser treats <style> body as raw text up ' +
+            'to </style> but DOM parsers and serializers can mis-interpret literal `<svg/>` inside ' +
+            'CSS, so url-encoding is the standard practice. The SVG must survive postcss-based CSS ' +
+            'sanitization without the base64 gate that applies to raster image MIME types.',
+        input:
+            '<style>' +
+            ".swatch { width: 32px; height: 32px; display: inline-block; " +
+            "background-image: url(\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23e07a5f'/%3E%3C/svg%3E\"); }" +
+            '</style>' +
+            '<span class="swatch"></span> Brand swatch',
+        expectedSanitized: {
+            contains: [
+                '.swatch',
+                'background-image',
+                'data:image/svg+xml',
+                '%3Csvg',
+                "viewBox='0 0 16 16'",
+                "fill='%23e07a5f'",
+                '%3C/svg%3E',
+                'Brand swatch'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #143 — svg+xml in CSS url() image-context loading'
     }
 ];

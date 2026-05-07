@@ -630,7 +630,8 @@ export const getSanitizedDataUri = (dataUri: string): string => {
         'image/jpg',
         'image/gif',
         'image/webp',
-        'image/bmp'
+        'image/bmp',
+        'image/svg+xml'
     ];
 
     if (!safeMimeTypes.includes(mimeType)) {
@@ -640,7 +641,15 @@ export const getSanitizedDataUri = (dataUri: string): string => {
         return 'data:,';
     }
 
-    if (!/^data:[^,]*;base64,/i.test(dataUri)) {
+    // Real binary images (png/jpeg/gif/webp/bmp) must be base64-encoded —
+    // a non-base64 data:image/png is always smuggled non-binary content.
+    // SVG is text by spec and DAX measures legitimately emit
+    // `data:image/svg+xml;utf8,<svg ...>` (and the bare comma form), so
+    // the base64 requirement is bypassed for image/svg+xml. Browsers
+    // sandbox SVG loaded via <img>/<svg image>/<feImage> — script and
+    // external resource references inside the SVG do not execute in
+    // image-loading context (issue #143 follow-up).
+    if (mimeType !== 'image/svg+xml' && !/^data:[^,]*;base64,/i.test(dataUri)) {
         console.warn(
             `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
         );

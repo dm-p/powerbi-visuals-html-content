@@ -181,6 +181,60 @@ describe('sanitize-pipeline end-to-end', () => {
             expect(out).not.toContain('alert(1)');
         });
 
+        // image/svg+xml data URIs are legitimately emitted by DAX
+        // measures (Power BI SVG-as-IMG pattern) and other tooling in
+        // both `;utf8,` and bare-comma form. SVG is text by spec, so
+        // the base64 requirement that applies to raster image MIMEs is
+        // bypassed for image/svg+xml. Browsers sandbox SVG loaded via
+        // <img> — embedded scripts and external resource references
+        // do not execute in image-loading context (issue #143).
+        it('preserves data:image/svg+xml;utf8 in <img src>', () => {
+            const svg =
+                "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='red'/></svg>";
+            const out = getSanitizedHtmlForTesting(
+                `<img src="data:image/svg+xml;utf8,${svg}" alt="x">`,
+                'html'
+            );
+            expect(out).toContain('data:image/svg+xml');
+            expect(out).toContain("viewBox='0 0 10 10'");
+        });
+
+        it('preserves data:image/svg+xml without charset (bare comma) in <img src>', () => {
+            const svg =
+                "<svg xmlns='http://www.w3.org/2000/svg'><rect width='10' height='10'/></svg>";
+            const out = getSanitizedHtmlForTesting(
+                `<img src="data:image/svg+xml,${svg}" alt="x">`,
+                'html'
+            );
+            expect(out).toContain('data:image/svg+xml');
+            expect(out).toContain("rect width='10'");
+        });
+
+        it('preserves data:image/svg+xml;base64 in <img src>', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<img src="data:image/svg+xml;base64,PHN2Zy8+" alt="x">',
+                'html'
+            );
+            expect(out).toContain('data:image/svg+xml;base64');
+        });
+
+        it('still drops data:image/png without base64 (smuggled non-binary)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<img src="data:image/png,<script>alert(1)</script>" alt="x">',
+                'html'
+            );
+            expect(out).not.toContain('script');
+            expect(out).not.toContain('alert(1)');
+        });
+
+        it('still drops data:text/html in <img src> (script-bearing MIME)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<img src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==" alt="x">',
+                'html'
+            );
+            expect(out).not.toContain('text/html');
+        });
+
         it('drops javascript: href', () => {
             const out = getSanitizedHtmlForTesting(
                 '<a href="javascript:alert(1)">x</a>',

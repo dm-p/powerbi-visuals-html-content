@@ -127,7 +127,7 @@ function hasDangerousSelector(selector: string): boolean {
     //   .b { ... }
     //
     // are normal real-world formatting and must not be dropped by this
-    // check (issue #143 kriscs1/oechslein report — multi-line layout
+    // check (issue #143 report — multi-line layout
     // selectors silently disappeared because of the over-broad range).
     for (let i = 0; i < selector.length; i++) {
         const code = selector.charCodeAt(i);
@@ -150,7 +150,8 @@ const SAFE_IMAGE_MIME_TYPES = new Set([
     'image/jpg',
     'image/gif',
     'image/webp',
-    'image/bmp'
+    'image/bmp',
+    'image/svg+xml'
 ]);
 
 const DENIED_FUNCTIONS = new Set<string>([
@@ -180,13 +181,15 @@ function isSafeImageDataUri(rawUrl: string): boolean {
         comma === -1 ? url.length : comma
     );
     const mime = url.slice(5, end);
-    if (mime === 'image/svg+xml') return false;
     if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
     // Real binary image data is always base64-encoded. A data:image/*
     // URI without ;base64, is always smuggling plain-text content (HTML,
-    // SVG, script) behind an image MIME declaration. This mirrors the
-    // same check in getSanitizedDataUri (sanitize-pipeline.ts).
-    if (!/;base64,/i.test(rawUrl)) return false;
+    // script) behind an image MIME declaration — except for SVG, which
+    // is text by spec and is legitimately emitted as
+    // `data:image/svg+xml;utf8,<svg ...>` (or the bare comma form) by
+    // tools and DAX measures. This mirrors the same MIME-conditional
+    // base64 check in getSanitizedDataUri (sanitize-pipeline.ts).
+    if (mime !== 'image/svg+xml' && !/;base64,/i.test(rawUrl)) return false;
     return true;
 }
 

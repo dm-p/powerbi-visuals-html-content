@@ -346,14 +346,24 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'category-3 scheme coverage'
     },
     {
-        id: 'css-url-scheme-data-image-svg-xml',
+        id: 'css-url-scheme-data-image-svg-xml-clean',
         description:
-            'data:image/svg+xml is blocked even though it is image/* — SVG can carry scripts.',
-        input: '<img src="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\'><script>alert(1)</script></svg>">',
-        expectedSanitized: { notContains: ['data:image/svg+xml', '<script>'] },
+            'data:image/svg+xml is allowed in <img src> for image-context ' +
+            'loading. Browsers sandbox SVG loaded via <img>, so embedded ' +
+            'scripts and external resource references do not execute. The ' +
+            'safe shape (no script content) must survive sanitization with ' +
+            'the SVG markup intact (issue #143).',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>\">",
+        expectedSanitized: {
+            contains: [
+                'data:image/svg+xml',
+                "viewBox='0 0 8 8'",
+                "circle cx='4'"
+            ]
+        },
         category: 'css-url-scheme',
         cspCategory: 'img-src',
-        source: 'category-3 svg/xss vector'
+        source: 'category-3 svg image-context — issue #143'
     },
     {
         id: 'css-url-scheme-blob',

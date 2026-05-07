@@ -90,8 +90,9 @@ In addition, SVG presentation attributes that accept functional IRI values (`mas
 
 `data:` URIs (where allowed) must additionally satisfy:
 
-- The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`. **`image/svg+xml` is rejected** because SVG can carry scripts.
-- The URI is **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
+- The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`, `image/svg+xml`.
+- For raster MIME types (`image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`), the URI must be **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
+- `image/svg+xml` is allowed in any of three forms: `data:image/svg+xml;base64,...`, `data:image/svg+xml;utf8,<svg ...>`, or `data:image/svg+xml,<svg ...>`. SVG is text by spec, and DAX measures and similar tooling legitimately emit the `;utf8,` and bare-comma forms. SVG loaded via `<img>` / `<svg image>` / `<feImage>` / CSS `url()` runs in browser image-loading context, so embedded `<script>`, event handlers, and external resource references inside the SVG **do not execute** — the browser sandbox is the load-bearing security boundary, not the sanitizer. Inline `<svg>...</svg>` parsed into the DOM is a different surface and is still subject to the full DOMPurify SVG profile (script tags and event handlers are stripped, and SMIL animation tags / `<use>` are blocked at the tag allowlist).
 
 All other schemes (`javascript:`, `vbscript:`, `blob:`, `file:`, `ftp:`, `mailto:`, `tel:`, etc.) are rejected.
 
@@ -111,11 +112,12 @@ Inline `style` attributes, `<style>` tag bodies, and the custom stylesheet setti
 
 ### Non-image data URIs
 
-**Blocked.** A `data:` URI is only allowed inside CSS `url()` (or in `src`/`href` attributes) if its MIME type is on the image allowlist AND it is base64-encoded. This catches three categories of attack:
+**Blocked.** A `data:` URI is only allowed inside CSS `url()` (or in `src`/`href` attributes) if its MIME type is on the image allowlist (`image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`, `image/svg+xml`) AND, for raster MIME types, it is base64-encoded. `image/svg+xml` is exempt from the base64 requirement because SVG is text by spec — the `;utf8,` and bare-comma forms are normal output for tools and DAX measures. This catches two categories of attack:
 
 1. `data:text/html,<script>...</script>` smuggling executable HTML
-2. `data:image/png,<html>...</html>` declaring an image MIME but carrying plain text
-3. `data:image/svg+xml,...` declaring an image MIME but carrying SVG (which can contain `<script>`)
+2. `data:image/png,<html>...</html>` declaring a raster image MIME but carrying plain text
+
+`image/svg+xml` is treated separately rather than blocked: SVG loaded through an image-loading context (`<img src>`, `<svg image href>`, `<feImage href>`, CSS `url()`) is sandboxed by the browser — embedded scripts, event handlers, and external resource references do not execute. Inline `<svg>` in the DOM is a different surface and is still scrubbed by the full DOMPurify pass.
 
 ### `@import` and `@font-face`
 
@@ -195,8 +197,8 @@ The block contained content matched by the [defense-in-depth final pass](#defens
 Check the `src` value:
 
 - External URLs (`http://`, `https://`) are blocked. Convert to a base64 data URI.
-- `data:image/svg+xml,...` is blocked. Use PNG/JPEG instead.
-- `data:image/png,...` without `;base64,` is blocked. Re-encode as base64.
+- `data:image/svg+xml,...` (and the `;utf8,` / `;base64,` variants) is allowed. SVG loaded via `<img>` / CSS `url()` is browser-sandboxed.
+- `data:image/png,...` (and the other raster types) without `;base64,` is blocked. Re-encode as base64.
 
 ### "An entire `<element>` is missing"
 
@@ -555,18 +557,18 @@ Every scheme or pseudo-scheme that might appear inside a `url()` argument.
 (empty — entire input was dropped)
 ```
 
-#### data:image/svg+xml is blocked even though it is image/* — SVG can carry scripts.
+#### data:image/svg+xml is allowed in <img src> for image-context loading. Browsers sandbox SVG loaded via <img>, so embedded scripts and external resource references do not execute. The safe shape (no script content) must survive sanitization with the SVG markup intact (issue #143 follow-up).
 
 **Input:**
 
 ```html
-<img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>">
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
 ```
 
 **Output:**
 
 ```html
-<img>
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
 ```
 
 #### blob: scheme in background.

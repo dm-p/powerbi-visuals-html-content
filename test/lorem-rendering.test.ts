@@ -22,6 +22,48 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOREM_CSV_PATH = path.resolve(__dirname, '..', 'test-uat', 'lorem.csv');
 
+/**
+ * Minimal RFC 4180 CSV record splitter. Returns one string per record
+ * (header + data rows), correctly handling fields wrapped in double
+ * quotes that contain embedded commas, double-quoted escapes (`""`), or
+ * newlines. We don't need per-field parsing here — only to count rows
+ * and extract the first comma-separated id from each record.
+ */
+function parseCsvRecords(csv: string): string[] {
+    const records: string[] = [];
+    let buf = '';
+    let inQuotes = false;
+    for (let i = 0; i < csv.length; i++) {
+        const ch = csv[i];
+        if (inQuotes) {
+            if (ch === '"' && csv[i + 1] === '"') {
+                buf += '""';
+                i++;
+                continue;
+            }
+            if (ch === '"') {
+                inQuotes = false;
+            }
+            buf += ch;
+            continue;
+        }
+        if (ch === '"') {
+            inQuotes = true;
+            buf += ch;
+            continue;
+        }
+        if (ch === '\n') {
+            if (buf.length > 0) records.push(buf);
+            buf = '';
+            continue;
+        }
+        if (ch === '\r') continue;
+        buf += ch;
+    }
+    if (buf.length > 0) records.push(buf);
+    return records;
+}
+
 describe('lorem fixtures — sanitized output', () => {
     // Annotated tuple type so `payload` is narrowed to Payload inside the
     // callback rather than `string | Payload`.
@@ -49,16 +91,13 @@ describe('lorem fixtures — CSV sync', () => {
     beforeAll(() => {
         if (fs.existsSync(LOREM_CSV_PATH)) {
             csvText = fs.readFileSync(LOREM_CSV_PATH, 'utf-8');
-            // Strip the header row (first line) and trailing empty line.
-            // Subsequent lines may contain RFC 4180-quoted fields with
-            // embedded commas / newlines; split on \n is sufficient here
-            // because the CSV writer guarantees each row's quoted fields
-            // do not introduce bare newlines outside their quotes — and
-            // the lorem fixture descriptions today have no embedded
-            // newlines. If a fixture ever needs an embedded newline,
-            // replace this split with a real CSV parser.
-            const lines = csvText.split('\n');
-            csvDataRows = lines.slice(1).filter(line => line.length > 0);
+            // Parse RFC 4180 records. Quoted fields may contain embedded
+            // newlines (the sanitized-output column is multi-line CSS for
+            // fixtures like reporter-cards that round-trip through postcss),
+            // so a naive split on \n mis-counts records. We only need the
+            // first field of each data record for the assertions below, so
+            // we read just enough to find each record boundary.
+            csvDataRows = parseCsvRecords(csvText).slice(1);
         }
     });
 

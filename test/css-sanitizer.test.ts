@@ -34,13 +34,35 @@ describe('sanitizeCss', () => {
             expect(out).not.toContain('background');
         });
 
-        it('drops a url(data:image/svg+xml,...) declaration (svg can carry scripts)', () => {
+        // image/svg+xml in CSS url() values is allowed: browsers treat the
+        // SVG as an image resource (no script execution) when loaded via
+        // background-image / mask / etc., and the same MIME-conditional
+        // base64 bypass applies (issue #143 follow-up).
+        it('preserves url(data:image/svg+xml;utf8,<svg/>) (image-context, browser-sandboxed)', () => {
             const out = sanitizeCss(
-                'background: url(data:image/svg+xml,<svg></svg>)',
+                "background: url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>)",
                 'declaration-list'
             );
-            expect(out).not.toContain('svg+xml');
-            expect(out).not.toContain('background');
+            expect(out).toContain('svg+xml');
+            expect(out).toContain('background');
+        });
+
+        it('preserves url(data:image/svg+xml,<svg/>) without charset', () => {
+            const out = sanitizeCss(
+                "background: url(data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>)",
+                'declaration-list'
+            );
+            expect(out).toContain('svg+xml');
+            expect(out).toContain('background');
+        });
+
+        it('preserves url(data:image/svg+xml;base64,...)', () => {
+            const out = sanitizeCss(
+                'background: url(data:image/svg+xml;base64,PHN2Zy8+)',
+                'declaration-list'
+            );
+            expect(out).toContain('svg+xml');
+            expect(out).toContain('background');
         });
 
         it('drops a url(data:image/png,...) without base64 encoding (P0 review fix)', () => {
@@ -494,7 +516,7 @@ describe('sanitizeCss', () => {
             expect(out).not.toContain('color: red');
         });
 
-        // Issue #143 — kriscs1/oechslein report. Multi-line comma-separated
+        // Issue #143 — report content. Multi-line comma-separated
         // selectors are normal real-world CSS formatting and must survive
         // the dangerous-control-char check. Pre-fix the check rejected
         // every char in 0x00-0x1F, including LF and CR, which silently
@@ -811,10 +833,9 @@ describe('sanitizeCss', () => {
         });
 
         it('preserves the full reporter-style content end-to-end', () => {
-            // Compact form of the kriscs1 / oechslein report — every
-            // distinct feature in one input. Catches a regression that
-            // breaks an interaction between features even when each
-            // feature passes in isolation.
+            // Compact form of the report — every distinct feature in one
+            // input. Catches a regression that breaks an interaction between
+            // features even when each feature passes in isolation.
             const reporterCss =
                 ':root {' +
                 '--card-bg-color: #ffffff;' +
