@@ -28,6 +28,11 @@
     font-family: inherit !important;
     font-size: inherit !important;
     text-align: inherit !important;
+    // background-color has no body-styling property to inherit from.
+    // Force transparent so embedded paste-residue backgrounds (typically
+    // white from Outlook/Teams/Word) clear and the visual's host context
+    // shows through.
+    background-color: transparent !important;
 }
 
 #rawHtmlOutput {
