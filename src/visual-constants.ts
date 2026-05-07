@@ -200,7 +200,14 @@ export const VisualConstants = {
         manualTooltipDataPrefix: 'tooltip',
         manualTooltipDataTitle: 'Title', // Will be camel-cased by HTML data API
         manualTooltipDataValue: 'Value', // Will be camel-cased by HTML data API
-        unselectedClassSelector: 'unselected'
+        unselectedClassSelector: 'unselected',
+        // Class added to the body container when default body styling is in
+        // effect (i.e. the user has NOT supplied a custom stylesheet). The
+        // matching rule in style/visual.less forces inline-styled descendants
+        // inside #htmlContent to inherit the body styling instead of their
+        // own embedded color/font-family/font-size/text-align values. Closes
+        // issue #144 (office-paste residue overriding Default body styling).
+        defaultBodyStylingClass: 'uses-default-body-styling'
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{

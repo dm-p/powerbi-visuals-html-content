@@ -103,6 +103,14 @@ export const resolveStyling = (
                 bodyProps.contentFormattingCardDefaultBodyStyling.align.value
             )
         );
+    // Default body styling must win against inline `style` declarations
+    // carried in the bound content (typically Outlook/Teams/Word paste
+    // residue with embedded color/font-family/font-size/background-color).
+    // Toggle a class on the body container so the matching stylesheet rule
+    // in style/visual.less can fire only when the user is in default-body
+    // mode — in custom-stylesheet mode the user's own rules take over and
+    // we do not force inheritance. Issue #144.
+    bodyContainer.classed(VisualConstants.dom.defaultBodyStylingClass, !useSS);
 };
 
 /**

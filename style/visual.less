@@ -8,6 +8,28 @@
     }
 }
 
+// Default body styling override. When `resolveStyling` (src/domain-utils.ts)
+// detects that the user is in default-body mode (no custom stylesheet
+// supplied), it adds `.uses-default-body-styling` to #htmlViewer. This rule
+// then forces any descendant inside #htmlContent that carries an inline
+// `style` attribute to inherit color, font-family, font-size, and
+// text-align from the body container — overriding the embedded styles
+// commonly introduced by Outlook/Teams/Word paste residue (issue #144).
+//
+// Scoped to `[style]` so descendants WITHOUT inline styles (`<h1>`,
+// `<code>`, `<strong>`, etc.) keep their browser/user-agent defaults via
+// normal inheritance and only the cascade-conflicting elements are forced.
+//
+// Tradeoff: a deliberate `<span style="color: red">` is also overridden.
+// Users who want embedded styling preserved should supply a custom
+// stylesheet (which clears the class and disables this rule).
+#htmlViewer.uses-default-body-styling #htmlContent [style] {
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    text-align: inherit !important;
+}
+
 #rawHtmlOutput {
     height: 97vh;
     width: 100vw;
