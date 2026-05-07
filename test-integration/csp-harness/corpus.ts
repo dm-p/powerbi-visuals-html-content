@@ -61,7 +61,15 @@ export type PayloadCategory =
     | 'encoding'               // 10. encoding / obfuscation
     | 'owasp'                  // 11. OWASP XSS Filter Evasion Cheat Sheet
     | 'partial-survival'       // 12. mixed safe/unsafe declarations
-    | 'clean-baseline';        //     legitimate content that must keep rendering
+    | 'clean-baseline'         //     legitimate content that must keep rendering
+    | 'lorem';                 //     rich-text rendering fixtures (paragraphs,
+                               //     headings, lists, nesting). Kept in a
+                               //     separate array (test/fixtures/lorem.ts);
+                               //     the sanitization doc generator never
+                               //     iterates lorem entries. Reusing the
+                               //     PayloadCategory union lets the UAT CSV
+                               //     generator emit the same column shape
+                               //     without forking the Payload interface.
 
 export interface Payload {
     /** Stable, unique identifier. See ID NAMING CONVENTION in the header. */
