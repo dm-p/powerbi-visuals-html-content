@@ -13,38 +13,13 @@
  *   npx tsx scripts/generate-sanitization-docs.ts           # write
  *   npx tsx scripts/generate-sanitization-docs.ts --check   # fail on drift
  *
- * The JSDOM bootstrap below duplicates test-integration/setup-dom.ts
- * rather than importing it, because this script lives at the repo root
- * and has its own module resolution context. The duplication is
- * intentional and small.
+ * The JSDOM bootstrap is shared with scripts/generate-uat-corpus.ts via
+ * scripts/_setup-jsdom.ts as a side-effect import. Keep it first so the
+ * globals are populated before sanitize-pipeline is imported.
  */
 
-// JSDOM setup MUST happen BEFORE importing sanitize-pipeline so the
-// transitive DOM-touching modules see a populated globalThis.
-import { JSDOM } from 'jsdom';
-const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
-    pretendToBeVisual: true,
-    url: 'http://localhost/'
-});
-const g = globalThis as any;
-g.window = dom.window;
-g.document = dom.window.document;
-g.Range = dom.window.Range;
-g.Node = dom.window.Node;
-g.Element = dom.window.Element;
-g.HTMLElement = dom.window.HTMLElement;
-g.HTMLDivElement = dom.window.HTMLDivElement;
-g.DocumentFragment = dom.window.DocumentFragment;
-g.DOMParser = dom.window.DOMParser;
-try {
-    g.navigator = dom.window.navigator;
-} catch {
-    Object.defineProperty(globalThis, 'navigator', {
-        value: dom.window.navigator,
-        configurable: true
-    });
-}
-g.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+// JSDOM setup MUST happen BEFORE importing sanitize-pipeline.
+import './_setup-jsdom';
 
 import * as fs from 'fs';
 import * as path from 'path';

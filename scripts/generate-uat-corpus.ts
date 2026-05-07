@@ -30,31 +30,9 @@
  */
 
 // JSDOM setup MUST happen BEFORE importing sanitize-pipeline so the
-// transitive DOM-touching modules see a populated globalThis.
-import { JSDOM } from 'jsdom';
-const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
-    pretendToBeVisual: true,
-    url: 'http://localhost/'
-});
-const g = globalThis as any;
-g.window = dom.window;
-g.document = dom.window.document;
-g.Range = dom.window.Range;
-g.Node = dom.window.Node;
-g.Element = dom.window.Element;
-g.HTMLElement = dom.window.HTMLElement;
-g.HTMLDivElement = dom.window.HTMLDivElement;
-g.DocumentFragment = dom.window.DocumentFragment;
-g.DOMParser = dom.window.DOMParser;
-try {
-    g.navigator = dom.window.navigator;
-} catch {
-    Object.defineProperty(globalThis, 'navigator', {
-        value: dom.window.navigator,
-        configurable: true
-    });
-}
-g.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+// transitive DOM-touching modules see a populated globalThis. The
+// helper is a side-effect import — keep it first.
+import './_setup-jsdom';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -62,9 +40,9 @@ import { fileURLToPath } from 'url';
 
 import {
     MALICIOUS_PAYLOADS,
-    CLEAN_PAYLOADS,
-    Payload
+    CLEAN_PAYLOADS
 } from '../test-integration/csp-harness/corpus';
+import type { Payload } from '../test-integration/csp-harness/corpus';
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 
