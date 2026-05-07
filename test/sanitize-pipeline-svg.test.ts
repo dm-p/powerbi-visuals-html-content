@@ -369,4 +369,109 @@ describe('sanitize-pipeline — SVG presentation attributes', () => {
             expect(out).toContain('translate(40,10)');
         });
     });
+
+    // Negative-test coverage for the SVG denylist branch in
+    // src/sanitize-pipeline.ts. The positive tests above prove legitimate
+    // attrs survive; these prove dangerous attrs are dropped, and the
+    // partial-survival case proves that inline-style mutation is written
+    // back (regression guard for the forceKeepAttr/setAttribute issue
+    // surfaced by code review on this branch).
+    describe('denylist drops', () => {
+        it('drops the entire SVG element when an on* event handler is present', () => {
+            const out = sanitize('<svg><rect onclick="alert(1)" width="10" height="10"/></svg>');
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops mixed-case OnClick on an SVG element', () => {
+            const out = sanitize('<svg><rect OnClick="alert(1)" width="10" height="10"/></svg>');
+            expect(out).not.toContain('OnClick');
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('alert');
+        });
+
+        it.each([
+            ['srcdoc', '<svg><rect srcdoc="<script>alert(1)</script>" width="10" height="10"/></svg>'],
+            ['formaction', '<svg><rect formaction="javascript:alert(1)" width="10" height="10"/></svg>'],
+            ['action', '<svg><rect action="javascript:alert(1)" width="10" height="10"/></svg>'],
+            ['ping', '<svg><rect ping="https://attacker.example" width="10" height="10"/></svg>'],
+            ['background', '<svg><rect background="https://attacker.example/x.png" width="10" height="10"/></svg>'],
+            ['poster', '<svg><rect poster="https://attacker.example/x.png" width="10" height="10"/></svg>'],
+            ['srcset', '<svg><rect srcset="https://attacker.example/x.png 2x" width="10" height="10"/></svg>']
+        ])('drops the %s attribute on an SVG element', (attr, input) => {
+            const out = sanitize(input);
+            expect(out).not.toContain(attr);
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('alert');
+        });
+
+        it('strips dangerous CSS declarations from inline style on an SVG element while keeping safe ones (partial-survival)', () => {
+            // Regression guard for the forceKeepAttr/setAttribute issue.
+            // background: url(http://...) is dropped by the URL property
+            // sanitizer (per-property url() check, not the defense-in-depth
+            // block-drop pass), so the safe `fill: red` declaration survives.
+            // Pre-fix this test would fail because forceKeepAttr=true short-
+            // circuited DOMPurify's setAttribute, leaving the original
+            // unsanitized style on the node.
+            const out = sanitize(
+                '<svg><rect style="fill: red; background: url(http://attacker.example/x.png)" width="10" height="10"/></svg>'
+            );
+            expect(out).toContain('fill:red');
+            expect(out).not.toContain('background');
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops external https href on SVG <image>', () => {
+            const out = sanitize(
+                '<svg><image href="https://attacker.example/track.png" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+        });
+
+        it('drops external https xlink:href on SVG <image>', () => {
+            const out = sanitize(
+                '<svg><image xlink:href="https://attacker.example/track.png" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+        });
+
+        it.each([
+            ['feImage', '<svg><filter id="f"><feImage href="https://attacker.example/x.png"/></filter></svg>'],
+            ['pattern', '<svg><defs><pattern id="p" href="https://attacker.example/x.svg"><rect width="10" height="10"/></pattern></defs></svg>'],
+            ['linearGradient', '<svg><defs><linearGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></linearGradient></defs></svg>'],
+            ['radialGradient', '<svg><defs><radialGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></radialGradient></defs></svg>'],
+            ['filter', '<svg><filter id="f" href="https://attacker.example/x.svg"><feGaussianBlur stdDeviation="2"/></filter></svg>']
+        ])('drops external https href on SVG <%s>', (_tag, input) => {
+            const out = sanitize(input);
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+        });
+
+        it('drops external textPath href (only same-document fragments allowed)', () => {
+            const out = sanitize(
+                '<svg><text><textPath href="https://attacker.example/path.svg#p">label</textPath></text></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+            expect(out).toContain('label');
+        });
+
+        it('drops external https url() in SVG funciri values (mask, clip-path, filter)', () => {
+            const out = sanitize(
+                '<svg><rect mask="url(https://attacker.example/m.svg)" clip-path="url(https://attacker.example/c.svg)" filter="url(https://attacker.example/f.svg)" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+        });
+
+        it('keeps fragment-only url() in SVG funciri values (legitimate use)', () => {
+            const out = sanitize(
+                '<svg><defs><filter id="shadow"><feGaussianBlur stdDeviation="2"/></filter></defs>' +
+                '<rect filter="url(#shadow)" width="10" height="10"/></svg>'
+            );
+            expect(out).toContain('url(#shadow)');
+        });
+    });
 });

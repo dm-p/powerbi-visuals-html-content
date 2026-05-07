@@ -219,6 +219,17 @@ export const VisualConstants = {
         // getSanitizedDataUri in sanitize-pipeline.ts).
         img: ['data'],
         image: ['data'],
+        // SVG filter primitive that accepts an external image source.
+        // Same restriction as <image>: data: URIs only.
+        feimage: ['data'],
+        // SVG href references on shape-paint / paint-server / filter
+        // elements should only resolve to same-document fragments
+        // (#gradient1, #pattern1, #shadow). External URLs would fetch.
+        // Empty-scheme matches #fragment values.
+        pattern: [''],
+        lineargradient: [''],
+        radialgradient: [''],
+        filter: [''],
         // textpath href references a <path> element for text layout.
         // Only same-document fragment refs (#id) are valid; external URLs
         // would trigger a fetch. Empty-scheme matches #fragment values.

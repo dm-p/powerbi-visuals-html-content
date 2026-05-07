@@ -3,7 +3,13 @@ import * as config from '../config/visual.json';
 // Namespace import for compatibility with the project tsconfig
 // (no esModuleInterop). The runtime export is callable for jsdom binding.
 import * as DOMPurifyNs from 'dompurify';
-const DOMPurify: any = (DOMPurifyNs as any).default || DOMPurifyNs;
+import type {
+    DOMPurify as DOMPurifyType,
+    Config,
+    UponSanitizeAttributeHookEvent
+} from 'dompurify';
+const DOMPurify: DOMPurifyType = (DOMPurifyNs as unknown as { default?: DOMPurifyType }).default
+    || (DOMPurifyNs as unknown as DOMPurifyType);
 import { marked } from 'marked';
 
 // Internal dependencies
@@ -152,10 +158,10 @@ function preprocessStyleTags(input: string): string {
  * default import is already pre-bound. Under jsdom we need to call
  * `DOMPurify(window)` once.
  */
-let purifyInstance: any = null;
-function getPurify(): any {
+let purifyInstance: DOMPurifyType | null = null;
+function getPurify(): DOMPurifyType {
     if (purifyInstance) return purifyInstance;
-    const dp: any = DOMPurify;
+    const dp = DOMPurify as DOMPurifyType & ((win: Window) => DOMPurifyType);
     if (typeof dp.sanitize === 'function') {
         purifyInstance = dp;
     } else if (typeof window !== 'undefined') {
@@ -193,12 +199,13 @@ export const getSanitizedContent = (content: string): string => {
     // hooks would otherwise accumulate on the cached singleton.
     purify.removeAllHooks();
 
+    try {
     // Hook 1: per-attribute sanitization. Per-tag allowlist enforcement,
     // NFKC normalization on URL attributes, data: URI sanitization,
     // inline style sanitization, dangerous-pattern check.
     purify.addHook('uponSanitizeAttribute', (
         currentNode: Element,
-        hookEvent: any
+        hookEvent: UponSanitizeAttributeHookEvent
     ) => {
         const attrName: string = hookEvent.attrName.toLowerCase();
         const tagName: string = currentNode.tagName
@@ -248,8 +255,13 @@ export const getSanitizedContent = (content: string): string => {
 
         // Per-tag URL scheme enforcement. VisualConstants.allowedSchemesByTag
         // specifies which schemes each tag is allowed to use (e.g. img: only
-        // data:, a: only http/https). If the tag has an entry, enforce it;
-        // if it doesn't, fall through to the data: URI sanitizer below.
+        // data:, a: only http/https). For SVG tags carrying URL-bearing
+        // attributes, default-deny when no entry exists — a missing entry
+        // means the tag was added to allowedTags without a matching scheme
+        // policy, which would otherwise leak attacker-controlled URLs (issue
+        // surfaced by code review on this branch for feImage / pattern /
+        // gradients / filter). HTML tags fall through to the data: URI
+        // sanitizer below by design.
         if (attrName === 'src' || attrName === 'href' || attrName === 'xlink:href') {
             const schemesByTag = VisualConstants.allowedSchemesByTag[tagName];
             if (schemesByTag) {
@@ -259,10 +271,41 @@ export const getSanitizedContent = (content: string): string => {
                     hookEvent.keepAttr = false;
                     return;
                 }
+            } else if (isSvgTag) {
+                // Default-deny: SVG tag without an allowedSchemesByTag entry.
+                hookEvent.keepAttr = false;
+                return;
             }
         }
 
-        // data: URI sanitization for src/href/xlink:href
+        // SVG funciri value-scheme enforcement. Many SVG presentation
+        // attributes (mask, clip-path, filter, marker-*, fill, stroke,
+        // cursor) accept `url(...)` references. Validate the embedded
+        // scheme the same way we validate URL-bearing attribute names —
+        // empty (fragment-only #id) or `data:` are allowed; everything
+        // else (`http:`, `https:`, etc.) is dropped. Applies to every SVG
+        // attribute value EXCEPT `style` — for `style`, the CSS sanitizer
+        // (declaration-list mode) handles per-property url() validation
+        // and we want partial-survival behavior (drop only the offending
+        // declaration, keep the rest).
+        if (isSvgTag && attrName !== 'style') {
+            const funciriScheme = value.match(/url\(\s*["']?([a-z][a-z0-9+.\-]*)\s*:/i);
+            if (funciriScheme) {
+                const fScheme = funciriScheme[1].toLowerCase();
+                if (fScheme !== 'data') {
+                    hookEvent.keepAttr = false;
+                    return;
+                }
+            }
+        }
+
+        // data: URI sanitization for src/href/xlink:href.
+        // For SVG tags, do NOT set forceKeepAttr after mutating attrValue —
+        // DOMPurify short-circuits the setAttribute call when forceKeepAttr
+        // is true (purify.cjs.js:1136), losing the sanitized value.
+        // DOMPurify's built-in SVG attr allowlist already keeps
+        // src / href / xlink:href / style on SVG tags, so the mutation
+        // lands via the normal post-hook setAttribute path.
         if ((attrName === 'src' || attrName === 'href' || attrName === 'xlink:href') && value.startsWith('data:')) {
             const sanitized = getSanitizedDataUri(value);
             if (sanitized === 'data:,' || sanitized === '') {
@@ -270,11 +313,12 @@ export const getSanitizedContent = (content: string): string => {
                 return;
             }
             hookEvent.attrValue = sanitized;
-            if (isSvgTag) hookEvent.forceKeepAttr = true;
             return;
         }
 
-        // Inline style sanitization
+        // Inline style sanitization. Same forceKeepAttr/setAttribute caveat
+        // as the data: branch above — leave forceKeepAttr unset so the
+        // sanitized value is written back by DOMPurify's normal flow.
         if (attrName === 'style') {
             const sanitizedStyle = sanitizeCss(value, 'declaration-list');
             if (sanitizedStyle === '') {
@@ -292,7 +336,6 @@ export const getSanitizedContent = (content: string): string => {
                 .map(d => d.trim().replace(/^([^:]+?)\s*:\s*/, '$1:'))
                 .filter(d => d.length > 0)
                 .join(';');
-            if (isSvgTag) hookEvent.forceKeepAttr = true;
             return;
         }
 
@@ -355,7 +398,16 @@ export const getSanitizedContent = (content: string): string => {
         }
     });
 
-    const dpConfig: any = {
+    // ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
+    // built-in default attr allowlist would otherwise pre-strip legitimate
+    // SVG presentation/filter attrs (stdDeviation, fill-opacity, etc.)
+    // before our uponSanitizeAttribute hook can decide. Per-tag enforcement
+    // is fully delegated to the hook: HTML tags use the strict per-tag
+    // allowlist in ALLOWED_ATTRIBUTES; SVG tags use a denylist plus URL
+    // scheme rules. Removing ALLOWED_ATTR is a deliberate trade — we lose
+    // one defense-in-depth layer and depend entirely on the hook's
+    // contract for attribute decisions.
+    const dpConfig: Config = {
         ALLOWED_TAGS: VisualConstants.allowedTags,
         // Allow data: in URL-bearing attrs (sanitized in the hook).
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
@@ -371,11 +423,12 @@ export const getSanitizedContent = (content: string): string => {
         RETURN_DOM_FRAGMENT: false
     };
 
-    try {
         return purify.sanitize(preprocessed, dpConfig);
     } finally {
         // Hooks are global per instance — tear them down so they don't
-        // leak across calls (or across tests).
+        // leak across calls (or across tests). Wraps both addHook calls
+        // and the sanitize call so a throw from any of them still hits
+        // the cleanup path (no leaked hooks on the cached singleton).
         purify.removeAllHooks();
     }
 };

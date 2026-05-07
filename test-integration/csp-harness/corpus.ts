@@ -675,6 +675,95 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'default-src',
         source: 'code review P1 finding — allowedSchemesByTag missing SVG textpath'
     },
+    {
+        id: 'svg-feimage-external-href',
+        description:
+            'SVG feImage filter primitive with external href. Same restriction as ' +
+            '<image>: only data: URIs are permitted, no external resource loading.',
+        input: '<svg><filter id="f"><feImage href="https://attacker.example/x.png"/></filter></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — denylist switch + missing feimage scheme entry'
+    },
+    {
+        id: 'svg-pattern-external-href',
+        description:
+            'SVG pattern element with external href. Patterns should only ' +
+            'reference same-document fragment IDs, not external URLs.',
+        input: '<svg><defs><pattern id="p" href="https://attacker.example/x.svg"><rect width="10" height="10"/></pattern></defs></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — denylist switch + missing pattern scheme entry'
+    },
+    {
+        id: 'svg-lineargradient-external-href',
+        description:
+            'SVG linearGradient with external href. Gradients should only ' +
+            'reference same-document fragment IDs, not external URLs.',
+        input: '<svg><defs><linearGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></linearGradient></defs></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — denylist switch + missing lineargradient scheme entry'
+    },
+    {
+        id: 'svg-radialgradient-external-href',
+        description:
+            'SVG radialGradient with external href. Gradients should only ' +
+            'reference same-document fragment IDs, not external URLs.',
+        input: '<svg><defs><radialGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></radialGradient></defs></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — denylist switch + missing radialgradient scheme entry'
+    },
+    {
+        id: 'svg-filter-external-href',
+        description:
+            'SVG filter element with external href. Filters should only ' +
+            'reference same-document fragment IDs, not external URLs.',
+        input: '<svg><filter id="f" href="https://attacker.example/x.svg"><feGaussianBlur stdDeviation="2"/></filter></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P0 finding — denylist switch + missing filter scheme entry'
+    },
+    {
+        id: 'svg-funciri-mask-external',
+        description:
+            'SVG mask attribute carrying url(https://...). Funciri values on ' +
+            'SVG presentation attributes must be scheme-checked, not just the ' +
+            'src/href/xlink:href attribute names.',
+        input: '<svg><rect mask="url(https://attacker.example/m.svg)" width="10" height="10"/></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — funciri value scheme not enforced'
+    },
+    {
+        id: 'svg-funciri-clip-path-external',
+        description:
+            'SVG clip-path attribute carrying url(https://...). Same funciri ' +
+            'concern as mask.',
+        input: '<svg><rect clip-path="url(https://attacker.example/c.svg)" width="10" height="10"/></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — funciri value scheme not enforced'
+    },
+    {
+        id: 'svg-funciri-filter-external',
+        description:
+            'SVG filter attribute carrying url(https://...). Same funciri ' +
+            'concern as mask and clip-path.',
+        input: '<svg><rect filter="url(https://attacker.example/f.svg)" width="10" height="10"/></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'code review P1 finding — funciri value scheme not enforced'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 8: HTML-level disallowed elements
     // ─────────────────────────────────────────────────────────────────
