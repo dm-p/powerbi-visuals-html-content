@@ -78,9 +78,10 @@ export class Visual implements IVisual {
         this.host = options.host;
         this.viewModelHandler = new ViewModelHandler();
         this.localisationManager = this.host.createLocalizationManager();
-        this.interactivity = interactivitySelectionService.createInteractivitySelectionService(
-            this.host
-        );
+        this.interactivity =
+            interactivitySelectionService.createInteractivitySelectionService(
+                this.host
+            );
         this.behavior = new BehaviorManager();
         this.styleSheetContainer = select('head')
             .append('style')
@@ -125,10 +126,11 @@ export class Visual implements IVisual {
     public update(options: VisualUpdateOptions) {
         const { viewModel } = this.viewModelHandler;
         // Parse the settings for use in the visual
-        this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
-            VisualFormattingSettingsModel,
-            options.dataViews?.[0]
-        );
+        this.formattingSettings =
+            this.formattingSettingsService.populateFormattingSettingsModel(
+                VisualFormattingSettingsModel,
+                options.dataViews?.[0]
+            );
 
         // Handle main update flow
         try {
@@ -253,7 +255,7 @@ export class Visual implements IVisual {
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
         if (message) {
-            this.statusContainer.append('div').append(function() {
+            this.statusContainer.append('div').append(function () {
                 return this.appendChild(getParsedHtmlAsDom(message, 'html'));
             });
         }

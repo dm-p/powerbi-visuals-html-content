@@ -25,8 +25,9 @@ export interface IHtmlBehaviorOptions<
 /**
  * Used to control and bind visual interaction and behavior.
  */
-export class BehaviorManager<SelectableDataPoint extends BaseDataPoint>
-    implements IInteractiveBehavior {
+export class BehaviorManager<
+    SelectableDataPoint extends BaseDataPoint
+> implements IInteractiveBehavior {
     // Interactivity options
     protected options: IHtmlBehaviorOptions<SelectableDataPoint>;
     // Handles selection event delegation to the visual host
@@ -53,7 +54,7 @@ export class BehaviorManager<SelectableDataPoint extends BaseDataPoint>
         pointSelection.on('contextmenu', (event, d) =>
             this.handleContextMenu(event, d)
         );
-        clearCatcherSelection.on('contextmenu', event =>
+        clearCatcherSelection.on('contextmenu', (event) =>
             this.handleContextMenu(event, null)
         );
     }
@@ -94,7 +95,7 @@ export class BehaviorManager<SelectableDataPoint extends BaseDataPoint>
             clearCatcherSelection,
             viewModel: { hasCrossFiltering }
         } = this.options;
-        clearCatcherSelection.on('click', event => {
+        clearCatcherSelection.on('click', (event) => {
             if (hasCrossFiltering) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -130,8 +131,9 @@ export class BehaviorManager<SelectableDataPoint extends BaseDataPoint>
         const { pointSelection, viewModel } = this.options;
         // Update viewModel selection state to match current state
         viewModel.hasSelection = hasSelection;
-        pointSelection.classed(VisualConstants.dom.unselectedClassSelector, d =>
-            shouldDimPoint(hasSelection, d.selected)
+        pointSelection.classed(
+            VisualConstants.dom.unselectedClassSelector,
+            (d) => shouldDimPoint(hasSelection, d.selected)
         );
     }
 }

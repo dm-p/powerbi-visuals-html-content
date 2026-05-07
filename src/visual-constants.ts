@@ -167,8 +167,7 @@ export const VisualConstants = {
         format: <RenderFormat>'html',
         showRawHtml: false,
         font: {
-            family:
-                "'Segoe UI', wf_segoe-ui_normal, helvetica, arial, sans-serif",
+            family: "'Segoe UI', wf_segoe-ui_normal, helvetica, arial, sans-serif",
             colour: '#000000',
             size: 11
         },

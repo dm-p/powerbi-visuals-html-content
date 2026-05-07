@@ -27,7 +27,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
         }
         // Cross-filtering properties
         if (viewModel.hasGranularity) {
-            this.crossFilter.crossFilterCardMain.useTransparency.visible = this.crossFilter.crossFilterCardMain.enabled.value;
+            this.crossFilter.crossFilterCardMain.useTransparency.visible =
+                this.crossFilter.crossFilterCardMain.enabled.value;
             this.crossFilter.crossFilterCardMain.transparencyPercent.visible =
                 this.crossFilter.crossFilterCardMain.enabled.value &&
                 this.crossFilter.crossFilterCardMain.useTransparency.value;
@@ -43,9 +44,8 @@ export class ContentFormattingSettings extends FormattingSettingsCompositeCard {
     descriptionKey = 'Objects_ContentFormatting_Description';
     contentFormattingCardBehavior = new ContentFormattingCardBehavior(Object());
     contentFormattingCardNoData = new ContentFormattingCardNoData(Object());
-    contentFormattingCardDefaultBodyStyling = new ContentFormattingCardDefaultBodyStyling(
-        Object()
-    );
+    contentFormattingCardDefaultBodyStyling =
+        new ContentFormattingCardDefaultBodyStyling(Object());
     groups: Array<FormattingSettingsGroup> = [
         this.contentFormattingCardBehavior,
         this.contentFormattingCardNoData,

@@ -35,7 +35,9 @@ import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
 // default-import form but pbiviz package's strict ts-loader pass does not.
 // Using require() + a type-only import matches the existing pattern for
 // `pretty` in src/domain-utils.ts and keeps runtime semantics identical.
-const valueParser: (value: string) => { nodes: ValueNode[] } = require('postcss-value-parser');
+const valueParser: (value: string) => {
+    nodes: ValueNode[];
+} = require('postcss-value-parser');
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
@@ -79,7 +81,7 @@ const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
 ];
 
 function finalPassIsClean(serialized: string): boolean {
-    return !DEFENSE_IN_DEPTH_PATTERNS.some(p => p.test(serialized));
+    return !DEFENSE_IN_DEPTH_PATTERNS.some((p) => p.test(serialized));
 }
 
 const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
@@ -112,7 +114,7 @@ function hasDangerousSchemeInValue(value: string): boolean {
     // hasUnsafeUrl — this pre-strip is only a false-positive guard for
     // the scheme regex, not a source of truth for safety.
     const stripped = value.replace(/url\s*\([^)]*\)/gi, '');
-    return DANGEROUS_SCHEME_PATTERNS.some(p => p.test(stripped));
+    return DANGEROUS_SCHEME_PATTERNS.some((p) => p.test(stripped));
 }
 
 function hasDangerousSelector(selector: string): boolean {
@@ -139,13 +141,12 @@ const DENIED_FUNCTIONS = new Set<string>([
     'attr'
 ]);
 
-const DENIED_PROPERTY_NAMES = new Set<string>([
-    'behavior',
-    '-moz-binding'
-]);
+const DENIED_PROPERTY_NAMES = new Set<string>(['behavior', '-moz-binding']);
 
 function extractUrlArgument(node: FunctionNode): string {
-    const child = node.nodes.find(n => n.type === 'word' || n.type === 'string');
+    const child = node.nodes.find(
+        (n) => n.type === 'word' || n.type === 'string'
+    );
     if (!child) return '';
     return String((child as any).value || '').trim();
 }
@@ -223,14 +224,14 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         return '';
     }
 
-    root.walkAtRules(atRule => {
+    root.walkAtRules((atRule) => {
         if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
             atRule.remove();
         }
     });
 
     if (mode === 'stylesheet') {
-        root.walkRules(rule => {
+        root.walkRules((rule) => {
             if (hasDangerousSelector(rule.selector)) {
                 rule.remove();
             }
