@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { select } from 'd3-selection';
 
 import { resolveStyling } from '../src/domain-utils';
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 import { VisualConstants } from '../src/visual-constants';
+import type { VisualFormattingSettingsModel } from '../src/visual-settings';
 import { LOREM_PAYLOADS } from './fixtures/lorem';
 
 /**
@@ -35,13 +39,22 @@ import { LOREM_PAYLOADS } from './fixtures/lorem';
 
 const CLASS = VisualConstants.dom.defaultBodyStylingClass;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const VISUAL_LESS_PATH = path.resolve(__dirname, '..', 'style', 'visual.less');
+
+// Subset of VisualFormattingSettingsModel that resolveStyling actually
+// reads. Typed against the production model so a refactor of the model
+// surfaces here as a compile error instead of silent test drift.
+type SettingsFixture = Pick<VisualFormattingSettingsModel, 'contentFormatting' | 'stylesheet' | 'crossFilter'>;
+
 function buildSettings(opts: {
     fontFamily?: string;
     fontSize?: number;
     fontColour?: string;
     align?: string;
     customStylesheet?: string;
-}): any {
+}): SettingsFixture {
     return {
         contentFormatting: {
             contentFormattingCardBehavior: {
@@ -66,7 +79,7 @@ function buildSettings(opts: {
                 transparencyPercent: { value: 0 }
             }
         }
-    };
+    } as SettingsFixture;
 }
 
 function makeRoots() {
@@ -74,10 +87,10 @@ function makeRoots() {
         '<!doctype html><html><head><style id="ss"></style></head><body><div id="htmlViewer"></div></body></html>'
     );
     const styleSheetContainer = select(
-        dom.window.document.getElementById('ss')! as any
+        dom.window.document.getElementById('ss')! as unknown as Element
     );
     const bodyContainer = select(
-        dom.window.document.getElementById('htmlViewer')! as any
+        dom.window.document.getElementById('htmlViewer')! as unknown as Element
     );
     return { dom, styleSheetContainer, bodyContainer };
 }
@@ -87,9 +100,9 @@ describe('issue #144 — default body styling apply layer', () => {
         it('adds the override class when no custom stylesheet is supplied', () => {
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
-                buildSettings({}) as any
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({}) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
         });
@@ -97,9 +110,9 @@ describe('issue #144 — default body styling apply layer', () => {
         it('omits the override class when a custom stylesheet IS supplied', () => {
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
-                buildSettings({ customStylesheet: 'body { color: blue; }' }) as any
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({ customStylesheet: 'body { color: blue; }' }) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
         });
@@ -107,15 +120,15 @@ describe('issue #144 — default body styling apply layer', () => {
         it('removes the class on a subsequent update that switches into custom-stylesheet mode', () => {
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
-                buildSettings({}) as any
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({}) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
-                buildSettings({ customStylesheet: 'p { color: green; }' }) as any
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({ customStylesheet: 'p { color: green; }' }) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
         });
@@ -125,14 +138,14 @@ describe('issue #144 — default body styling apply layer', () => {
         it('writes font-family / font-size / color / text-align inline styles in default-body mode', () => {
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
+                styleSheetContainer,
+                bodyContainer,
                 buildSettings({
                     fontFamily: 'Times New Roman',
                     fontSize: 18,
                     fontColour: '#abcdef',
                     align: 'center'
-                }) as any
+                }) as unknown as VisualFormattingSettingsModel
             );
             const styleAttr =
                 bodyContainer.node()!.getAttribute('style') ?? '';
@@ -153,8 +166,8 @@ describe('issue #144 — default body styling apply layer', () => {
                 'font-family: X; font-size: 9pt; color: #000; text-align: right;'
             );
             resolveStyling(
-                styleSheetContainer as any,
-                bodyContainer as any,
+                styleSheetContainer,
+                bodyContainer,
                 buildSettings({ customStylesheet: 'p { color: blue; }' }) as any
             );
             const styleAttr =
@@ -188,10 +201,42 @@ describe('issue #144 — default body styling apply layer', () => {
             }
         );
 
-        it('all three office-paste fixtures are present in LOREM_PAYLOADS', () => {
+        it('all office-paste fixtures are present in LOREM_PAYLOADS', () => {
             // Guards against accidental fixture deletion that would leave
-            // the bug undocumented in the UAT corpus.
-            expect(fixtures.length).toBe(3);
+            // the bug undocumented in the UAT corpus. Self-derives from
+            // officePasteIds.length so adding/removing an id updates the
+            // assertion in lockstep.
+            expect(fixtures.length).toBe(officePasteIds.length);
+        });
+    });
+
+    // Issue #144's cascade fix is enforced by a CSS rule keyed on the
+    // class name VisualConstants.dom.defaultBodyStylingClass. JSDOM
+    // can't resolve the cascade itself, so the LESS rule's existence
+    // and shape are the next-best contracts. This guards against a
+    // rename of the constant OR the LESS selector landing in isolation.
+    describe('LESS rule references the canonical class name', () => {
+        it('style/visual.less contains a selector for VisualConstants.dom.defaultBodyStylingClass', () => {
+            const less = fs.readFileSync(VISUAL_LESS_PATH, 'utf-8');
+            expect(less).toContain(
+                `#htmlViewer.${VisualConstants.dom.defaultBodyStylingClass} #htmlContent [style]`
+            );
+        });
+
+        it('style/visual.less inherits color, font-family, font-size, text-align and clears background-color', () => {
+            const less = fs.readFileSync(VISUAL_LESS_PATH, 'utf-8');
+            const selector =
+                `#htmlViewer\\.${VisualConstants.dom.defaultBodyStylingClass}\\s+#htmlContent\\s+\\[style\\]`;
+            const ruleMatch = less.match(
+                new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\}`)
+            );
+            expect(ruleMatch).not.toBeNull();
+            const body = ruleMatch![1];
+            expect(body).toMatch(/color:\s*inherit\s*!important/);
+            expect(body).toMatch(/font-family:\s*inherit\s*!important/);
+            expect(body).toMatch(/font-size:\s*inherit\s*!important/);
+            expect(body).toMatch(/text-align:\s*inherit\s*!important/);
+            expect(body).toMatch(/background-color:\s*transparent\s*!important/);
         });
     });
 });
