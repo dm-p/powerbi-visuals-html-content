@@ -145,10 +145,17 @@ describe('VisualConstants', () => {
             });
         });
 
-        it('should NOT include SVG animation tags (SMIL can override sanitized attributes)', () => {
+        it('should include SMIL animation tags (locked down by attributeName denylist in sanitize-pipeline)', () => {
+            // Issue #145: SMIL animation is permitted but cannot target
+            // URL-bearing or sanitizer-bypass attributes. The bypass
+            // primitive (`<animate attributeName="href" to="javascript:..."/>`)
+            // is closed by the SMIL_ATTRIBUTE_NAME_DENYLIST in
+            // sanitize-pipeline.ts. Tag-level allowlisting is separate
+            // from attribute-level enforcement — both layers are
+            // verified end-to-end in test/sanitize-pipeline-svg.test.ts.
             const animTags = ['animate', 'animatemotion', 'animatetransform', 'set'];
             animTags.forEach(tag => {
-                expect(VisualConstants.allowedTags).not.toContain(tag);
+                expect(VisualConstants.allowedTags).toContain(tag);
             });
         });
 

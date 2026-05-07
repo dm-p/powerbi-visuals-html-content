@@ -98,8 +98,20 @@ const htmlTags = [
 // allowlist for HTML), so this is the single source of truth.
 //
 // SMIL animation elements (animate, animatemotion, animatetransform,
-// set) are intentionally excluded — they can override sanitized URL
-// attributes at runtime, bypassing scheme enforcement. See PR #141.
+// set) are permitted but locked down by two enforcement layers in
+// sanitize-pipeline.ts:
+//   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
+//      VisualConstants.allowedSchemesByTag), so the element's own
+//      href / xlink:href can only point at same-document fragments.
+//   2. SMIL_ATTRIBUTE_NAME_DENYLIST rejects animation that targets
+//      URL-bearing or sanitizer-bypass attributes (href, xlink:href,
+//      src, mask, clip-path, filter, marker-*, cursor, style, and
+//      the meta attributeName itself). The well-known SMIL bypass —
+//      `<animate attributeName="href" to="javascript:..."/>` to
+//      rewrite a sanitized URL post-load — is closed by this gate.
+//      Animation targeting safe presentation/geometry properties
+//      (opacity, transform, fill, stroke, cx, cy, d, etc.) is
+//      unrestricted.
 //
 // <use> is intentionally excluded — same-document references can pull
 // in attacker-controlled subtrees that bypass the sanitizer.
@@ -158,7 +170,14 @@ const svgTags = [
     'fespecularlighting',
     'fespotlight',
     'fetile',
-    'feturbulence'
+    'feturbulence',
+    // SVG — SMIL animation. Locked down by the SMIL_ATTRIBUTE_NAME_DENYLIST
+    // and fragment-only allowedSchemesByTag entries below; see the comment
+    // block above this list for the full enforcement model.
+    'animate',
+    'animatemotion',
+    'animatetransform',
+    'set'
 ];
 
 export const VisualConstants = {
@@ -232,7 +251,15 @@ export const VisualConstants = {
         // textpath href references a <path> element for text layout.
         // Only same-document fragment refs (#id) are valid; external URLs
         // would trigger a fetch. Empty-scheme matches #fragment values.
-        textpath: ['']
+        textpath: [''],
+        // SMIL animation elements may carry an href / xlink:href that
+        // points at the element to animate. Same-document fragment refs
+        // only — external URLs would let an animation pull behavior from
+        // an attacker-controlled SVG.
+        animate: [''],
+        animatemotion: [''],
+        animatetransform: [''],
+        set: ['']
     },
     // HTML and SVG tag groups, exposed individually so the sanitizer
     // can branch on namespace (denylist for SVG, strict allowlist for

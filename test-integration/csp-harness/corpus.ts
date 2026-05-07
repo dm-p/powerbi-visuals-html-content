@@ -346,26 +346,6 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'category-3 scheme coverage'
     },
     {
-        id: 'css-url-scheme-data-image-svg-xml-clean',
-        description:
-            'data:image/svg+xml is allowed in <img src> for image-context ' +
-            'loading. Browsers sandbox SVG loaded via <img>, so embedded ' +
-            'scripts and external resource references do not execute. The ' +
-            'safe shape (no script content) must survive sanitization with ' +
-            'the SVG markup intact (issue #143).',
-        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>\">",
-        expectedSanitized: {
-            contains: [
-                'data:image/svg+xml',
-                "viewBox='0 0 8 8'",
-                "circle cx='4'"
-            ]
-        },
-        category: 'css-url-scheme',
-        cspCategory: 'img-src',
-        source: 'category-3 svg image-context — issue #143'
-    },
-    {
         id: 'css-url-scheme-blob',
         description: 'blob: scheme in background.',
         input: '<div style="background: url(blob:https://attacker.example/x)">x</div>',
@@ -613,9 +593,19 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
     },
     {
         id: 'svg-set-javascript',
-        description: 'set element with javascript: target.',
+        description:
+            'set element with javascript: target via attributeName="href". ' +
+            'The SMIL_ATTRIBUTE_NAME_DENYLIST drops the attributeName attribute, ' +
+            'neutering the animation; the javascript: value is also rejected by ' +
+            'the scriptingPatterns gate.',
         input: '<svg><set attributeName="href" to="javascript:alert(1)" /></svg>',
-        expectedSanitized: { notContains: ['javascript:'] },
+        expectedSanitized: {
+            notContains: [
+                'javascript:',
+                'attributeName="href"',
+                'attributeName=\'href\''
+            ]
+        },
         category: 'svg',
         cspCategory: 'script-src',
         source: 'category-7 svg'
@@ -623,16 +613,61 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
     {
         id: 'svg-animate-override-href',
         description:
-            'SMIL animate overriding image href to an external URL at runtime. ' +
-            'The animate element is dropped entirely (not in allowedTags).',
+            'SMIL animate attempting to override <image> href to an external URL ' +
+            'at runtime. SMIL animation elements are allowed (issue #145) but ' +
+            'attributeName="href" is on SMIL_ATTRIBUTE_NAME_DENYLIST, so the ' +
+            'attributeName attribute is dropped — the animate element survives ' +
+            'but has nothing to bind to and cannot rewrite the sanitized href.',
         input:
             '<svg><image href="data:image/png;base64,iVBORw0KGgo=">' +
             '<animate attributeName="href" to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"/>' +
             '</image></svg>',
-        expectedSanitized: { notContains: ['attacker.example', '<animate'] },
+        expectedSanitized: {
+            notContains: [
+                'attributeName="href"',
+                'attributeName=\'href\''
+            ]
+        },
         category: 'svg',
         cspCategory: 'img-src',
-        source: 'code review P1 finding — SMIL animation can override sanitized URL attributes'
+        source: 'code review P1 finding — SMIL animation cannot override sanitized URL attributes'
+    },
+    {
+        id: 'svg-animate-override-style',
+        description:
+            'SMIL animate attempting to overwrite the entire inline style attribute ' +
+            'at runtime. attributeName="style" is on the denylist because animating ' +
+            'style replaces the whole declaration string, re-introducing url() ' +
+            'declarations the static sanitizer never saw.',
+        input:
+            '<svg><rect width="10" height="10" style="fill: red">' +
+            '<animate attributeName="style" to="background:url(javascript:alert(1))" dur="1s"/>' +
+            '</rect></svg>',
+        expectedSanitized: {
+            notContains: [
+                'javascript:',
+                'attributeName="style"',
+                'attributeName=\'style\''
+            ]
+        },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'issue #145 SMIL bypass — bulk-attr style animation'
+    },
+    {
+        id: 'svg-animate-external-xlink-href',
+        description:
+            'SMIL animate with an external xlink:href (referencing the element ' +
+            'to animate). Per-tag scheme allowlist for SMIL tags is fragment-only, ' +
+            'so external URLs are dropped at the URL gate.',
+        input:
+            '<svg><animate xlink:href="https://attacker.example/evil.svg" attributeName="opacity" from="0" to="1" dur="1s"/></svg>',
+        expectedSanitized: {
+            notContains: ['attacker.example', 'xlink:href="https']
+        },
+        category: 'svg',
+        cspCategory: 'img-src',
+        source: 'issue #145 SMIL bypass — external href on SMIL element'
     },
     {
         id: 'svg-use-javascript',
@@ -1389,5 +1424,50 @@ export const CLEAN_PAYLOADS: Payload[] = [
         category: 'clean-baseline',
         cspCategory: 'none',
         source: 'baseline'
+    },
+    {
+        id: 'clean-img-svg-xml-data-uri',
+        description:
+            'A small inline SVG embedded as data:image/svg+xml;utf8 in <img src>. ' +
+            'This is the shape DAX measures emit when a report author builds an ' +
+            'SVG string and feeds it to HTML Content as an image. Browsers ' +
+            'sandbox SVG loaded via <img>, so embedded scripts and external ' +
+            'resource references would not execute even if present (issue #143 ' +
+            'follow-up).',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>\">",
+        expectedSanitized: {
+            contains: [
+                'data:image/svg+xml',
+                "viewBox='0 0 8 8'",
+                "circle cx='4'"
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'issue #143 — svg+xml in <img src> image-context loading'
+    },
+    {
+        id: 'clean-svg-animate-opacity',
+        description:
+            'SMIL animation targeting opacity (a safe presentation attribute). ' +
+            'attributeName="opacity" is not on the denylist, so the animation ' +
+            'survives intact and renders the fade-in effect at runtime (issue ' +
+            '#145 HomeTetris pattern).',
+        input:
+            '<svg><g opacity="0">' +
+            '<animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"/>' +
+            '<rect width="10" height="10" fill="red"/></g></svg>',
+        expectedSanitized: {
+            contains: [
+                '<animate',
+                'attributeName="opacity"',
+                'from="0"',
+                'to="1"',
+                'fill="freeze"'
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'issue #145 — safe SMIL animation pass-through'
     }
 ];

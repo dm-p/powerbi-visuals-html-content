@@ -48,6 +48,51 @@ const SVG_ATTRIBUTE_DENYLIST = new Set<string>([
     'srcset'
 ]);
 
+// SMIL animation elements (<animate>, <animateMotion>,
+// <animateTransform>, <set>) accept an `attributeName="..."` value
+// that names the property to animate at runtime. Without this
+// denylist, an attacker could declare `attributeName="href"` and
+// rewrite a sanitized URL to `javascript:` after the DOM is live —
+// the well-known SMIL sanitizer-bypass primitive. We refuse animation
+// that targets URL-bearing attributes (href / xlink:href / src and
+// the four URL-form-action variants), the bulk `style` attribute
+// (animating `style` replaces the entire inline style string,
+// re-introducing url() declarations the static sanitizer never saw),
+// any of the SVG presentation attributes that resolve via `url(#id)`
+// references (cursor, clip-path, mask, filter, marker-*), and the
+// meta `attributeName` itself (animating attributeName lets the
+// animation target a different attribute later). Animation that
+// targets safe presentation / geometry properties (opacity,
+// transform, fill, stroke, cx, cy, d, etc.) is unconstrained.
+const SMIL_TAGS = new Set<string>([
+    'animate',
+    'animatemotion',
+    'animatetransform',
+    'set'
+]);
+
+const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
+    'href',
+    'xlink:href',
+    'src',
+    'srcdoc',
+    'srcset',
+    'formaction',
+    'action',
+    'ping',
+    'background',
+    'poster',
+    'style',
+    'cursor',
+    'clip-path',
+    'mask',
+    'filter',
+    'marker-start',
+    'marker-mid',
+    'marker-end',
+    'attributename'
+]);
+
 const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     '*': [
         'class',
@@ -427,6 +472,27 @@ export const getSanitizedContent = (content: string): string => {
                             return;
                         }
                     }
+                }
+
+                // SMIL attributeName enforcement. SMIL animation
+                // elements declare which property they animate via
+                // `attributeName="..."`. If the value names a URL-
+                // bearing attribute (href, xlink:href, src, ...) or
+                // the bulk `style` attribute, an attacker can use the
+                // animation to rewrite the property at runtime,
+                // bypassing static URL/scheme sanitization. Drop the
+                // attributeName attribute when the value is denied —
+                // the SMIL element survives but has nothing to
+                // animate, so the bypass is neutralised. Animation
+                // targeting safe presentation/geometry properties
+                // passes through untouched.
+                if (
+                    SMIL_TAGS.has(tagName) &&
+                    attrName === 'attributename' &&
+                    SMIL_ATTRIBUTE_NAME_DENYLIST.has(value.toLowerCase())
+                ) {
+                    hookEvent.keepAttr = false;
+                    return;
                 }
 
                 // data: URI sanitization for src/href/xlink:href.

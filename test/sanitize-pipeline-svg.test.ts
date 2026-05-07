@@ -474,4 +474,215 @@ describe('sanitize-pipeline — SVG presentation attributes', () => {
             expect(out).toContain('url(#shadow)');
         });
     });
+
+    // SMIL animation elements (issue #145).
+    // Allowed but locked down by:
+    //   - allowedSchemesByTag fragment-only on the SMIL element itself
+    //   - SMIL_ATTRIBUTE_NAME_DENYLIST on the `attributeName` value
+    //   - existing on*/scriptingPatterns/funciri checks on attribute values
+    describe('SMIL animation — safe targets pass through', () => {
+        it('preserves <animate attributeName="opacity"> (HomeTetris fade-in shape)', () => {
+            const out = sanitize(
+                '<svg><g opacity="0">' +
+                '<animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="1s" fill="freeze"/>' +
+                '<rect width="10" height="10"/></g></svg>'
+            );
+            expect(out).toContain('<animate');
+            expect(out).toContain('attributeName="opacity"');
+            expect(out).toContain('from="0"');
+            expect(out).toContain('to="1"');
+            expect(out).toContain('fill="freeze"');
+        });
+
+        it('preserves <animateTransform attributeName="transform" type="translate">', () => {
+            const out = sanitize(
+                '<svg><g transform="translate(0,-400)">' +
+                '<animateTransform attributeName="transform" type="translate" ' +
+                'from="0,-400" to="0,0" dur="1.5s" begin="0s" fill="freeze" ' +
+                'calcMode="spline" keySplines="0.42 0 0.58 1" keyTimes="0;1"/>' +
+                '<rect width="10" height="10"/></g></svg>'
+            );
+            expect(out).toContain('<animateTransform');
+            expect(out).toContain('attributeName="transform"');
+            expect(out).toContain('type="translate"');
+            expect(out).toContain('keySplines="0.42 0 0.58 1"');
+        });
+
+        it('preserves <animate attributeName="fill"> (presentation property)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" fill="red">' +
+                '<animate attributeName="fill" from="red" to="blue" dur="2s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).toContain('<animate');
+            expect(out).toContain('attributeName="fill"');
+        });
+
+        it('preserves <animate attributeName="cx"> (geometry property)', () => {
+            const out = sanitize(
+                '<svg><circle cx="0" cy="50" r="10">' +
+                '<animate attributeName="cx" from="0" to="100" dur="1s"/>' +
+                '</circle></svg>'
+            );
+            expect(out).toContain('attributeName="cx"');
+        });
+
+        it('preserves <set attributeName="visibility">', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" visibility="hidden">' +
+                '<set attributeName="visibility" to="visible" begin="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).toContain('<set');
+            expect(out).toContain('attributeName="visibility"');
+        });
+
+        it('preserves fragment-only xlink:href on <animate>', () => {
+            const out = sanitize(
+                '<svg><circle id="c1" cx="50" cy="50" r="10"/>' +
+                '<animate xlink:href="#c1" attributeName="opacity" from="0" to="1" dur="1s"/>' +
+                '</svg>'
+            );
+            expect(out).toContain('<animate');
+            expect(out).toContain('xlink:href="#c1"');
+            expect(out).toContain('attributeName="opacity"');
+        });
+    });
+
+    describe('SMIL animation — bypass attempts are neutered', () => {
+        it('drops attributeName="href" on <animate> (sanitizer-bypass primitive)', () => {
+            const out = sanitize(
+                '<svg><a href="https://safe.example/x">' +
+                '<animate attributeName="href" to="javascript:alert(1)" dur="1s" begin="0s" fill="freeze"/>' +
+                'click</a></svg>'
+            );
+            expect(out).not.toContain('attributeName="href"');
+            expect(out).not.toContain('javascript:');
+            expect(out).not.toContain('alert(1)');
+        });
+
+        it('drops attributeName="xlink:href" on <animate>', () => {
+            // The dangerous primitive is the attributeName declaration —
+            // without it, SMIL cannot bind the `to=` value to any target
+            // attribute, so the URL is dead string data even if it
+            // survives serialization. Asserting only the neutering, not
+            // the literal string presence.
+            const out = sanitize(
+                '<svg><image xlink:href="data:image/png;base64,AAA" width="10" height="10">' +
+                '<animate attributeName="xlink:href" to="https://attacker.example/track.png" dur="1s"/>' +
+                '</image></svg>'
+            );
+            expect(out).not.toContain('attributeName="xlink:href"');
+        });
+
+        it('drops attributeName="src" on <animate>', () => {
+            const out = sanitize(
+                '<svg><image><animate attributeName="src" to="javascript:alert(1)"/></image></svg>'
+            );
+            expect(out).not.toContain('attributeName="src"');
+            expect(out).not.toContain('javascript:');
+        });
+
+        it('drops attributeName="style" on <animate> (bulk-attr bypass)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="style" to="background:url(javascript:alert(1))" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="style"');
+            expect(out).not.toContain('javascript:');
+        });
+
+        it('drops attributeName="attributeName" on <animate> (meta attack)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="attributeName" to="href" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="attributeName"');
+        });
+
+        it('drops attributeName="clip-path" on <animate> (url(#) attribute)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="clip-path" to="url(#evil)" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="clip-path"');
+        });
+
+        it('drops attributeName="mask" on <animate>', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="mask" to="url(#evil)" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="mask"');
+        });
+
+        it('drops attributeName="filter" on <animate>', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="filter" to="url(#evil)" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="filter"');
+        });
+
+        it('drops attributeName="cursor" on <animate>', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="cursor" to="url(https://attacker.example/x.cur),auto" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName="cursor"');
+        });
+
+        it('drops attributeName="marker-end" on <animate>', () => {
+            const out = sanitize(
+                '<svg><line x1="0" y1="0" x2="10" y2="10">' +
+                '<animate attributeName="marker-end" to="url(#evil)" dur="1s"/>' +
+                '</line></svg>'
+            );
+            expect(out).not.toContain('attributeName="marker-end"');
+        });
+
+        it('drops external xlink:href on <animate> (per-tag scheme allowlist is fragment-only)', () => {
+            const out = sanitize(
+                '<svg><animate xlink:href="https://attacker.example/evil.svg" attributeName="opacity" from="0" to="1" dur="1s"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('https://');
+        });
+
+        it('drops <animate> attribute value containing javascript: (existing scriptingPatterns gate)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate attributeName="fill" to="javascript:alert(1)" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('javascript:');
+            expect(out).not.toContain('alert(1)');
+        });
+
+        it('drops <animate> with on* event handler (existing on* gate removes the element)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                '<animate onbegin="alert(1)" attributeName="opacity" from="0" to="1" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('onbegin');
+            expect(out).not.toContain('alert(1)');
+        });
+
+        it('drops funciri-wrapped javascript: in <animate> to=', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" fill="red">' +
+                '<animate attributeName="fill" to="url(javascript:alert(1))" dur="1s"/>' +
+                '</rect></svg>'
+            );
+            expect(out).not.toContain('javascript:');
+            expect(out).not.toContain('alert(1)');
+        });
+    });
 });

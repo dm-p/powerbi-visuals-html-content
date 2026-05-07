@@ -78,6 +78,18 @@
               "corpus.id"
             ],
             "isCollapsed": true,
+            "identityKeys": [
+              {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "corpus"
+                    }
+                  },
+                  "Property": "id"
+                }
+              }
+            ],
             "isPinned": true
           }
         ],
@@ -297,6 +309,30 @@
               "expr": {
                 "Literal": {
                   "Value": "12L"
+                }
+              }
+            }
+          },
+          "selector": {
+            "id": "default",
+            "hierarchyMatching": 1
+          }
+        }
+      ],
+      "expansionIcon": [
+        {
+          "properties": {
+            "size": {
+              "expr": {
+                "Literal": {
+                  "Value": "12L"
+                }
+              }
+            },
+            "spacing": {
+              "expr": {
+                "Literal": {
+                  "Value": "4L"
                 }
               }
             }

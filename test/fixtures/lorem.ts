@@ -680,5 +680,56 @@ export const LOREM_PAYLOADS: Payload[] = [
         category: 'lorem',
         cspCategory: 'none',
         source: 'issue #143 — svg+xml in CSS url() image-context loading'
+    },
+    {
+        id: 'lorem-svg-smil-fade-in',
+        description:
+            'An SVG with SMIL animation — the HomeTetris fade-in pattern from ' +
+            'issue #145. Two animation elements per group (one <animate> targeting ' +
+            'opacity, one <animateTransform> targeting transform="translate") with ' +
+            'staggered begin times. Both animation shapes target safe presentation/ ' +
+            'geometry properties, so the SMIL_ATTRIBUTE_NAME_DENYLIST does not ' +
+            'fire and the entire animation survives sanitization. Browsers run the ' +
+            'animations natively without script execution.',
+        input:
+            "<svg width='120' height='80' viewBox='0 0 120 80' xmlns='http://www.w3.org/2000/svg'>" +
+            "<g opacity='0'>" +
+            "<animateTransform attributeName='transform' type='translate' " +
+            "from='0,-40' to='0,0' dur='1s' begin='0s' fill='freeze'/>" +
+            "<animate attributeName='opacity' from='0' to='1' dur='0.5s' " +
+            "begin='0s' fill='freeze'/>" +
+            "<rect x='10' y='20' width='40' height='40' fill='#2F06D2'/>" +
+            '</g>' +
+            "<g opacity='0'>" +
+            "<animateTransform attributeName='transform' type='translate' " +
+            "from='0,-40' to='0,0' dur='1s' begin='0.5s' fill='freeze'/>" +
+            "<animate attributeName='opacity' from='0' to='1' dur='0.5s' " +
+            "begin='0.5s' fill='freeze'/>" +
+            "<rect x='70' y='20' width='40' height='40' fill='#D24013'/>" +
+            '</g>' +
+            '</svg>',
+        // Note: input uses single-quoted attributes for HTML readability,
+        // but DOMPurify normalizes attribute quoting to double quotes
+        // during sanitization, so the expected substrings here are
+        // double-quoted to match the post-sanitization shape.
+        expectedSanitized: {
+            contains: [
+                '<animateTransform',
+                'attributeName="transform"',
+                'type="translate"',
+                'from="0,-40"',
+                'to="0,0"',
+                '<animate',
+                'attributeName="opacity"',
+                'begin="0s"',
+                'begin="0.5s"',
+                'fill="freeze"',
+                'fill="#2F06D2"',
+                'fill="#D24013"'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #145 — HomeTetris SMIL animation pattern'
     }
 ];

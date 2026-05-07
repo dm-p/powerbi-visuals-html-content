@@ -49,7 +49,7 @@ The visual permits the following elements (everything else is dropped):
 `img`, `style`
 
 #### SVG
-`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.). SVG animation elements (`animate`, `animatemotion`, `animatetransform`, `set`) are **not** permitted — SMIL animation can override sanitized attributes at runtime.
+`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.). SMIL animation elements (`animate`, `animatemotion`, `animatetransform`, `set`) are **permitted** but locked down: the element's own `href`/`xlink:href` may only point at same-document fragments, and the `attributeName="..."` value must name a safe presentation/geometry property. Animation that targets `href`, `xlink:href`, `src`, `style`, `cursor`, `clip-path`, `mask`, `filter`, `marker-*`, or the meta `attributeName` itself has its `attributeName` attribute dropped — the SMIL element survives but cannot bind to a target, so the well-known SMIL sanitizer-bypass primitive (`<animate attributeName="href" to="javascript:..."/>`) is closed.
 
 ### HTML attributes
 
@@ -84,6 +84,7 @@ For attributes that carry URLs (`href`, `src`, `xlink:href`), the allowed scheme
 | `<feImage href>` / `<feImage xlink:href>` (SVG) | `data:` only — same restriction as `<image>` |
 | `<textPath href>` / `<textPath xlink:href>` (SVG) | Same-document fragment references only (e.g. `#myPath`) — no external URLs |
 | `<pattern href>`, `<linearGradient href>`, `<radialGradient href>`, `<filter href>` (SVG) | Same-document fragment references only — no external URLs |
+| `<animate>` / `<animateMotion>` / `<animateTransform>` / `<set>` (SVG SMIL) | Same-document fragment references only — the element's own `href`/`xlink:href` names which element to animate, never an external resource |
 | Any other SVG tag with `href` / `xlink:href` | **Default-deny** — must have an explicit entry in `allowedSchemesByTag`; missing entries cause the URL attribute to be dropped |
 
 In addition, SVG presentation attributes that accept functional IRI values (`mask`, `clip-path`, `filter`, `marker-*`, `fill`, `stroke`, `cursor`) are scanned for embedded `url(<scheme>:...)` references. The same rules apply to the embedded scheme: empty (fragment-only `url(#id)`) and `data:` are allowed; `http:`, `https:`, `blob:`, etc. are rejected.
@@ -92,7 +93,7 @@ In addition, SVG presentation attributes that accept functional IRI values (`mas
 
 - The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`, `image/svg+xml`.
 - For raster MIME types (`image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`), the URI must be **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
-- `image/svg+xml` is allowed in any of three forms: `data:image/svg+xml;base64,...`, `data:image/svg+xml;utf8,<svg ...>`, or `data:image/svg+xml,<svg ...>`. SVG is text by spec, and DAX measures and similar tooling legitimately emit the `;utf8,` and bare-comma forms. SVG loaded via `<img>` / `<svg image>` / `<feImage>` / CSS `url()` runs in browser image-loading context, so embedded `<script>`, event handlers, and external resource references inside the SVG **do not execute** — the browser sandbox is the load-bearing security boundary, not the sanitizer. Inline `<svg>...</svg>` parsed into the DOM is a different surface and is still subject to the full DOMPurify SVG profile (script tags and event handlers are stripped, and SMIL animation tags / `<use>` are blocked at the tag allowlist).
+- `image/svg+xml` is allowed in any of three forms: `data:image/svg+xml;base64,...`, `data:image/svg+xml;utf8,<svg ...>`, or `data:image/svg+xml,<svg ...>`. SVG is text by spec, and DAX measures and similar tooling legitimately emit the `;utf8,` and bare-comma forms. SVG loaded via `<img>` / `<svg image>` / `<feImage>` / CSS `url()` runs in browser image-loading context, so embedded `<script>`, event handlers, and external resource references inside the SVG **do not execute** — the browser sandbox is the load-bearing security boundary, not the sanitizer. Inline `<svg>...</svg>` parsed into the DOM is a different surface and is still subject to the full DOMPurify SVG profile (script tags and event handlers are stripped; SMIL animation tags are permitted but constrained by the `attributeName` denylist; `<use>` is blocked at the tag allowlist).
 
 All other schemes (`javascript:`, `vbscript:`, `blob:`, `file:`, `ftp:`, `mailto:`, `tel:`, etc.) are rejected.
 
@@ -557,20 +558,6 @@ Every scheme or pseudo-scheme that might appear inside a `url()` argument.
 (empty — entire input was dropped)
 ```
 
-#### data:image/svg+xml is allowed in <img src> for image-context loading. Browsers sandbox SVG loaded via <img>, so embedded scripts and external resource references do not execute. The safe shape (no script content) must survive sanitization with the SVG markup intact (issue #143 follow-up).
-
-**Input:**
-
-```html
-<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
-```
-
-**Output:**
-
-```html
-<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
-```
-
 #### blob: scheme in background.
 
 **Input:**
@@ -990,10 +977,10 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg></svg>
+<svg><animate></animate></svg>
 ```
 
-#### set element with javascript: target.
+#### set element with javascript: target via attributeName="href". The SMIL_ATTRIBUTE_NAME_DENYLIST drops the attributeName attribute, neutering the animation; the javascript: value is also rejected by the scriptingPatterns gate.
 
 **Input:**
 
@@ -1004,10 +991,10 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg></svg>
+<svg><set></set></svg>
 ```
 
-#### SMIL animate overriding image href to an external URL at runtime. The animate element is dropped entirely (not in allowedTags).
+#### SMIL animate attempting to override <image> href to an external URL at runtime. SMIL animation elements are allowed (issue #145) but attributeName="href" is on SMIL_ATTRIBUTE_NAME_DENYLIST, so the attributeName attribute is dropped — the animate element survives but has nothing to bind to and cannot rewrite the sanitized href.
 
 **Input:**
 
@@ -1018,7 +1005,35 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg><image href="data:image/png;base64,iVBORw0KGgo="></image></svg>
+<svg><image href="data:image/png;base64,iVBORw0KGgo="><animate to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"></animate></image></svg>
+```
+
+#### SMIL animate attempting to overwrite the entire inline style attribute at runtime. attributeName="style" is on the denylist because animating style replaces the whole declaration string, re-introducing url() declarations the static sanitizer never saw.
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" style="fill: red"><animate attributeName="style" to="background:url(javascript:alert(1))" dur="1s"/></rect></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10" style="fill:red"><animate dur="1s"></animate></rect></svg>
+```
+
+#### SMIL animate with an external xlink:href (referencing the element to animate). Per-tag scheme allowlist for SMIL tags is fragment-only, so external URLs are dropped at the URL gate.
+
+**Input:**
+
+```html
+<svg><animate xlink:href="https://attacker.example/evil.svg" attributeName="opacity" from="0" to="1" dur="1s"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><animate attributeName="opacity" from="0" to="1" dur="1s"></animate></svg>
 ```
 
 #### use with javascript: xlink:href.
@@ -1856,6 +1871,34 @@ Legitimate content that must continue to render unchanged.
 
 ```html
 <svg width="200" height="120" viewBox="0 0 200 120"><g class="axis" transform="translate(0,100)"><line x1="0" y1="0" x2="200" y2="0" stroke="#333"></line><g class="tick" transform="translate(20,0)"><line y2="6" stroke="#333"></line><text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text></g></g><g class="bars"><rect x="10" y="40" width="20" height="60" fill="steelblue"></rect><rect x="40" y="20" width="20" height="80" fill="steelblue"></rect></g></svg>
+```
+
+#### A small inline SVG embedded as data:image/svg+xml;utf8 in <img src>. This is the shape DAX measures emit when a report author builds an SVG string and feeds it to HTML Content as an image. Browsers sandbox SVG loaded via <img>, so embedded scripts and external resource references would not execute even if present (issue #143 follow-up).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
+```
+
+**Output:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
+```
+
+#### SMIL animation targeting opacity (a safe presentation attribute). attributeName="opacity" is not on the denylist, so the animation survives intact and renders the fade-in effect at runtime (issue #145 HomeTetris pattern).
+
+**Input:**
+
+```html
+<svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"/><rect width="10" height="10" fill="red"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"></animate><rect width="10" height="10" fill="red"></rect></g></svg>
 ```
 
 <!-- WORKED_EXAMPLES_END -->

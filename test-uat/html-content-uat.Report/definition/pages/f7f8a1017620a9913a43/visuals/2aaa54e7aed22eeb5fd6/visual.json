@@ -23,21 +23,6 @@
                       "Entity": "lorem"
                     }
                   },
-                  "Property": "type"
-                }
-              },
-              "queryRef": "lorem.type",
-              "nativeQueryRef": "type1",
-              "active": true
-            },
-            {
-              "field": {
-                "Column": {
-                  "Expression": {
-                    "SourceRef": {
-                      "Entity": "lorem"
-                    }
-                  },
                   "Property": "id"
                 }
               },
@@ -57,45 +42,13 @@
         "levels": [
           {
             "queryRefs": [
-              "lorem.type"
-            ],
-            "isCollapsed": true,
-            "identityKeys": [
-              {
-                "Column": {
-                  "Expression": {
-                    "SourceRef": {
-                      "Entity": "lorem"
-                    }
-                  },
-                  "Property": "type"
-                }
-              }
-            ],
-            "isPinned": true
-          },
-          {
-            "queryRefs": [
               "lorem.id"
             ],
             "isCollapsed": true,
             "isPinned": true
           }
         ],
-        "root": {
-          "children": [
-            {
-              "identityValues": [
-                {
-                  "Literal": {
-                    "Value": "'lorem'"
-                  }
-                }
-              ],
-              "isToggled": true
-            }
-          ]
-        }
+        "root": {}
       }
     ],
     "objects": {
@@ -129,16 +82,6 @@
                                   "Source": "l"
                                 }
                               },
-                              "Property": "type"
-                            }
-                          },
-                          {
-                            "Column": {
-                              "Expression": {
-                                "SourceRef": {
-                                  "Source": "l"
-                                }
-                              },
                               "Property": "id"
                             }
                           }
@@ -147,97 +90,10 @@
                           [
                             {
                               "Literal": {
-                                "Value": "'lorem'"
-                              }
-                            },
-                            {
-                              "Literal": {
                                 "Value": "'lorem-article-structure'"
                               }
                             }
                           ]
-                        ]
-                      }
-                    },
-                    "Annotations": {
-                      "filterExpressionMetadata": {
-                        "expressions": [
-                          {
-                            "Column": {
-                              "Expression": {
-                                "SourceRef": {
-                                  "Entity": "lorem"
-                                }
-                              },
-                              "Property": "type"
-                            }
-                          },
-                          {
-                            "Column": {
-                              "Expression": {
-                                "SourceRef": {
-                                  "Entity": "lorem"
-                                }
-                              },
-                              "Property": "id"
-                            }
-                          }
-                        ],
-                        "decomposedIdentities": {
-                          "values": [
-                            [
-                              {
-                                "0": [
-                                  {
-                                    "Literal": {
-                                      "Value": "'lorem'"
-                                    }
-                                  }
-                                ]
-                              },
-                              {
-                                "1": [
-                                  {
-                                    "Literal": {
-                                      "Value": "'lorem-article-structure'"
-                                    }
-                                  }
-                                ]
-                              }
-                            ]
-                          ],
-                          "columns": [
-                            {
-                              "value": {
-                                "Column": {
-                                  "Expression": {
-                                    "SourceRef": {
-                                      "Entity": "lorem"
-                                    }
-                                  },
-                                  "Property": "type"
-                                }
-                              }
-                            },
-                            {
-                              "value": {
-                                "Column": {
-                                  "Expression": {
-                                    "SourceRef": {
-                                      "Entity": "lorem"
-                                    }
-                                  },
-                                  "Property": "id"
-                                }
-                              }
-                            }
-                          ]
-                        },
-                        "valueMap": [
-                          {
-                            "0": "lorem",
-                            "1": "lorem-article-structure"
-                          }
                         ]
                       }
                     }
@@ -311,6 +167,30 @@
               "expr": {
                 "Literal": {
                   "Value": "12L"
+                }
+              }
+            }
+          },
+          "selector": {
+            "id": "default",
+            "hierarchyMatching": 1
+          }
+        }
+      ],
+      "expansionIcon": [
+        {
+          "properties": {
+            "size": {
+              "expr": {
+                "Literal": {
+                  "Value": "12L"
+                }
+              }
+            },
+            "spacing": {
+              "expr": {
+                "Literal": {
+                  "Value": "4L"
                 }
               }
             }
