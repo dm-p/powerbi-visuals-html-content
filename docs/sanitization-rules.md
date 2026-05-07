@@ -19,6 +19,15 @@ There are three places where content enters the visual and gets sanitized:
 
 All three go through the same CSS rule set. Inline attributes additionally pass through the HTML-layer attribute allowlist.
 
+**Surfaces 2 and 3 are equivalent for sanitization.** A `<style>` block in your bound data and the same CSS pasted into the format pane's custom stylesheet setting both run through `sanitizeCss` in stylesheet mode and produce the same surviving CSS. The only difference is *where* the resulting `<style>` element ends up in the DOM:
+
+- **Custom stylesheet setting** → `<style id="visualUserStylesheet">` in the page `<head>`. Created and managed by the visual itself.
+- **`<style>` tag in bound data** → ends up inside the visual's content container (in the body). Browsers apply CSS from `<style>` tags wherever they appear in the document, so selectors work identically from both surfaces.
+
+CSS custom properties (`:root { --my-var: ... }` plus `var(--my-var)` references) work in both surfaces. So do `clamp()`, `rgba()`, `:hover`, `@media`, `@keyframes`, `@supports`, `inherit`, `!important`, `aspect-ratio`, transitions, and the rest of modern CSS.
+
+> **Tip:** if you embed a `<style>` tag in your bound data, avoid `id="visualUserStylesheet"` — that's the id the visual uses for its own host stylesheet element in `<head>`, and a duplicate id is invalid HTML even though browsers tolerate it. Any other id (or no id at all) works.
+
 ---
 
 ## What's allowed

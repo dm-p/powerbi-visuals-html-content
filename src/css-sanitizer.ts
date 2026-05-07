@@ -119,9 +119,27 @@ function hasDangerousSchemeInValue(value: string): boolean {
 
 function hasDangerousSelector(selector: string): boolean {
     if (/javascript\s*:/i.test(selector)) return true;
+    // Reject control characters in 0x00-0x1F EXCEPT the whitespace
+    // controls that the CSS spec treats as valid: TAB (0x09), LF (0x0A),
+    // FF (0x0C), CR (0x0D). Multi-line comma-separated selectors
+    //
+    //   .a,
+    //   .b { ... }
+    //
+    // are normal real-world formatting and must not be dropped by this
+    // check (issue #143 kriscs1/oechslein report — multi-line layout
+    // selectors silently disappeared because of the over-broad range).
     for (let i = 0; i < selector.length; i++) {
         const code = selector.charCodeAt(i);
-        if (code >= 0x00 && code <= 0x1f) return true;
+        if (
+            code <= 0x1f &&
+            code !== 0x09 && // TAB
+            code !== 0x0a && // LF
+            code !== 0x0c && // FF
+            code !== 0x0d // CR
+        ) {
+            return true;
+        }
     }
     return false;
 }

@@ -493,6 +493,127 @@ describe('sanitizeCss', () => {
             );
             expect(out).not.toContain('color: red');
         });
+
+        // Issue #143 — kriscs1/oechslein report. Multi-line comma-separated
+        // selectors are normal real-world CSS formatting and must survive
+        // the dangerous-control-char check. Pre-fix the check rejected
+        // every char in 0x00-0x1F, including LF and CR, which silently
+        // dropped any rule formatted across multiple lines. The CSS-spec
+        // whitespace controls (TAB, LF, FF, CR) are now exempted; the
+        // dangerous controls (0x00 NUL, 0x01-0x08, 0x0B, 0x0E-0x1F, plus
+        // the historical 0x01 vector) are still rejected.
+
+        it('preserves a multi-line comma-separated selector (LF)', () => {
+            const out = sanitizeCss(
+                '.card-wide,\n.card-wide-link { color: red; display: flex; }',
+                'stylesheet'
+            );
+            expect(out).toContain('color: red');
+            expect(out).toContain('display');
+            expect(out).toContain('.card-wide');
+            expect(out).toContain('.card-wide-link');
+        });
+
+        it('preserves a multi-line comma-separated selector (CRLF)', () => {
+            const out = sanitizeCss(
+                '.card-wide,\r\n.card-wide-link { color: red; }',
+                'stylesheet'
+            );
+            expect(out).toContain('color: red');
+            expect(out).toContain('.card-wide-link');
+        });
+
+        it('preserves selector with TAB indentation', () => {
+            const out = sanitizeCss(
+                '.a,\n\t.b { color: red; }',
+                'stylesheet'
+            );
+            expect(out).toContain('color: red');
+            expect(out).toContain('.b');
+        });
+
+        it('preserves selector with FF (form feed)', () => {
+            const out = sanitizeCss(
+                '.a,\f.b { color: red; }',
+                'stylesheet'
+            );
+            expect(out).toContain('color: red');
+            expect(out).toContain('.b');
+        });
+
+        it('still drops a rule whose selector contains NUL (0x00)', () => {
+            const out = sanitizeCss(
+                'p  { color: red; }',
+                'stylesheet'
+            );
+            expect(out).not.toContain('color: red');
+        });
+
+        it('still drops a rule whose selector contains BS (0x08)', () => {
+            const out = sanitizeCss(
+                'p { color: red; }',
+                'stylesheet'
+            );
+            expect(out).not.toContain('color: red');
+        });
+
+        it('still drops a rule whose selector contains VT (0x0B)', () => {
+            // VT is 0x0B — between LF (0x0A) and FF (0x0C). Not part of
+            // CSS-spec whitespace, so it stays dangerous.
+            const out = sanitizeCss(
+                'p { color: red; }',
+                'stylesheet'
+            );
+            expect(out).not.toContain('color: red');
+        });
+
+        it('still drops a rule whose selector contains a non-whitespace control (0x1F)', () => {
+            const out = sanitizeCss(
+                'p { color: red; }',
+                'stylesheet'
+            );
+            expect(out).not.toContain('color: red');
+        });
+
+        it('preserves the reporter-style multi-line layout rule (issue #143)', () => {
+            const css =
+                '.card-wide,\n.card-wide-link {\n' +
+                '    display: flex;\n' +
+                '    flex-direction: row;\n' +
+                '    width: calc(100% - 40px);\n' +
+                '    height: clamp(120px, 20vw, 180px) !important;\n' +
+                '    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n' +
+                '    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;\n' +
+                '    color: inherit;\n' +
+                '    background-color: var(--card-bg-color);\n' +
+                '    font-family: var(--card-font-family) !important;\n' +
+                '}';
+            const out = sanitizeCss(css, 'stylesheet');
+            expect(out).toContain('display');
+            expect(out).toContain('flex-direction');
+            expect(out).toContain('calc(100% - 40px)');
+            expect(out).toContain('clamp(');
+            expect(out).toContain('var(--card-bg-color)');
+            expect(out).toContain('var(--card-font-family)');
+            expect(out).toContain('!important');
+        });
+
+        it('preserves multi-line selectors inside @media blocks', () => {
+            const css =
+                '@media (max-width: 900px) {\n' +
+                '    .card-wide,\n' +
+                '    .card-wide-link {\n' +
+                '        height: 110px !important;\n' +
+                '        padding: 12px;\n' +
+                '    }\n' +
+                '}';
+            const out = sanitizeCss(css, 'stylesheet');
+            expect(out).toContain('@media');
+            expect(out).toContain('.card-wide');
+            expect(out).toContain('.card-wide-link');
+            expect(out).toContain('110px');
+            expect(out).toContain('!important');
+        });
     });
 
     describe('modern selector pseudo-classes', () => {
@@ -553,6 +674,194 @@ describe('sanitizeCss', () => {
                 'stylesheet'
             );
             expect(out).toContain(':hover');
+        });
+    });
+
+    describe('CSS custom properties and modern functions (issue #143 follow-up)', () => {
+        // Reporters on 1.6.1.0 said CSS variables and modern functions
+        // were stripped after the April 2026 cert-remediation update.
+        // This block formalizes positive coverage so a future change to
+        // the sanitizer can't silently regress these features again.
+
+        it('preserves :root with --custom-property declarations', () => {
+            const out = sanitizeCss(
+                ':root { --card-bg-color: #ffffff; --card-font-family: "Arial", sans-serif; }',
+                'stylesheet'
+            );
+            expect(out).toContain('--card-bg-color');
+            expect(out).toContain('#ffffff');
+            expect(out).toContain('--card-font-family');
+        });
+
+        it('preserves var() reference in declaration value', () => {
+            const out = sanitizeCss(
+                '.card { background-color: var(--card-bg-color); }',
+                'stylesheet'
+            );
+            expect(out).toContain('var(--card-bg-color)');
+        });
+
+        it('preserves var() with fallback', () => {
+            const out = sanitizeCss(
+                '.card { color: var(--card-color, #000); }',
+                'stylesheet'
+            );
+            expect(out).toContain('var(--card-color');
+        });
+
+        it('preserves clamp()', () => {
+            const out = sanitizeCss(
+                '.title { font-size: clamp(12px, 3.5vw, 16px); }',
+                'stylesheet'
+            );
+            expect(out).toContain('clamp(');
+        });
+
+        it('preserves rgba()', () => {
+            const out = sanitizeCss(
+                '.shadow { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); }',
+                'stylesheet'
+            );
+            expect(out).toContain('rgba(');
+        });
+
+        it('preserves rgb() with modern space-separated syntax', () => {
+            const out = sanitizeCss(
+                '.box { color: rgb(50 100 150); }',
+                'stylesheet'
+            );
+            expect(out).toContain('rgb(');
+        });
+
+        it('preserves hsl()', () => {
+            const out = sanitizeCss(
+                '.box { color: hsl(120, 50%, 50%); }',
+                'stylesheet'
+            );
+            expect(out).toContain('hsl(');
+        });
+
+        it('preserves calc()', () => {
+            const out = sanitizeCss(
+                '.box { width: calc(100% - 20px); }',
+                'stylesheet'
+            );
+            expect(out).toContain('calc(');
+        });
+
+        it('preserves linear-gradient()', () => {
+            const out = sanitizeCss(
+                '.bg { background: linear-gradient(to right, #fff, #000); }',
+                'stylesheet'
+            );
+            expect(out).toContain('linear-gradient(');
+        });
+
+        it('preserves transform: scale()', () => {
+            const out = sanitizeCss(
+                '.card:hover { transform: scale(1.01); }',
+                'stylesheet'
+            );
+            expect(out).toContain('scale(');
+        });
+
+        it('preserves aspect-ratio property', () => {
+            const out = sanitizeCss(
+                '.img { aspect-ratio: 16 / 9; }',
+                'stylesheet'
+            );
+            expect(out).toContain('aspect-ratio');
+        });
+
+        it('preserves transition shorthand with multiple properties', () => {
+            const out = sanitizeCss(
+                '.card { transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s; }',
+                'stylesheet'
+            );
+            expect(out).toContain('transition');
+            expect(out).toContain('transform');
+            expect(out).toContain('background-color');
+        });
+
+        it('preserves !important on var() reference', () => {
+            const out = sanitizeCss(
+                '.card { font-family: var(--card-font) !important; }',
+                'stylesheet'
+            );
+            expect(out).toContain('!important');
+            expect(out).toContain('var(--card-font)');
+        });
+
+        it('preserves inherit keyword', () => {
+            const out = sanitizeCss(
+                '.card { color: inherit; }',
+                'stylesheet'
+            );
+            expect(out).toContain('inherit');
+        });
+
+        it('preserves @media containing CSS variables', () => {
+            const out = sanitizeCss(
+                '@media (max-width: 600px) { .card { font-size: clamp(12px, 3.5vw, 16px) !important; } }',
+                'stylesheet'
+            );
+            expect(out).toContain('@media');
+            expect(out).toContain('clamp(');
+            expect(out).toContain('!important');
+        });
+
+        it('preserves the full reporter-style content end-to-end', () => {
+            // Compact form of the kriscs1 / oechslein report — every
+            // distinct feature in one input. Catches a regression that
+            // breaks an interaction between features even when each
+            // feature passes in isolation.
+            const reporterCss =
+                ':root {' +
+                '--card-bg-color: #ffffff;' +
+                '--card-hover-bg-color: #C8DFF4;' +
+                '--card-font-family: "Arial", "Tahoma", "Segoe UI", sans-serif;' +
+                '}' +
+                '.card-wide-link {' +
+                'border: 2px solid #ccc;' +
+                'border-radius: 12px;' +
+                'box-shadow: 0 2px 6px rgba(0,0,0,0.2);' +
+                'transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;' +
+                'color: inherit;' +
+                'background-color: var(--card-bg-color);' +
+                'font-family: var(--card-font-family) !important;' +
+                '}' +
+                '.card-wide-link:hover {' +
+                'transform: scale(1.01);' +
+                'box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);' +
+                'background-color: var(--card-hover-bg-color);' +
+                '}' +
+                '.card-img {' +
+                'aspect-ratio: 16 / 9;' +
+                'object-fit: cover;' +
+                '}' +
+                '.card-title {' +
+                'font-size: clamp(32px, 4vw, 48px);' +
+                'font-family: var(--card-font-family) !important;' +
+                '}' +
+                '@media (max-width: 600px) {' +
+                '.card-title { font-size: clamp(12px, 3.5vw, 16px) !important; }' +
+                '}';
+            const out = sanitizeCss(reporterCss, 'stylesheet');
+            expect(out).toContain('--card-bg-color');
+            expect(out).toContain('--card-hover-bg-color');
+            expect(out).toContain('--card-font-family');
+            expect(out).toContain('var(--card-bg-color)');
+            expect(out).toContain('var(--card-hover-bg-color)');
+            expect(out).toContain('var(--card-font-family)');
+            expect(out).toContain('rgba(');
+            expect(out).toContain('clamp(');
+            expect(out).toContain('scale(');
+            expect(out).toContain(':hover');
+            expect(out).toContain('@media');
+            expect(out).toContain('aspect-ratio');
+            expect(out).toContain('transition');
+            expect(out).toContain('!important');
+            expect(out).toContain('inherit');
         });
     });
 });

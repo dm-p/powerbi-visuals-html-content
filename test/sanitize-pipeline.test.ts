@@ -100,6 +100,57 @@ describe('sanitize-pipeline end-to-end', () => {
             expect(out).toContain(':has(');
             expect(out).toContain(':hover');
         });
+
+        // Issue #143 follow-up: reporters on 1.6.1.0 said CSS variables
+        // were dropped through the <style>-in-data path. Confirm the
+        // pipeline preserves them all the way from raw HTML input
+        // through preprocessStyleTags + sanitizeCss + DOMPurify +
+        // uponSanitizeElement backstop to the final output.
+        it('preserves CSS variables (:root + var()) through <style>-in-data', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<style id="visualUserStylesheet" type="text/css">' +
+                ':root { --bg: #fff; --color: #111; }' +
+                '.card { background: var(--bg); color: var(--color); }' +
+                '</style>' +
+                '<div class="card">x</div>',
+                'html'
+            );
+            expect(out).toContain('--bg');
+            expect(out).toContain('--color');
+            expect(out).toContain('var(--bg)');
+            expect(out).toContain('var(--color)');
+        });
+
+        it('preserves clamp() and rgba() through <style>-in-data', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<style>' +
+                '.card { font-size: clamp(12px, 3vw, 16px); ' +
+                'box-shadow: 0 2px 6px rgba(0,0,0,0.2); }' +
+                '</style>' +
+                '<div class="card">x</div>',
+                'html'
+            );
+            expect(out).toContain('clamp(');
+            expect(out).toContain('rgba(');
+        });
+
+        it('preserves @media containing CSS variables through <style>-in-data', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<style>' +
+                ':root { --pad: 16px; }' +
+                '@media (max-width: 600px) { ' +
+                '.card { padding: var(--pad); font-size: clamp(12px, 3vw, 16px) !important; } ' +
+                '}' +
+                '</style>' +
+                '<div class="card">x</div>',
+                'html'
+            );
+            expect(out).toContain('@media');
+            expect(out).toContain('--pad');
+            expect(out).toContain('var(--pad)');
+            expect(out).toContain('clamp(');
+            expect(out).toContain('!important');
+        });
     });
 
     describe('attribute sanitization', () => {

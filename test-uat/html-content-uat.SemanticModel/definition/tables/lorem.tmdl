@@ -69,7 +69,7 @@ table lorem
 		mode: import
 		source =
 				let
-				    Source = Csv.Document(File.Contents(RepoRoot & "\lorem.csv"),[Delimiter=",", Columns=8, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    Source = Csv.Document(File.Contents(RepoRoot & "\lorem.csv"),[Delimiter=",", Columns=8, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
 				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
 				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"id", type text}, {"description", type text}, {"type", type text}, {"category", type text}, {"cspCategory", type text}, {"source", type text}, {"input", type text}, {"sanitizedOutput", type text}})
 				in

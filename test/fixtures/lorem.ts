@@ -458,5 +458,169 @@ export const LOREM_PAYLOADS: Payload[] = [
         category: 'lorem',
         cspCategory: 'none',
         source: 'issue #144 — office-paste residue'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // CSS variables + modern CSS in <style>-in-data (issue #143 follow-up).
+    //
+    // Per https://github.com/dm-p/powerbi-visuals-html-content/issues/143
+    // (kriscs1 + oechslein comments) reporters on 1.6.1.0 said their
+    // <style id="visualUserStylesheet"> content with CSS variables was
+    // being stripped after the cert-remediation update. The current
+    // branch handles all of these cases (verified by the css-sanitizer
+    // and sanitize-pipeline test suites). These fixtures are the UAT
+    // surface — bind them in Power BI Desktop to verify the rendered
+    // output looks the way the reporter expected.
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'lorem-style-tag-css-variables',
+        description:
+            'A <style> tag in the bound data defining CSS custom properties ' +
+            'on :root and referencing them via var() on a card. The visual ' +
+            'must preserve both the declarations and the references so the ' +
+            'theming pattern works.',
+        input:
+            '<style>' +
+            ':root { --card-bg: #f7f7fa; --card-fg: #112233; --card-pad: 12px; }' +
+            '.themed-card { ' +
+            'background: var(--card-bg); ' +
+            'color: var(--card-fg); ' +
+            'padding: var(--card-pad); ' +
+            'border-radius: 8px; ' +
+            'border: 1px solid #ccc; ' +
+            '}' +
+            '</style>' +
+            '<div class="themed-card">' +
+            '<h3>Themed card</h3>' +
+            '<p>Content rendered with CSS variables defined in the same payload.</p>' +
+            '</div>',
+        expectedSanitized: {
+            contains: [
+                '--card-bg',
+                '--card-fg',
+                '--card-pad',
+                'var(--card-bg)',
+                'var(--card-fg)',
+                'var(--card-pad)',
+                'Themed card',
+                'CSS variables defined in the same payload'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #143 — CSS variables in <style>-in-data'
+    },
+    {
+        id: 'lorem-style-tag-modern-css',
+        description:
+            'A <style> tag using clamp(), rgba(), :hover, and a transition. ' +
+            'Verifies the modern CSS surface that report authors typically ' +
+            'use for responsive cards and hover affordances.',
+        input:
+            '<style>' +
+            '.modern-card { ' +
+            'font-size: clamp(14px, 2vw, 18px); ' +
+            'box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); ' +
+            'transition: box-shadow 0.2s, transform 0.2s; ' +
+            '}' +
+            '.modern-card:hover { ' +
+            'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); ' +
+            'transform: translateY(-1px); ' +
+            '}' +
+            '</style>' +
+            '<div class="modern-card">' +
+            '<p>Hover me to see the transition.</p>' +
+            '</div>',
+        expectedSanitized: {
+            contains: [
+                'clamp(',
+                'rgba(',
+                ':hover',
+                'transition',
+                'transform',
+                'translateY',
+                'Hover me to see the transition.'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #143 — modern CSS in <style>-in-data'
+    },
+    {
+        id: 'lorem-style-tag-reporter-cards',
+        description:
+            'Compact reproduction of the kriscs1 / oechslein report — ' +
+            ':root variables, themed cards using a MULTI-LINE comma-' +
+            'separated selector (.card-wide, .card-wide-link), :hover, ' +
+            '@media query containing another multi-line selector, ' +
+            'clamp(), rgba(), and !important all in one <style> block ' +
+            'bound to the visual via the data payload. The multi-line ' +
+            'selector form is the load-bearing case for the issue #143 ' +
+            'regression — pre-fix the dangerous-selector check dropped ' +
+            'any rule with a newline between selectors.',
+        input:
+            '<style id="visualUserStylesheet" type="text/css">' +
+            ':root {' +
+            '--card-bg-color: #ffffff;' +
+            '--card-hover-bg-color: #C8DFF4;' +
+            '--card-font-family: "Arial", "Tahoma", "Segoe UI", sans-serif;' +
+            '}\n' +
+            '.card-wide,\n' +
+            '.card-wide-link {\n' +
+            '    display: flex;\n' +
+            '    flex-direction: row;\n' +
+            '    width: calc(100% - 40px);\n' +
+            '    border: 2px solid #ccc;\n' +
+            '    border-radius: 12px;\n' +
+            '    padding: 16px;\n' +
+            '    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n' +
+            '    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;\n' +
+            '    color: inherit;\n' +
+            '    background-color: var(--card-bg-color);\n' +
+            '    font-family: var(--card-font-family) !important;\n' +
+            '}\n' +
+            '.card-wide-link:hover {' +
+            'transform: scale(1.01);' +
+            'background-color: var(--card-hover-bg-color);' +
+            '}' +
+            '.card-title { font-size: clamp(32px, 4vw, 48px); font-weight: 700; }' +
+            '@media (max-width: 600px) {\n' +
+            '    .card-wide,\n' +
+            '    .card-wide-link {\n' +
+            '        padding: 12px;\n' +
+            '    }\n' +
+            '    .card-title { font-size: clamp(12px, 3.5vw, 16px) !important; }\n' +
+            '}' +
+            '</style>' +
+            '<div class="card-wide-link">' +
+            '<div class="card-content">' +
+            '<div class="card-title">Quarterly Inventory Snapshot</div>' +
+            '<div class="card-desc">Stock levels and turnover rates.</div>' +
+            '</div>' +
+            '</div>',
+        expectedSanitized: {
+            contains: [
+                '--card-bg-color',
+                '--card-hover-bg-color',
+                '--card-font-family',
+                'var(--card-bg-color)',
+                'var(--card-hover-bg-color)',
+                'var(--card-font-family)',
+                '.card-wide',
+                '.card-wide-link',
+                'flex-direction',
+                'calc(100% - 40px)',
+                'rgba(',
+                'clamp(',
+                'scale(',
+                ':hover',
+                '@media',
+                '!important',
+                'inherit',
+                'Quarterly Inventory Snapshot'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #143 — kriscs1 / oechslein report content (multi-line selectors)'
     }
 ];
