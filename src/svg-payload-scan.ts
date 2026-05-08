@@ -70,7 +70,14 @@ export function hasDangerousSvgPayload(dataUri: string): boolean {
     if (decoded == null) return true;
     if (/<script\b/i.test(decoded)) return true;
     if (/<foreignObject\b/i.test(decoded)) return true;
-    if (/\son[a-z]+\s*=/i.test(decoded)) return true;
+    // The boundary char before `on...` must include `"` and `'`, not
+    // just whitespace — HTML5's lenient tokenizer accepts adjacent
+    // attributes when separated by a closing quote, e.g.
+    // `<svg id="x"onclick="alert(1)">`. The same lenient parsers run
+    // on the sandbox-weak surfaces this scan defends, so a
+    // whitespace-only boundary would let the handler through here
+    // while a downstream parser still fires it.
+    if (/[\s"']on[a-z]+\s*=/i.test(decoded)) return true;
     const hrefMatches = decoded.match(
         /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
     );
@@ -79,11 +86,17 @@ export function hasDangerousSvgPayload(dataUri: string): boolean {
             const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
             if (!valueMatch) continue;
             const value = valueMatch[1].trim();
-            // Empty href, fragment-only refs (#id), and data: URIs are
-            // safe — same shape as the funciri scheme check on outer
-            // SVG attributes (sanitize-pipeline.ts).
+            // Empty href and fragment-only refs (#id) resolve in-document
+            // and never fetch — safe.
             if (value === '' || value.startsWith('#')) continue;
-            if (/^data:/i.test(value)) continue;
+            // data: URIs are admitted only for image MIME types. The
+            // outer attribute pipeline (getSanitizedDataUri,
+            // isSafeImageDataUri) restricts data: to image/* across all
+            // URL-bearing attributes; this scan applies the same rule
+            // to inner-element href / xlink:href so a payload like
+            // <image href="data:text/html,<script>..."> is flagged
+            // even when wrapped inside an outer image-context SVG.
+            if (/^data:image\//i.test(value)) continue;
             return true;
         }
     }

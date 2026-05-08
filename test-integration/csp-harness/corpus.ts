@@ -501,6 +501,38 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'script-src',
         source: 'Security review — svg+xml payload defense-in-depth (base64 path)'
     },
+    {
+        id: 'data-uri-svg-onclick-quote-adjacent',
+        description:
+            'SVG payload with an on* event handler placed adjacent to a ' +
+            'closing attribute quote (no whitespace between). HTML5\'s lenient ' +
+            'tokenizer treats the closing `"` as an attribute boundary and ' +
+            'fires onclick — the boundary regex must match `"on...=` as well ' +
+            'as `\\son...=` for sandbox-weak surfaces (Greptile review).',
+        input: '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' id=\'x\'onclick=\'alert(1)\'/>">',
+        expectedSanitized: {
+            notContains: ['onclick', 'alert(1)', 'data:image/svg+xml']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Greptile review — quote-adjacent event handler boundary'
+    },
+    {
+        id: 'data-uri-svg-inner-data-text-html',
+        description:
+            'SVG payload with an inner element href pointing at a nested ' +
+            'data:text/html URI. Even though the outer image-context sandbox ' +
+            'blocks the inner fetch, the payload scanner now restricts inner ' +
+            'data: hrefs to data:image/* MIME types — matching the outer ' +
+            'allowlist so sandbox-weak surfaces also reject it (Greptile review).',
+        input: '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><image href=\'data:text/html,<script>alert(1)</script>\' width=\'10\' height=\'10\'/></svg>">',
+        expectedSanitized: {
+            notContains: ['data:text/html', '<script', 'alert(1)']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Greptile review — inner href data: restricted to image/*'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 5: At-rule vectors
     // ─────────────────────────────────────────────────────────────────
@@ -740,6 +772,26 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         category: 'svg',
         cspCategory: 'img-src',
         source: 'issue #145 SMIL bypass — external href on SMIL element'
+    },
+    {
+        id: 'svg-animate-to-javascript-value',
+        description:
+            'SMIL animate where attributeName names a SAFE presentation ' +
+            'property (fill) but the `to` value carries a `javascript:` ' +
+            'scheme. Once attributeName clears SMIL_ATTRIBUTE_NAME_DENYLIST, ' +
+            'the value-side gate is the scriptingPatterns substring scan — ' +
+            'this row pins that contract so a future weakening of ' +
+            'scriptingPatterns is caught (Greptile review).',
+        input:
+            '<svg><rect width="10" height="10" fill="red">' +
+            '<animate attributeName="fill" to="javascript:alert(1)" dur="1s"/>' +
+            '</rect></svg>',
+        expectedSanitized: {
+            notContains: ['javascript:', 'alert(1)']
+        },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'Greptile review — SMIL value-side gate (scriptingPatterns)'
     },
     {
         id: 'svg-use-javascript',

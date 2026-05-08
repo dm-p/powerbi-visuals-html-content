@@ -170,7 +170,7 @@ export const STYLESHEET_PAYLOADS: StylesheetScenario[] = [
         description:
             'CSS rule using url(#fragment) to reference an in-document SVG ' +
             'gradient. Same-document fragment refs must survive surface 3 ' +
-            'sanitization (Greptile review fix).',
+            'sanitization (security review fix).',
         expectedOutcome:
             'The .badge rectangle renders with the in-document gradient applied as fill.',
         htmlInput:

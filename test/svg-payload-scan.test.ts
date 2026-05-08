@@ -232,6 +232,26 @@ describe('hasDangerousSvgPayload', () => {
                 )
             ).toBe(false);
         });
+
+        // HTML5 tokenizer accepts adjacent attributes when separated by a
+        // closing quote (no whitespace). The regex must match this shape
+        // because the sandbox-weak surfaces the scan defends use the same
+        // lenient parsers and would fire the handler.
+        it('rejects double-quote-adjacent onclick (no whitespace boundary)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" id="x"onclick="alert(1)"/>'
+                )
+            ).toBe(true);
+        });
+
+        it('rejects single-quote-adjacent onload', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' id='x'onload='alert(1)'/>"
+                )
+            ).toBe(true);
+        });
     });
 
     describe('external href rejection', () => {
@@ -273,6 +293,49 @@ describe('hasDangerousSvgPayload', () => {
                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='file:///etc/passwd' width='10' height='10'/></svg>"
                 )
             ).toBe(true);
+        });
+
+        // Inner data: hrefs are admitted only for image/* MIME types —
+        // matches the outer-attribute restriction enforced by
+        // getSanitizedDataUri / isSafeImageDataUri.
+        it('rejects nested data:text/html href', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:text/html,<script>alert(1)</script>' width='10' height='10'/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects nested data:text/javascript href', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:text/javascript,alert(1)' width='10' height='10'/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects nested data:application/javascript href', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:application/javascript,alert(1)' width='10' height='10'/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('preserves nested data:image/png href (allowlisted MIME)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/png;base64,AAA' width='10' height='10'/></svg>"
+                )
+            ).toBe(false);
+        });
+
+        it('preserves nested data:image/svg+xml href (allowlisted MIME)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/svg+xml;base64,PHN2Zy8+' width='10' height='10'/></svg>"
+                )
+            ).toBe(false);
         });
     });
 
