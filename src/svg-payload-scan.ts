@@ -78,8 +78,16 @@ export function hasDangerousSvgPayload(dataUri: string): boolean {
     // whitespace-only boundary would let the handler through here
     // while a downstream parser still fires it.
     if (/[\s"']on[a-z]+\s*=/i.test(decoded)) return true;
+    // The boundary char before `href` / `xlink:href` must include `"`
+    // and `'`, not just whitespace and start-of-string — HTML5's lenient
+    // tokenizer accepts adjacent attributes when separated by a closing
+    // quote, e.g. `<image id="x"href="https://attacker.example/pixel">`.
+    // The same lenient parsers run on the sandbox-weak surfaces this
+    // scan defends, so a whitespace-only boundary would let an external
+    // fetch through here while a downstream parser still initiated it.
+    // Mirrors the boundary used by the on* event-handler regex above.
     const hrefMatches = decoded.match(
-        /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
+        /(?:^|[\s"'])(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
     );
     if (hrefMatches) {
         for (const raw of hrefMatches) {

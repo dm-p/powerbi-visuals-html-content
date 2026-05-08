@@ -337,6 +337,35 @@ describe('hasDangerousSvgPayload', () => {
                 )
             ).toBe(false);
         });
+
+        // HTML5's lenient tokenizer accepts adjacent attributes
+        // separated by a closing quote (no whitespace). The boundary
+        // group on the href regex must match `"`/`'` as well as
+        // whitespace and start-of-string — same shape applied to the
+        // on* event-handler regex earlier.
+        it('rejects double-quote-adjacent external href on inner element', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><image id="x"href="https://attacker.example/pixel" width="10" height="10"/></svg>'
+                )
+            ).toBe(true);
+        });
+
+        it('rejects single-quote-adjacent external xlink:href on inner element', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image id='x'xlink:href='https://attacker.example/pixel' width='10' height='10'/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects double-quote-adjacent nested data:text/html href', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><image id="x"href="data:text/html,<script>alert(1)</script>" width="10" height="10"/></svg>'
+                )
+            ).toBe(true);
+        });
     });
 
     describe('malformed input', () => {
