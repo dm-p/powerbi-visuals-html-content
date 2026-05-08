@@ -534,6 +534,41 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'Security review — inner href data: restricted to image/*'
     },
     {
+        id: 'svg-funciri-data-foreignobject',
+        description:
+            'SVG funciri presentation attribute (filter) pointing at a ' +
+            'data:image/svg+xml URI whose embedded payload contains ' +
+            '<foreignObject>. The funciri scheme gate alone admits any ' +
+            'data: URI; the new payload check runs the same ' +
+            'image-data-URI safety predicate (isSafeImageDataUri) as the ' +
+            'top-level src/href and CSS url() paths so sandbox-weak ' +
+            'surfaces (older WebView2, mobile, export pipelines) still ' +
+            'drop the embedded foreignObject (Security review).',
+        input: '<svg><rect filter="url(data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><foreignObject><iframe src=\'https://attacker.example\'/></foreignObject></svg>)" width="10" height="10"/></svg>',
+        expectedSanitized: {
+            notContains: ['foreignObject', 'attacker.example']
+        },
+        category: 'svg',
+        cspCategory: 'frame-src',
+        source: 'Security review — funciri data: payload scan'
+    },
+    {
+        id: 'svg-funciri-data-text-html',
+        description:
+            'SVG funciri pointing at data:text/html (a non-image MIME). ' +
+            'Pre-fix, the funciri gate only checked scheme==data and ' +
+            'admitted any subtype; now the MIME allowlist drops it before ' +
+            'the inner <script> can ever be parsed by a sandbox-weak ' +
+            'surface (security review).',
+        input: '<svg><rect mask="url(data:text/html,<script>alert(1)</script>)" width="10" height="10"/></svg>',
+        expectedSanitized: {
+            notContains: ['data:text/html', '<script', 'alert(1)']
+        },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'Security review — funciri MIME allowlist'
+    },
+    {
         id: 'data-uri-svg-href-quote-adjacent',
         description:
             'SVG payload with an inner element href placed adjacent to a ' +

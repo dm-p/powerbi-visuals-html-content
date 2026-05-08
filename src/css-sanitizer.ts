@@ -27,7 +27,7 @@
 
 import postcss, { Root, Declaration } from 'postcss';
 import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
-import { hasDangerousSvgPayload } from './svg-payload-scan';
+import { isSafeImageDataUri } from './svg-payload-scan';
 
 // postcss-value-parser is a CommonJS module whose types declare the parser
 // function as the module export. Importing it as `import valueParser from ...`
@@ -145,16 +145,6 @@ function hasDangerousSelector(selector: string): boolean {
     return false;
 }
 
-const SAFE_IMAGE_MIME_TYPES = new Set([
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/gif',
-    'image/webp',
-    'image/bmp',
-    'image/svg+xml'
-]);
-
 const DENIED_FUNCTIONS = new Set<string>([
     'expression',
     '-moz-binding',
@@ -171,38 +161,11 @@ function extractUrlArgument(node: FunctionNode): string {
     return String((child as any).value || '').trim();
 }
 
-function isSafeImageDataUri(rawUrl: string): boolean {
-    const url = rawUrl.trim().toLowerCase();
-    if (!url) return false;
-    if (!url.startsWith('data:')) return false;
-    const semi = url.indexOf(';');
-    const comma = url.indexOf(',');
-    const end = Math.min(
-        semi === -1 ? url.length : semi,
-        comma === -1 ? url.length : comma
-    );
-    const mime = url.slice(5, end);
-    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
-    // Real binary image data is always base64-encoded. A data:image/*
-    // URI without ;base64, is always smuggling plain-text content (HTML,
-    // script) behind an image MIME declaration — except for SVG, which
-    // is text by spec and is legitimately emitted as
-    // `data:image/svg+xml;utf8,<svg ...>` (or the bare comma form) by
-    // tools and DAX measures. This mirrors the same MIME-conditional
-    // base64 check in getSanitizedDataUri (sanitize-pipeline.ts).
-    if (mime !== 'image/svg+xml' && !/;base64,/i.test(rawUrl)) return false;
-    // Defense-in-depth payload scan for image/svg+xml — same backstop
-    // applied by getSanitizedDataUri in sanitize-pipeline.ts. Blocks
-    // <script>, <foreignObject>, on*= event handlers, and external
-    // href references inside the SVG body, so content the browser
-    // sandbox would normally neuter is rejected even on
-    // rendering surfaces where the sandbox guarantee is weaker (older
-    // WebView2, mobile, export pipelines).
-    if (mime === 'image/svg+xml' && hasDangerousSvgPayload(rawUrl)) {
-        return false;
-    }
-    return true;
-}
+// `isSafeImageDataUri` and `SAFE_IMAGE_MIME_TYPES` live in
+// `./svg-payload-scan` so all three call sites (this CSS url(),
+// the funciri value-scheme check in sanitize-pipeline.ts, and the
+// top-level URL attribute path) share one predicate. See that
+// module's header for the contract.
 
 function isFragmentOnlyUrl(rawUrl: string): boolean {
     // Same-document fragment references like url(#shadow), url(#g1) are

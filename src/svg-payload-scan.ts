@@ -1,26 +1,51 @@
 /**
- * Defense-in-depth content scan for `data:image/svg+xml` URIs.
+ * Shared safety helpers for `data:` URIs that carry images.
  *
- * Used by both:
- *   - `getSanitizedDataUri` in `sanitize-pipeline.ts` (for `<img src>`,
- *     `<svg image href>`, `<feImage href>` and similar URL-bearing
- *     attributes)
- *   - `isSafeImageDataUri` in `css-sanitizer.ts` (for CSS `url()` values
- *     in declarations like `background-image`, `mask`, `filter`)
+ * Three call sites consume these helpers:
+ *   - `getSanitizedDataUri` in `sanitize-pipeline.ts` — top-level URL
+ *     attributes (`<img src>`, `<svg image href>`, `<feImage href>`).
+ *   - The funciri value-scheme check in `sanitize-pipeline.ts` — SVG
+ *     presentation attributes that accept `url(...)` references
+ *     (`fill`, `mask`, `clip-path`, `filter`, `marker-*`, `cursor`).
+ *   - `hasUnsafeFunction` in `css-sanitizer.ts` — CSS `url()` values
+ *     in declarations like `background-image`, `mask`, `filter`.
+ *
+ * Every call site needs to answer the same question: "is this `data:`
+ * URI safe to admit?" The predicate `isSafeImageDataUri` is the single
+ * source of truth. Behind it sits `hasDangerousSvgPayload`, which
+ * decodes the body of an `image/svg+xml` URI and rejects it if the
+ * payload carries patterns the browser image-context sandbox would
+ * normally neuter (`<script>`, `<foreignObject>`, on*= event handlers,
+ * external inner-element href).
  *
  * Browser sandboxing of SVG loaded via image-context is the
- * load-bearing security boundary — embedded `<script>`, event handlers,
- * and external resource references inside the SVG do not execute. But
- * the sandbox guarantee is not uniform across every rendering surface a
- * Power BI report ends up in (older WebView2, mobile renderers,
- * export-to-PDF pipelines). This scan is the backstop: payloads that
- * carry patterns the sandbox would normally neuter are rejected at the
- * sanitizer so a future sandbox-weak surface still drops them.
+ * load-bearing security boundary. But the sandbox guarantee is not
+ * uniform across every rendering surface a Power BI report ends up in
+ * (older WebView2, mobile renderers, export-to-PDF pipelines). The
+ * payload scan is the backstop: payloads that carry sandbox-defeating
+ * patterns are rejected at the sanitizer so a future sandbox-weak
+ * surface still drops them.
  *
- * The two helpers are colocated here so the regex / decode logic stays
- * in lockstep across the two call sites — a bypass discovered in one
+ * All three helpers live in this module so the regex / decode logic
+ * stays in lockstep across call sites — a bypass discovered in one
  * surface only needs fixing in one place.
  */
+
+/**
+ * MIME allowlist for `data:` URIs that may appear in image-loading
+ * attributes (`src`, `href`, `xlink:href`, CSS `url()`, SVG funciri).
+ * Raster types must be base64-encoded; `image/svg+xml` is text by spec
+ * and is admitted in `;utf8,` / bare-comma / `;base64,` forms.
+ */
+export const SAFE_IMAGE_MIME_TYPES = new Set<string>([
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/svg+xml'
+]);
 
 /**
  * Decode the body of a `data:image/svg+xml` URI for content inspection.
@@ -109,4 +134,39 @@ export function hasDangerousSvgPayload(dataUri: string): boolean {
         }
     }
     return false;
+}
+
+/**
+ * Predicate: is this `data:` URI safe to admit at an image-loading
+ * call site? Returns false for any of:
+ *   - Empty / non-`data:` input
+ *   - MIME type not on `SAFE_IMAGE_MIME_TYPES`
+ *   - Raster MIME (png / jpeg / gif / webp / bmp) without `;base64,`
+ *     (a raster URI without base64 is always smuggling text content
+ *     behind an image declaration)
+ *   - `image/svg+xml` whose decoded payload trips
+ *     `hasDangerousSvgPayload` (script tag, foreignObject, on*=
+ *     handler, external inner-element href)
+ *
+ * `image/svg+xml` is admitted in any of `;base64,`, `;utf8,`, or
+ * bare-comma forms — SVG is text by spec and DAX measures legitimately
+ * emit the non-base64 forms.
+ */
+export function isSafeImageDataUri(rawUrl: string): boolean {
+    const url = rawUrl.trim().toLowerCase();
+    if (!url) return false;
+    if (!url.startsWith('data:')) return false;
+    const semi = url.indexOf(';');
+    const comma = url.indexOf(',');
+    const end = Math.min(
+        semi === -1 ? url.length : semi,
+        comma === -1 ? url.length : comma
+    );
+    const mime = url.slice(5, end);
+    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
+    if (mime !== 'image/svg+xml' && !/;base64,/i.test(rawUrl)) return false;
+    if (mime === 'image/svg+xml' && hasDangerousSvgPayload(rawUrl)) {
+        return false;
+    }
+    return true;
 }

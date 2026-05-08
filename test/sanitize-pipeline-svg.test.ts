@@ -725,4 +725,104 @@ describe('sanitize-pipeline — SVG presentation attributes', () => {
             expect(out).not.toContain('attacker.example');
         });
     });
+
+    // SVG funciri presentation attributes (filter, mask, clip-path,
+    // marker-*, fill, stroke, cursor) accept `url(...)` references.
+    // Security review: when the embedded URL is a `data:` URI, the
+    // funciri gate must run the same image-data-URI safety check as
+    // the top-level src/href path and the CSS url() path. Without
+    // this, an attacker-controlled svg+xml data URI inside a funciri
+    // could carry <foreignObject> or external href that the
+    // image-context sandbox neuters in modern browsers but a
+    // sandbox-weak surface (older WebView2, mobile, export) would not.
+    describe('funciri data: payload validation', () => {
+        it('preserves filter: url(#fragment) (no scheme)', () => {
+            const out = sanitize(
+                '<svg><defs><filter id="shadow"><feGaussianBlur stdDeviation="2"/></filter></defs>' +
+                    '<rect filter="url(#shadow)" width="10" height="10"/></svg>'
+            );
+            expect(out).toContain('url(#shadow)');
+        });
+
+        it('preserves mask: url(data:image/png;base64,...)', () => {
+            const png =
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=';
+            const out = sanitize(
+                `<svg><rect mask="url(${png})" width="10" height="10"/></svg>`
+            );
+            expect(out).toContain('data:image/png');
+        });
+
+        it('preserves filter: url(data:image/svg+xml;utf8,<safe-svg/>)', () => {
+            const out = sanitize(
+                "<svg><rect filter=\"url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>)\" width='10' height='10'/></svg>"
+            );
+            expect(out).toContain('data:image/svg+xml');
+        });
+
+        it('drops filter: url(https://attacker.example) — non-data scheme', () => {
+            const out = sanitize(
+                '<svg><rect filter="url(https://attacker.example/evil.svg)" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops filter: url(data:image/svg+xml;utf8,<svg with embedded <script>)', () => {
+            const out = sanitize(
+                "<svg><rect filter=\"url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>)\" width='10' height='10'/></svg>"
+            );
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('script');
+        });
+
+        it('drops filter: url(data:image/svg+xml;utf8,<svg with <foreignObject>)', () => {
+            const out = sanitize(
+                "<svg><rect filter=\"url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>)\" width='10' height='10'/></svg>"
+            );
+            expect(out).not.toContain('foreignObject');
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops mask: url(data:image/svg+xml;utf8,<svg with onload=>)', () => {
+            const out = sanitize(
+                "<svg><rect mask=\"url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>)\" width='10' height='10'/></svg>"
+            );
+            expect(out).not.toContain('onload');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops clip-path: url(data:image/svg+xml;utf8,<svg with external inner href>)', () => {
+            const out = sanitize(
+                "<svg><rect clip-path=\"url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png'/></svg>)\" width='10' height='10'/></svg>"
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops mask: url(data:text/html,...) — disallowed MIME', () => {
+            const out = sanitize(
+                '<svg><rect mask="url(data:text/html,<script>alert(1)</script>)" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('data:text/html');
+            expect(out).not.toContain('script');
+        });
+
+        it('drops filter: url(data:image/png,...) without base64 (smuggled non-binary)', () => {
+            const out = sanitize(
+                '<svg><rect filter="url(data:image/png,<svg/onload=alert(1)>)" width="10" height="10"/></svg>'
+            );
+            expect(out).not.toContain('data:image/png');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops base64-encoded svg+xml carrying <script> in funciri', () => {
+            // base64 of "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
+            const b64 =
+                'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=';
+            const out = sanitize(
+                `<svg><rect filter="url(data:image/svg+xml;base64,${b64})" width="10" height="10"/></svg>`
+            );
+            expect(out).not.toContain('PHN2Zy');
+            expect(out).not.toContain('script');
+        });
+    });
 });

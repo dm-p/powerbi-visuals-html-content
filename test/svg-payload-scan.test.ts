@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
     decodeSvgDataUriPayload,
-    hasDangerousSvgPayload
+    hasDangerousSvgPayload,
+    isSafeImageDataUri
 } from '../src/svg-payload-scan';
 
 /**
@@ -381,6 +382,130 @@ describe('hasDangerousSvgPayload', () => {
                     'data:image/svg+xml;base64,!!!not-base64!!!'
                 )
             ).toBe(true);
+        });
+    });
+});
+
+describe('isSafeImageDataUri', () => {
+    describe('safe inputs', () => {
+        it('admits data:image/png;base64', () => {
+            expect(
+                isSafeImageDataUri(
+                    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII='
+                )
+            ).toBe(true);
+        });
+
+        it('admits data:image/jpeg;base64', () => {
+            expect(isSafeImageDataUri('data:image/jpeg;base64,AAA')).toBe(true);
+        });
+
+        it('admits data:image/svg+xml;utf8 with safe SVG', () => {
+            expect(
+                isSafeImageDataUri(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"
+                )
+            ).toBe(true);
+        });
+
+        it('admits data:image/svg+xml;base64 with safe SVG', () => {
+            // base64 of '<svg xmlns="http://www.w3.org/2000/svg"/>'
+            const b64 = 'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=';
+            expect(isSafeImageDataUri(`data:image/svg+xml;base64,${b64}`)).toBe(
+                true
+            );
+        });
+
+        it('admits data:image/svg+xml,<svg/> bare-comma form', () => {
+            expect(
+                isSafeImageDataUri(
+                    "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>"
+                )
+            ).toBe(true);
+        });
+    });
+
+    describe('rejects MIME types not on the allowlist', () => {
+        it('rejects data:text/html', () => {
+            expect(
+                isSafeImageDataUri(
+                    'data:text/html,<script>alert(1)</script>'
+                )
+            ).toBe(false);
+        });
+
+        it('rejects data:text/javascript', () => {
+            expect(isSafeImageDataUri('data:text/javascript,alert(1)')).toBe(
+                false
+            );
+        });
+
+        it('rejects data:application/javascript', () => {
+            expect(
+                isSafeImageDataUri('data:application/javascript,alert(1)')
+            ).toBe(false);
+        });
+
+        it('rejects data: with no MIME', () => {
+            expect(isSafeImageDataUri('data:,whatever')).toBe(false);
+        });
+    });
+
+    describe('rejects raster MIME without base64', () => {
+        it('rejects data:image/png without ;base64,', () => {
+            expect(
+                isSafeImageDataUri(
+                    'data:image/png,<svg/onload=alert(1)>'
+                )
+            ).toBe(false);
+        });
+
+        it('rejects data:image/jpeg without ;base64,', () => {
+            expect(
+                isSafeImageDataUri('data:image/jpeg,smuggled-html')
+            ).toBe(false);
+        });
+    });
+
+    describe('rejects svg+xml with dangerous payload', () => {
+        it('rejects svg+xml with embedded <script>', () => {
+            expect(
+                isSafeImageDataUri(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
+                )
+            ).toBe(false);
+        });
+
+        it('rejects svg+xml with onload= handler', () => {
+            expect(
+                isSafeImageDataUri(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>"
+                )
+            ).toBe(false);
+        });
+
+        it('rejects svg+xml with external xlink:href on inner element', () => {
+            expect(
+                isSafeImageDataUri(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png'/></svg>"
+                )
+            ).toBe(false);
+        });
+    });
+
+    describe('non-data inputs', () => {
+        it('rejects empty input', () => {
+            expect(isSafeImageDataUri('')).toBe(false);
+        });
+
+        it('rejects http:// URL', () => {
+            expect(
+                isSafeImageDataUri('https://attacker.example/x.png')
+            ).toBe(false);
+        });
+
+        it('rejects fragment ref (caller handles separately)', () => {
+            expect(isSafeImageDataUri('#fragment')).toBe(false);
         });
     });
 });

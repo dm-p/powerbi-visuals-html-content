@@ -17,7 +17,7 @@ import { marked } from 'marked';
 import { VisualConstants } from './visual-constants';
 import { RenderFormat } from './types';
 import { sanitizeCss } from './css-sanitizer';
-import { hasDangerousSvgPayload } from './svg-payload-scan';
+import { hasDangerousSvgPayload, isSafeImageDataUri } from './svg-payload-scan';
 
 /**
  * Per-tag attribute allowlist enforced by the DOMPurify
@@ -360,6 +360,33 @@ export const getSanitizedContent = (content: string): string => {
                         if (funciriScheme) {
                             const fScheme = funciriScheme[1].toLowerCase();
                             if (fScheme !== 'data') {
+                                hookEvent.keepAttr = false;
+                                return;
+                            }
+                            // Scheme is `data:` — extract the full URL
+                            // inside `url(...)` and run the shared
+                            // image-data-URI safety check (MIME
+                            // allowlist + base64 enforcement +
+                            // svg+xml payload scan). Without this,
+                            // `<rect filter="url(data:image/svg+xml;
+                            // base64,<svg with embedded foreignObject
+                            // / external href>)">` would pass on
+                            // sandbox-weak surfaces (older WebView2,
+                            // mobile, export pipelines). Mirrors the
+                            // gate already applied to top-level
+                            // `src`/`href` (getSanitizedDataUri) and
+                            // CSS `url()` values (isSafeImageDataUri
+                            // via hasUnsafeFunction).
+                            const urlMatch = value.match(
+                                /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/i
+                            );
+                            const fullUrl = (
+                                urlMatch?.[1] ??
+                                urlMatch?.[2] ??
+                                urlMatch?.[3] ??
+                                ''
+                            ).trim();
+                            if (fullUrl && !isSafeImageDataUri(fullUrl)) {
                                 hookEvent.keepAttr = false;
                                 return;
                             }

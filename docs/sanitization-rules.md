@@ -1050,6 +1050,34 @@ HTML `on*` attributes that execute script.
 
 Payloads that only work inside SVG contexts.
 
+#### SVG funciri presentation attribute (filter) pointing at a data:image/svg+xml URI whose embedded payload contains <foreignObject>. The funciri scheme gate alone admits any data: URI; the new payload check runs the same image-data-URI safety predicate (isSafeImageDataUri) as the top-level src/href and CSS url() paths so sandbox-weak surfaces (older WebView2, mobile, export pipelines) still drop the embedded foreignObject (Security review).
+
+**Input:**
+
+```html
+<svg><rect filter="url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG funciri pointing at data:text/html (a non-image MIME). Pre-fix, the funciri gate only checked scheme==data and admitted any subtype; now the MIME allowlist drops it before the inner <script> can ever be parsed by a sandbox-weak surface (security review).
+
+**Input:**
+
+```html
+<svg><rect mask="url(data:text/html,<script>alert(1)</script>)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
 #### script element inside svg.
 
 **Input:**
