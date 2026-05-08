@@ -722,8 +722,84 @@ export const getSanitizedDataUri = (dataUri: string): string => {
         return 'data:,';
     }
 
+    // Defense-in-depth content scan for image/svg+xml. Modern Chromium
+    // sandboxes SVG loaded via <img>/<image>/<feImage>/CSS url(), so
+    // embedded scripts and event handlers do not execute in image
+    // contexts. The sandbox guarantee is the load-bearing security
+    // boundary — but it isn't uniform across every rendering surface a
+    // Power BI report ends up in (older WebView2, mobile renderers,
+    // export-to-PDF pipelines, etc.). Block payloads that contain
+    // patterns the sandbox would normally neuter, so a future
+    // sandbox-weak surface still rejects them at the sanitizer.
+    if (mimeType === 'image/svg+xml' && hasDangerousSvgPayload(dataUri)) {
+        console.warn(
+            'Blocked data:image/svg+xml URI: payload contains script, event handler, foreignObject, or external href'
+        );
+        return 'data:,';
+    }
+
     return dataUri;
 };
+
+/**
+ * Decode the body of a `data:image/svg+xml` URI for content inspection.
+ * Returns null when the URI is malformed or base64 decoding fails.
+ */
+function decodeSvgDataUriPayload(dataUri: string): string | null {
+    const commaIdx = dataUri.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUri.slice(0, commaIdx);
+    const payload = dataUri.slice(commaIdx + 1);
+    if (/;base64$/i.test(header) || /;base64;/i.test(header)) {
+        try {
+            return atob(payload);
+        } catch {
+            return null;
+        }
+    }
+    try {
+        return decodeURIComponent(payload);
+    } catch {
+        // Payload may already be plain text with literal angle brackets
+        // (DAX measures emit data:image/svg+xml;utf8,<svg ...> with no
+        // percent-encoding). Fall back to the raw payload — the pattern
+        // checks below operate on either form.
+        return payload;
+    }
+}
+
+/**
+ * Defense-in-depth scan of an `image/svg+xml` data URI for content the
+ * browser sandbox would normally neuter. Catches the common SVG XSS
+ * vectors that survive a sandbox failure: script tags, foreignObject,
+ * `on*` event handlers, and inner-element href attrs that point at
+ * external schemes (the sandbox blocks fetches in image context, but a
+ * sandbox-weak surface would let them through).
+ */
+function hasDangerousSvgPayload(dataUri: string): boolean {
+    const decoded = decodeSvgDataUriPayload(dataUri);
+    if (decoded == null) return true;
+    if (/<script\b/i.test(decoded)) return true;
+    if (/<foreignObject\b/i.test(decoded)) return true;
+    if (/\son[a-z]+\s*=/i.test(decoded)) return true;
+    // Inner href / xlink:href references inside the SVG. Allow empty,
+    // fragment (#id), and data: only — same shape as the funciri
+    // check on outer SVG attributes.
+    const hrefMatches = decoded.match(
+        /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
+    );
+    if (hrefMatches) {
+        for (const raw of hrefMatches) {
+            const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
+            if (!valueMatch) continue;
+            const value = valueMatch[1].trim();
+            if (value === '' || value.startsWith('#')) continue;
+            if (/^data:/i.test(value)) continue;
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * Test-only entry point that returns the sanitized HTML *string*.

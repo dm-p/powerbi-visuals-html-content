@@ -685,4 +685,44 @@ describe('sanitize-pipeline — SVG presentation attributes', () => {
             expect(out).not.toContain('alert(1)');
         });
     });
+
+    // marker / symbol fragment-only href (security review). SVG2 allows
+    // <marker href="#otherMarker"> and <symbol href="#otherSymbol"> for
+    // cross-referencing within the same document. allowedSchemesByTag
+    // entries with fragment-only [''] policy let those through while
+    // dropping external URLs.
+    describe('marker and symbol fragment href', () => {
+        it('preserves <marker href="#m">', () => {
+            const out = sanitize(
+                '<svg><defs><marker id="base" viewBox="0 0 10 10"/>' +
+                '<marker id="derived" href="#base" viewBox="0 0 10 10"/>' +
+                '</defs></svg>'
+            );
+            expect(out).toContain('<marker');
+            expect(out).toContain('href="#base"');
+        });
+
+        it('drops external href on <marker>', () => {
+            const out = sanitize(
+                '<svg><marker id="m" href="https://attacker.example/m.svg"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('preserves <symbol href="#s">', () => {
+            const out = sanitize(
+                '<svg><symbol id="base" viewBox="0 0 10 10"/>' +
+                '<symbol id="derived" href="#base" viewBox="0 0 10 10"/></svg>'
+            );
+            expect(out).toContain('<symbol');
+            expect(out).toContain('href="#base"');
+        });
+
+        it('drops external href on <symbol>', () => {
+            const out = sanitize(
+                '<svg><symbol id="s" href="https://attacker.example/s.svg"/></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+    });
 });

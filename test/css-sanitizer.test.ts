@@ -74,6 +74,66 @@ describe('sanitizeCss', () => {
             expect(out).not.toContain('alert');
             expect(out).not.toContain('background');
         });
+
+        // Fragment-only url() references resolve within the rendered
+        // SVG/document and never fetch — matches the funciri scheme
+        // policy applied to SVG presentation attrs (security review).
+        it('preserves fill: url(#gradient) — fragment-only ref', () => {
+            const out = sanitizeCss(
+                'fill: url(#gradient1)',
+                'declaration-list'
+            );
+            expect(out).toContain('fill');
+            expect(out).toContain('url(#gradient1)');
+        });
+
+        it('preserves filter: url(#shadow)', () => {
+            const out = sanitizeCss(
+                'filter: url(#dropShadow)',
+                'declaration-list'
+            );
+            expect(out).toContain('filter');
+            expect(out).toContain('url(#dropShadow)');
+        });
+
+        it('preserves clip-path: url(#clipId)', () => {
+            const out = sanitizeCss(
+                'clip-path: url(#myClip)',
+                'declaration-list'
+            );
+            expect(out).toContain('clip-path');
+            expect(out).toContain('url(#myClip)');
+        });
+
+        it('preserves mask: url(#m)', () => {
+            const out = sanitizeCss(
+                'mask: url(#m)',
+                'declaration-list'
+            );
+            expect(out).toContain('mask');
+            expect(out).toContain('url(#m)');
+        });
+
+        it('preserves quoted fragment ref url("#id")', () => {
+            const out = sanitizeCss(
+                'fill: url("#g")',
+                'declaration-list'
+            );
+            expect(out).toContain('fill');
+            expect(out).toContain('#g');
+        });
+
+        it('drops mixed url() where one is fragment and another is external', () => {
+            // Fragment-only fast-path applies per-token, so the external
+            // url() still trips the unsafe-function check and the whole
+            // declaration drops.
+            const out = sanitizeCss(
+                'background: url(#bgFrag), url(https://attacker.example/x.png)',
+                'declaration-list'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('background');
+        });
     });
 
     describe('stylesheet mode', () => {

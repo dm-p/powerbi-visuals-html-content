@@ -252,6 +252,12 @@ export const VisualConstants = {
         // Only same-document fragment refs (#id) are valid; external URLs
         // would trigger a fetch. Empty-scheme matches #fragment values.
         textpath: [''],
+        // marker and symbol can use href / xlink:href to reference
+        // another marker / symbol in the same document (SVG2 inheritance
+        // pattern). Same fragment-only policy as gradients / patterns —
+        // external URLs are dropped.
+        marker: [''],
+        symbol: [''],
         // SMIL animation elements may carry an href / xlink:href that
         // points at the element to animate. Same-document fragment refs
         // only — external URLs would let an animation pull behavior from

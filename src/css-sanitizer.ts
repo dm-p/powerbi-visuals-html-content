@@ -190,7 +190,70 @@ function isSafeImageDataUri(rawUrl: string): boolean {
     // tools and DAX measures. This mirrors the same MIME-conditional
     // base64 check in getSanitizedDataUri (sanitize-pipeline.ts).
     if (mime !== 'image/svg+xml' && !/;base64,/i.test(rawUrl)) return false;
+    // Defense-in-depth payload scan for image/svg+xml — same backstop
+    // applied by getSanitizedDataUri in sanitize-pipeline.ts. Blocks
+    // <script>, <foreignObject>, on*= event handlers, and external
+    // href references inside the SVG body, so content the browser
+    // sandbox would normally neuter is rejected even on
+    // rendering surfaces where the sandbox guarantee is weaker (older
+    // WebView2, mobile, export pipelines).
+    if (mime === 'image/svg+xml' && hasDangerousSvgPayload(rawUrl)) {
+        return false;
+    }
     return true;
+}
+
+function decodeSvgDataUriPayload(dataUri: string): string | null {
+    const commaIdx = dataUri.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUri.slice(0, commaIdx);
+    const payload = dataUri.slice(commaIdx + 1);
+    if (/;base64$/i.test(header) || /;base64;/i.test(header)) {
+        try {
+            return atob(payload);
+        } catch {
+            return null;
+        }
+    }
+    try {
+        return decodeURIComponent(payload);
+    } catch {
+        return payload;
+    }
+}
+
+function hasDangerousSvgPayload(dataUri: string): boolean {
+    const decoded = decodeSvgDataUriPayload(dataUri);
+    if (decoded == null) return true;
+    if (/<script\b/i.test(decoded)) return true;
+    if (/<foreignObject\b/i.test(decoded)) return true;
+    if (/\son[a-z]+\s*=/i.test(decoded)) return true;
+    const hrefMatches = decoded.match(
+        /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
+    );
+    if (hrefMatches) {
+        for (const raw of hrefMatches) {
+            const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
+            if (!valueMatch) continue;
+            const value = valueMatch[1].trim();
+            if (value === '' || value.startsWith('#')) continue;
+            if (/^data:/i.test(value)) continue;
+            return true;
+        }
+    }
+    return false;
+}
+
+function isFragmentOnlyUrl(rawUrl: string): boolean {
+    // Same-document fragment references like url(#shadow), url(#g1) are
+    // safe — they resolve within the rendered SVG / document and never
+    // trigger a fetch. Mirrors the funciri scheme check applied to SVG
+    // presentation attributes in sanitize-pipeline.ts where empty
+    // scheme + leading # is allowed. Without this, CSS rules like
+    // `fill: url(#gradient)` or `filter: url(#shadow)` inside <style>
+    // blocks would be silently dropped, even though the equivalent SVG
+    // presentation attribute survives.
+    return rawUrl.trim().startsWith('#');
 }
 
 function hasUnsafeFunction(nodes: ValueNode[]): boolean {
@@ -201,6 +264,9 @@ function hasUnsafeFunction(nodes: ValueNode[]): boolean {
         if (DENIED_FUNCTIONS.has(name)) return true;
         if (name === 'url') {
             const arg = extractUrlArgument(fn);
+            if (isFragmentOnlyUrl(arg)) {
+                continue;
+            }
             if (!isSafeImageDataUri(arg)) {
                 return true;
             }

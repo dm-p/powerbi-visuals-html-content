@@ -688,6 +688,76 @@ Data URIs that declare a safe MIME type but carry unsafe content.
 <img>
 ```
 
+#### SVG data URI payload contains <script>. Browsers sandbox SVG in image-loading context but the sanitizer scans the decoded payload as defense-in-depth for sandbox-weak rendering surfaces (older WebView2, mobile, export pipelines).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains an on* event handler. Same defense-in-depth scan rejects the URI before it reaches the DOM.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains a <foreignObject>. Even though image-context loading neuters foreignObject HTML in the browser, the sanitizer rejects it as defense-in-depth.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains an inner element with external xlink:href. Image-context sandbox blocks fetches but the sanitizer rejects the URI to keep external references out of sandbox-weak surfaces.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Base64-encoded SVG data URI carrying a <script> tag. Verifies the payload scanner decodes base64 before pattern-matching, not just the ;utf8, form.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
 #### CSS url() with a safe image MIME type but no base64 encoding — the content is plain-text HTML smuggled behind an image/png declaration.
 
 **Input:**
@@ -1104,6 +1174,34 @@ Payloads that only work inside SVG contexts.
 
 ```html
 <svg><text><textPath>label</textPath></text></svg>
+```
+
+#### SVG2 <marker href> can reference another marker by fragment ID; external URLs must be dropped. Per-tag URL gate enforces fragment-only via allowedSchemesByTag.
+
+**Input:**
+
+```html
+<svg><marker id="m" href="https://attacker.example/m.svg" viewBox="0 0 10 10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><marker id="m" viewBox="0 0 10 10"></marker></svg>
+```
+
+#### SVG2 <symbol href> can reference another symbol by fragment ID; external URLs must be dropped. Per-tag URL gate enforces fragment-only via allowedSchemesByTag.
+
+**Input:**
+
+```html
+<svg><symbol id="s" href="https://attacker.example/s.svg" viewBox="0 0 10 10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><symbol id="s" viewBox="0 0 10 10"></symbol></svg>
 ```
 
 #### SVG feImage filter primitive with external href. Same restriction as <image>: only data: URIs are permitted, no external resource loading.
@@ -1899,6 +1997,62 @@ Legitimate content that must continue to render unchanged.
 
 ```html
 <svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"></animate><rect width="10" height="10" fill="red"></rect></g></svg>
+```
+
+#### CSS rule using url(#fragment) to reference an in-document SVG gradient. Same-document fragment refs resolve in-place and never fetch, so the CSS sanitizer admits them as a fast-path before the url() data:image safety check runs (Greptile review).
+
+**Input:**
+
+```html
+<style>.shape { fill: url(#gradient1); }</style><svg><defs><linearGradient id="gradient1"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs><rect class="shape" width="100" height="50"/></svg>
+```
+
+**Output:**
+
+```html
+<style>.shape { fill: url(#gradient1); }</style><svg><defs><linearGradient id="gradient1"><stop offset="0%" stop-color="red"></stop><stop offset="100%" stop-color="blue"></stop></linearGradient></defs><rect class="shape" width="100" height="50"></rect></svg>
+```
+
+#### Inline style filter property pointing at an in-document SVG filter definition via url(#filterId). Common SVG drop-shadow / blur pattern; the fragment-only url() must survive the CSS sanitizer.
+
+**Input:**
+
+```html
+<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"/></filter></defs><rect width="50" height="50" fill="red" style="filter: url(#dropShadow)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter></defs><rect width="50" height="50" fill="red" style="filter:url(#dropShadow)"></rect></svg>
+```
+
+#### SVG2 <marker> cross-referencing another marker definition via href="#otherMarker". Fragment-only allowedSchemesByTag entry lets it through (Greptile review).
+
+**Input:**
+
+```html
+<svg><defs><marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"/></marker><marker id="derived" href="#base" viewBox="0 0 10 10"/></defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"></path></marker><marker id="derived" href="#base" viewBox="0 0 10 10"></marker></defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"></line></svg>
+```
+
+#### SVG2 <symbol> cross-referencing another symbol definition via href="#otherSymbol". Fragment-only allowedSchemesByTag entry lets it through (Greptile review).
+
+**Input:**
+
+```html
+<svg><defs><symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></symbol><symbol id="derived" href="#base" viewBox="0 0 10 10"/></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></symbol><symbol id="derived" href="#base" viewBox="0 0 10 10"></symbol></defs></svg>
 ```
 
 <!-- WORKED_EXAMPLES_END -->

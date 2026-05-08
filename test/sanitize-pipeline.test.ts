@@ -235,6 +235,67 @@ describe('sanitize-pipeline end-to-end', () => {
             expect(out).not.toContain('text/html');
         });
 
+        // Defense-in-depth: even when the browser sandbox of img-loaded
+        // SVG is the load-bearing security boundary, the sanitizer
+        // rejects payloads carrying script / event handlers / external
+        // href so a future sandbox-weak surface (older WebView2, mobile,
+        // export pipeline) still drops them at this layer.
+        it('drops data:image/svg+xml with embedded <script>', () => {
+            const out = getSanitizedHtmlForTesting(
+                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>\">",
+                'html'
+            );
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('script');
+        });
+
+        it('drops data:image/svg+xml with on* event handler', () => {
+            const out = getSanitizedHtmlForTesting(
+                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>\">",
+                'html'
+            );
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('onload');
+        });
+
+        it('drops data:image/svg+xml with <foreignObject>', () => {
+            const out = getSanitizedHtmlForTesting(
+                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>\">",
+                'html'
+            );
+            expect(out).not.toContain('attacker.example');
+            expect(out).not.toContain('foreignObject');
+        });
+
+        it('drops data:image/svg+xml with external xlink:href on inner element', () => {
+            const out = getSanitizedHtmlForTesting(
+                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png'/></svg>\">",
+                'html'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops base64-encoded svg+xml carrying <script>', () => {
+            // base64 of "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
+            const b64 =
+                'PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=';
+            const out = getSanitizedHtmlForTesting(
+                `<img src="data:image/svg+xml;base64,${b64}">`,
+                'html'
+            );
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('script');
+        });
+
+        it('preserves data:image/svg+xml carrying inner href="#fragment" (safe)', () => {
+            const out = getSanitizedHtmlForTesting(
+                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><use href='#icon'/></svg>\">",
+                'html'
+            );
+            expect(out).toContain('data:image/svg+xml');
+            expect(out).toContain("href='#icon'");
+        });
+
         it('drops javascript: href', () => {
             const out = getSanitizedHtmlForTesting(
                 '<a href="javascript:alert(1)">x</a>',

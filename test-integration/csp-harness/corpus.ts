@@ -429,6 +429,78 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'img-src',
         source: 'category-4 mime smuggling'
     },
+    {
+        id: 'data-uri-svg-script',
+        description:
+            'SVG data URI payload contains <script>. Browsers sandbox SVG ' +
+            'in image-loading context but the sanitizer scans the decoded ' +
+            'payload as defense-in-depth for sandbox-weak rendering surfaces ' +
+            '(older WebView2, mobile, export pipelines).',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>\">",
+        expectedSanitized: {
+            notContains: ['<script', 'alert(1)', 'data:image/svg+xml']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Security review — svg+xml payload defense-in-depth'
+    },
+    {
+        id: 'data-uri-svg-onload',
+        description:
+            'SVG data URI payload contains an on* event handler. Same ' +
+            'defense-in-depth scan rejects the URI before it reaches the DOM.',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>\">",
+        expectedSanitized: {
+            notContains: ['onload', 'alert(1)', 'data:image/svg+xml']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Security review — svg+xml payload defense-in-depth'
+    },
+    {
+        id: 'data-uri-svg-foreignobject',
+        description:
+            'SVG data URI payload contains a <foreignObject>. Even though ' +
+            'image-context loading neuters foreignObject HTML in the browser, ' +
+            'the sanitizer rejects it as defense-in-depth.',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>\">",
+        expectedSanitized: {
+            notContains: ['foreignObject', 'attacker.example', 'data:image/svg+xml']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'frame-src',
+        source: 'Security review — svg+xml payload defense-in-depth'
+    },
+    {
+        id: 'data-uri-svg-inner-external-href',
+        description:
+            'SVG data URI payload contains an inner element with external ' +
+            'xlink:href. Image-context sandbox blocks fetches but the ' +
+            'sanitizer rejects the URI to keep external references out of ' +
+            'sandbox-weak surfaces.',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png' width='10' height='10'/></svg>\">",
+        expectedSanitized: {
+            notContains: ['attacker.example', 'data:image/svg+xml']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'img-src',
+        source: 'Security review — svg+xml payload defense-in-depth'
+    },
+    {
+        id: 'data-uri-svg-base64-script',
+        description:
+            'Base64-encoded SVG data URI carrying a <script> tag. Verifies ' +
+            'the payload scanner decodes base64 before pattern-matching, not ' +
+            'just the ;utf8, form.',
+        input:
+            '<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=">',
+        expectedSanitized: {
+            notContains: ['data:image/svg+xml', 'PHN2Zy']
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Security review — svg+xml payload defense-in-depth (base64 path)'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 5: At-rule vectors
     // ─────────────────────────────────────────────────────────────────
@@ -719,6 +791,30 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         category: 'svg',
         cspCategory: 'default-src',
         source: 'code review P1 finding — allowedSchemesByTag missing SVG textpath'
+    },
+    {
+        id: 'svg-marker-external-href',
+        description:
+            'SVG2 <marker href> can reference another marker by fragment ID; ' +
+            'external URLs must be dropped. Per-tag URL gate enforces ' +
+            'fragment-only via allowedSchemesByTag.',
+        input: '<svg><marker id="m" href="https://attacker.example/m.svg" viewBox="0 0 10 10"/></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'default-src',
+        source: 'Security review — marker fragment-only allowedSchemesByTag'
+    },
+    {
+        id: 'svg-symbol-external-href',
+        description:
+            'SVG2 <symbol href> can reference another symbol by fragment ID; ' +
+            'external URLs must be dropped. Per-tag URL gate enforces ' +
+            'fragment-only via allowedSchemesByTag.',
+        input: '<svg><symbol id="s" href="https://attacker.example/s.svg" viewBox="0 0 10 10"/></svg>',
+        expectedSanitized: { notContains: ['attacker.example', 'https://'] },
+        category: 'svg',
+        cspCategory: 'default-src',
+        source: 'Security review — symbol fragment-only allowedSchemesByTag'
     },
     {
         id: 'svg-feimage-external-href',
@@ -1469,5 +1565,93 @@ export const CLEAN_PAYLOADS: Payload[] = [
         category: 'clean-baseline',
         cspCategory: 'none',
         source: 'issue #145 — safe SMIL animation pass-through'
+    },
+    {
+        id: 'clean-css-fragment-url-fill',
+        description:
+            'CSS rule using url(#fragment) to reference an in-document SVG ' +
+            'gradient. Same-document fragment refs resolve in-place and never ' +
+            'fetch, so the CSS sanitizer admits them as a fast-path before ' +
+            'the url() data:image safety check runs (security review).',
+        input:
+            '<style>.shape { fill: url(#gradient1); }</style>' +
+            '<svg><defs><linearGradient id="gradient1"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs>' +
+            '<rect class="shape" width="100" height="50"/></svg>',
+        expectedSanitized: {
+            contains: [
+                '.shape',
+                'fill: url(#gradient1)',
+                '<linearGradient',
+                '<rect class="shape"'
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'Security review — fragment-only url() in CSS sanitizer'
+    },
+    {
+        id: 'clean-css-fragment-url-filter',
+        description:
+            'Inline style filter property pointing at an in-document SVG filter ' +
+            'definition via url(#filterId). Common SVG drop-shadow / blur ' +
+            'pattern; the fragment-only url() must survive the CSS sanitizer.',
+        input:
+            '<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"/></filter></defs>' +
+            '<rect width="50" height="50" fill="red" style="filter: url(#dropShadow)"/></svg>',
+        expectedSanitized: {
+            contains: [
+                '<filter id="dropShadow"',
+                '<feGaussianBlur',
+                'filter: url(#dropShadow)'
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'Security review — fragment-only url() in inline style'
+    },
+    {
+        id: 'clean-svg-marker-fragment-href',
+        description:
+            'SVG2 <marker> cross-referencing another marker definition via ' +
+            'href="#otherMarker". Fragment-only allowedSchemesByTag entry ' +
+            'lets it through (security review).',
+        input:
+            '<svg><defs>' +
+            '<marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"/></marker>' +
+            '<marker id="derived" href="#base" viewBox="0 0 10 10"/>' +
+            '</defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"/></svg>',
+        expectedSanitized: {
+            contains: [
+                '<marker id="base"',
+                '<marker id="derived"',
+                'href="#base"',
+                'marker-end="url(#derived)"'
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'Security review — marker fragment-only allowedSchemesByTag'
+    },
+    {
+        id: 'clean-svg-symbol-fragment-href',
+        description:
+            'SVG2 <symbol> cross-referencing another symbol definition via ' +
+            'href="#otherSymbol". Fragment-only allowedSchemesByTag entry ' +
+            'lets it through (security review).',
+        input:
+            '<svg><defs>' +
+            '<symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></symbol>' +
+            '<symbol id="derived" href="#base" viewBox="0 0 10 10"/>' +
+            '</defs></svg>',
+        expectedSanitized: {
+            contains: [
+                '<symbol id="base"',
+                '<symbol id="derived"',
+                'href="#base"'
+            ]
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'Security review — symbol fragment-only allowedSchemesByTag'
     }
 ];
