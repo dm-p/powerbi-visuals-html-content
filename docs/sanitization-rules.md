@@ -1999,7 +1999,7 @@ Legitimate content that must continue to render unchanged.
 <svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"></animate><rect width="10" height="10" fill="red"></rect></g></svg>
 ```
 
-#### CSS rule using url(#fragment) to reference an in-document SVG gradient. Same-document fragment refs resolve in-place and never fetch, so the CSS sanitizer admits them as a fast-path before the url() data:image safety check runs (Greptile review).
+#### CSS rule using url(#fragment) to reference an in-document SVG gradient. Same-document fragment refs resolve in-place and never fetch, so the CSS sanitizer admits them as a fast-path before the url() data:image safety check runs (security review).
 
 **Input:**
 
@@ -2027,7 +2027,7 @@ Legitimate content that must continue to render unchanged.
 <svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter></defs><rect width="50" height="50" fill="red" style="filter:url(#dropShadow)"></rect></svg>
 ```
 
-#### SVG2 <marker> cross-referencing another marker definition via href="#otherMarker". Fragment-only allowedSchemesByTag entry lets it through (Greptile review).
+#### SVG2 <marker> cross-referencing another marker definition via href="#otherMarker". Fragment-only allowedSchemesByTag entry lets it through (security review).
 
 **Input:**
 
@@ -2041,7 +2041,7 @@ Legitimate content that must continue to render unchanged.
 <svg><defs><marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"></path></marker><marker id="derived" href="#base" viewBox="0 0 10 10"></marker></defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"></line></svg>
 ```
 
-#### SVG2 <symbol> cross-referencing another symbol definition via href="#otherSymbol". Fragment-only allowedSchemesByTag entry lets it through (Greptile review).
+#### SVG2 <symbol> cross-referencing another symbol definition via href="#otherSymbol". Fragment-only allowedSchemesByTag entry lets it through (security review).
 
 **Input:**
 
