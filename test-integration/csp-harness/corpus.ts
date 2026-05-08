@@ -1324,7 +1324,16 @@ export const CLEAN_PAYLOADS: Payload[] = [
         id: 'clean-color-style',
         description:
             'An inline style attribute using only safe properties (color and ' +
-            'font-weight) with no external resource references.',
+            'font-weight) with no external resource references. Sanitizer ' +
+            'preserves both declarations verbatim. UAT visual expectation: ' +
+            'when no Custom stylesheet is supplied, the issue #144 cascade ' +
+            'override forces `color: inherit !important` on every descendant ' +
+            'with an inline style, so the rendered text appears in the ' +
+            'visual\'s Default body color (typically black) rather than red ' +
+            '— this is by design (see ' +
+            'docs/solutions/2026-05-issue-144-body-styling-cascade.md). ' +
+            '`font-weight: bold` is not on the override list and renders as ' +
+            'authored. To preserve the inline red, supply a Custom stylesheet.',
         input: '<p style="color: red; font-weight: bold">red bold</p>',
         expectedSanitized: {
             // postcss normalizes whitespace around the colon, so the
@@ -1599,10 +1608,14 @@ export const CLEAN_PAYLOADS: Payload[] = [
             '<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"/></filter></defs>' +
             '<rect width="50" height="50" fill="red" style="filter: url(#dropShadow)"/></svg>',
         expectedSanitized: {
+            // postcss normalizes whitespace around the colon for inline
+            // style attributes, so the surviving form is `filter:url(...)`
+            // (no space). Same convention as partial-multiple-declarations
+            // and clean-color-style.
             contains: [
                 '<filter id="dropShadow"',
                 '<feGaussianBlur',
-                'filter: url(#dropShadow)'
+                'filter:url(#dropShadow)'
             ]
         },
         category: 'clean-baseline',
