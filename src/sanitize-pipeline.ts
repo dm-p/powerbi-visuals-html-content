@@ -17,6 +17,7 @@ import { marked } from 'marked';
 import { VisualConstants } from './visual-constants';
 import { RenderFormat } from './types';
 import { sanitizeCss } from './css-sanitizer';
+import { hasDangerousSvgPayload } from './svg-payload-scan';
 
 /**
  * Per-tag attribute allowlist enforced by the DOMPurify
@@ -128,158 +129,22 @@ const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     // are dropped and only the globals survive.
     del: ['cite', 'datetime'],
     ins: ['cite', 'datetime'],
-    output: ['for', 'form', 'name'],
+    output: ['for', 'form', 'name']
 
-    // SVG. Lowercase keys to match DOMPurify's lowercased tagName.
-    svg: [
-        'viewbox',
-        'xmlns',
-        'xmlns:xlink',
-        'width',
-        'height',
-        'preserveaspectratio',
-        'fill',
-        'stroke',
-        'stroke-width',
-        'opacity'
-    ],
-    path: [
-        'd',
-        'fill',
-        'stroke',
-        'stroke-width',
-        'fill-opacity',
-        'stroke-opacity',
-        'stroke-linecap',
-        'stroke-linejoin',
-        'stroke-dasharray',
-        'stroke-dashoffset',
-        'opacity',
-        'transform',
-        'clip-path',
-        'mask',
-        'filter'
-    ],
-    g: [
-        'fill',
-        'stroke',
-        'stroke-width',
-        'opacity',
-        'transform',
-        'clip-path',
-        'mask',
-        'filter'
-    ],
-    circle: ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width', 'opacity'],
-    ellipse: [
-        'cx',
-        'cy',
-        'rx',
-        'ry',
-        'fill',
-        'stroke',
-        'stroke-width',
-        'opacity'
-    ],
-    rect: [
-        'x',
-        'y',
-        'width',
-        'height',
-        'rx',
-        'ry',
-        'fill',
-        'stroke',
-        'stroke-width',
-        'opacity'
-    ],
-    line: ['x1', 'x2', 'y1', 'y2', 'stroke', 'stroke-width', 'opacity'],
-    polyline: ['points', 'fill', 'stroke', 'stroke-width', 'opacity'],
-    polygon: ['points', 'fill', 'stroke', 'stroke-width', 'opacity'],
-    text: [
-        'x',
-        'y',
-        'dx',
-        'dy',
-        'text-anchor',
-        'font-family',
-        'font-size',
-        'font-weight',
-        'fill',
-        'stroke',
-        'dominant-baseline',
-        'alignment-baseline',
-        'transform'
-    ],
-    tspan: [
-        'x',
-        'y',
-        'dx',
-        'dy',
-        'text-anchor',
-        'font-family',
-        'font-size',
-        'font-weight',
-        'fill'
-    ],
-    // Note: <use> is intentionally NOT in VisualConstants.allowedTags, so
-    // DOMPurify drops it before any per-tag attribute logic could run. No
-    // entry needed here.
-    defs: [],
-    symbol: ['viewbox', 'preserveaspectratio'],
-    lineargradient: [
-        'x1',
-        'x2',
-        'y1',
-        'y2',
-        'gradientunits',
-        'gradienttransform'
-    ],
-    radialgradient: [
-        'cx',
-        'cy',
-        'r',
-        'fx',
-        'fy',
-        'gradientunits',
-        'gradienttransform'
-    ],
-    stop: ['offset', 'stop-color', 'stop-opacity'],
-    clippath: ['clippathunits'],
-    mask: ['x', 'y', 'width', 'height', 'maskunits', 'maskcontentunits'],
-    filter: ['x', 'y', 'width', 'height', 'filterunits'],
-    pattern: [
-        'x',
-        'y',
-        'width',
-        'height',
-        'patternunits',
-        'patterncontentunits',
-        'patterntransform'
-    ],
-    image: [
-        'x',
-        'y',
-        'width',
-        'height',
-        'href',
-        'xlink:href',
-        'preserveaspectratio'
-    ],
-    marker: [
-        'markerunits',
-        'refx',
-        'refy',
-        'markerwidth',
-        'markerheight',
-        'orient',
-        'viewbox',
-        'preserveaspectratio'
-    ],
-    view: ['viewbox', 'preserveaspectratio'],
-    textpath: ['href', 'xlink:href', 'startoffset', 'method', 'spacing']
-    // SMIL animation elements (animate, animatemotion, animatetransform,
-    // set) removed from allowedTags — no attribute entries needed.
+    // SVG tags are intentionally absent from this map.
+    //
+    // The uponSanitizeAttribute hook below branches on `isSvgTag =
+    // SVG_TAGS.has(tagName)`. SVG tags take the denylist path
+    // (SVG_ATTRIBUTE_DENYLIST + on*) and never consult ALLOWED_ATTRIBUTES.
+    // Adding an SVG entry here has no effect — the per-tag URL scheme
+    // gate (allowedSchemesByTag), the funciri value-scheme check, the
+    // SMIL attributeName denylist, and the scriptingPatterns scan are
+    // the active gates for SVG attributes.
+    //
+    // To restrict an SVG attribute, add it to SVG_ATTRIBUTE_DENYLIST
+    // above. To restrict a URL scheme on an SVG tag, edit
+    // VisualConstants.allowedSchemesByTag in src/visual-constants.ts.
+    // Do not add SVG keys to this map.
 };
 
 /**
@@ -740,66 +605,6 @@ export const getSanitizedDataUri = (dataUri: string): string => {
 
     return dataUri;
 };
-
-/**
- * Decode the body of a `data:image/svg+xml` URI for content inspection.
- * Returns null when the URI is malformed or base64 decoding fails.
- */
-function decodeSvgDataUriPayload(dataUri: string): string | null {
-    const commaIdx = dataUri.indexOf(',');
-    if (commaIdx === -1) return null;
-    const header = dataUri.slice(0, commaIdx);
-    const payload = dataUri.slice(commaIdx + 1);
-    if (/;base64$/i.test(header) || /;base64;/i.test(header)) {
-        try {
-            return atob(payload);
-        } catch {
-            return null;
-        }
-    }
-    try {
-        return decodeURIComponent(payload);
-    } catch {
-        // Payload may already be plain text with literal angle brackets
-        // (DAX measures emit data:image/svg+xml;utf8,<svg ...> with no
-        // percent-encoding). Fall back to the raw payload — the pattern
-        // checks below operate on either form.
-        return payload;
-    }
-}
-
-/**
- * Defense-in-depth scan of an `image/svg+xml` data URI for content the
- * browser sandbox would normally neuter. Catches the common SVG XSS
- * vectors that survive a sandbox failure: script tags, foreignObject,
- * `on*` event handlers, and inner-element href attrs that point at
- * external schemes (the sandbox blocks fetches in image context, but a
- * sandbox-weak surface would let them through).
- */
-function hasDangerousSvgPayload(dataUri: string): boolean {
-    const decoded = decodeSvgDataUriPayload(dataUri);
-    if (decoded == null) return true;
-    if (/<script\b/i.test(decoded)) return true;
-    if (/<foreignObject\b/i.test(decoded)) return true;
-    if (/\son[a-z]+\s*=/i.test(decoded)) return true;
-    // Inner href / xlink:href references inside the SVG. Allow empty,
-    // fragment (#id), and data: only — same shape as the funciri
-    // check on outer SVG attributes.
-    const hrefMatches = decoded.match(
-        /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
-    );
-    if (hrefMatches) {
-        for (const raw of hrefMatches) {
-            const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
-            if (!valueMatch) continue;
-            const value = valueMatch[1].trim();
-            if (value === '' || value.startsWith('#')) continue;
-            if (/^data:/i.test(value)) continue;
-            return true;
-        }
-    }
-    return false;
-}
 
 /**
  * Test-only entry point that returns the sanitized HTML *string*.

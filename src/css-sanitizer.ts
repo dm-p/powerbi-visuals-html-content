@@ -27,6 +27,7 @@
 
 import postcss, { Root, Declaration } from 'postcss';
 import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
+import { hasDangerousSvgPayload } from './svg-payload-scan';
 
 // postcss-value-parser is a CommonJS module whose types declare the parser
 // function as the module export. Importing it as `import valueParser from ...`
@@ -201,47 +202,6 @@ function isSafeImageDataUri(rawUrl: string): boolean {
         return false;
     }
     return true;
-}
-
-function decodeSvgDataUriPayload(dataUri: string): string | null {
-    const commaIdx = dataUri.indexOf(',');
-    if (commaIdx === -1) return null;
-    const header = dataUri.slice(0, commaIdx);
-    const payload = dataUri.slice(commaIdx + 1);
-    if (/;base64$/i.test(header) || /;base64;/i.test(header)) {
-        try {
-            return atob(payload);
-        } catch {
-            return null;
-        }
-    }
-    try {
-        return decodeURIComponent(payload);
-    } catch {
-        return payload;
-    }
-}
-
-function hasDangerousSvgPayload(dataUri: string): boolean {
-    const decoded = decodeSvgDataUriPayload(dataUri);
-    if (decoded == null) return true;
-    if (/<script\b/i.test(decoded)) return true;
-    if (/<foreignObject\b/i.test(decoded)) return true;
-    if (/\son[a-z]+\s*=/i.test(decoded)) return true;
-    const hrefMatches = decoded.match(
-        /(?:^|\s)(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
-    );
-    if (hrefMatches) {
-        for (const raw of hrefMatches) {
-            const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
-            if (!valueMatch) continue;
-            const value = valueMatch[1].trim();
-            if (value === '' || value.startsWith('#')) continue;
-            if (/^data:/i.test(value)) continue;
-            return true;
-        }
-    }
-    return false;
 }
 
 function isFragmentOnlyUrl(rawUrl: string): boolean {
