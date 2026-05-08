@@ -157,8 +157,10 @@ function extractUrlArgument(node: FunctionNode): string {
     const child = node.nodes.find(
         (n) => n.type === 'word' || n.type === 'string'
     );
+    // postcss-value-parser narrows `find` result to WordNode | StringNode;
+    // both extend BaseNode with `value: string`. No cast needed.
     if (!child) return '';
-    return String((child as any).value || '').trim();
+    return (child.value || '').trim();
 }
 
 // `isSafeImageDataUri` and `SAFE_IMAGE_MIME_TYPES` live in

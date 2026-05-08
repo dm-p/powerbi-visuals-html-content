@@ -36,9 +36,9 @@
  * Ipsum boilerplate. The fixtures are about HTML structure under the
  * sanitizer, not the prose itself.
  */
-import type { Payload } from '../../test-integration/csp-harness/corpus';
+import type { LoremPayload } from '../../test-integration/csp-harness/corpus';
 
-export const LOREM_PAYLOADS: Payload[] = [
+export const LOREM_PAYLOADS: LoremPayload[] = [
     {
         id: 'lorem-simple-paragraph',
         description:

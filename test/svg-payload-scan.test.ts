@@ -73,6 +73,38 @@ describe('decodeSvgDataUriPayload', () => {
             );
             expect(out).toBe('<svg/>');
         });
+
+        // Multi-agent code review (adversarial): WHATWG mimesniff §4.4.3
+        // strips whitespace around `base64` parameter values before
+        // decoding. A strict `;base64$` regex misses
+        // `data:image/svg+xml; base64,<b64>` and routes the payload
+        // through decodeURIComponent — which returns the base64 string
+        // verbatim, defeating the script-tag scan. The tolerant regex
+        // `\s*base64\s*` matches browser parsing.
+        it('detects ;base64 with leading whitespace (`; base64,...`)', () => {
+            // base64 of '<svg/>'
+            const b64 = 'PHN2Zy8+';
+            const out = decodeSvgDataUriPayload(
+                `data:image/svg+xml; base64,${b64}`
+            );
+            expect(out).toBe('<svg/>');
+        });
+
+        it('detects ;base64 with trailing whitespace (`;base64 ,...`)', () => {
+            const b64 = 'PHN2Zy8+';
+            const out = decodeSvgDataUriPayload(
+                `data:image/svg+xml;base64 ,${b64}`
+            );
+            expect(out).toBe('<svg/>');
+        });
+
+        it('detects ;base64 with surrounding whitespace mid-header', () => {
+            const b64 = 'PHN2Zy8+';
+            const out = decodeSvgDataUriPayload(
+                `data:image/svg+xml; base64 ;charset=utf-8,${b64}`
+            );
+            expect(out).toBe('<svg/>');
+        });
     });
 
     describe('malformed input', () => {
@@ -170,6 +202,16 @@ describe('hasDangerousSvgPayload', () => {
                 'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=';
             expect(
                 hasDangerousSvgPayload(`data:image/svg+xml;base64,${b64}`)
+            ).toBe(true);
+        });
+
+        it('rejects `; base64,` (whitespace-padded base64 marker carrying <script>)', () => {
+            // Same payload as above but with a space before `base64`.
+            // The browser still decodes; the tolerant regex must too.
+            const b64 =
+                'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=';
+            expect(
+                hasDangerousSvgPayload(`data:image/svg+xml; base64,${b64}`)
             ).toBe(true);
         });
     });

@@ -64,7 +64,13 @@ export function decodeSvgDataUriPayload(dataUri: string): string | null {
     if (commaIdx === -1) return null;
     const header = dataUri.slice(0, commaIdx);
     const payload = dataUri.slice(commaIdx + 1);
-    if (/;base64$/i.test(header) || /;base64;/i.test(header)) {
+    // Tolerant whitespace around `base64` — WHATWG mimesniff §4.4.3
+    // strips parameter whitespace before decoding, so browsers treat
+    // `data:image/svg+xml; base64,<b64>` as base64. A strict
+    // `/;base64$/` regex would route the payload through
+    // decodeURIComponent (which returns the base64 string verbatim),
+    // missing any literal-encoded `<script>`/etc. inside.
+    if (/;\s*base64\s*$/i.test(header) || /;\s*base64\s*;/i.test(header)) {
         try {
             return atob(payload);
         } catch {

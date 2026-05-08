@@ -59,7 +59,10 @@ import {
     MALICIOUS_PAYLOADS,
     CLEAN_PAYLOADS
 } from '../test-integration/csp-harness/corpus';
-import type { Payload } from '../test-integration/csp-harness/corpus';
+import type {
+    LoremPayload,
+    Payload
+} from '../test-integration/csp-harness/corpus';
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { STYLESHEET_PAYLOADS } from '../test/fixtures/stylesheet-scenarios';
 import {
@@ -95,7 +98,10 @@ function csvField(value: string): string {
     return value;
 }
 
-function rowFor(payload: Payload, type: 'malicious' | 'clean' | 'lorem'): string[] {
+function rowFor(
+    payload: Payload | LoremPayload,
+    type: 'malicious' | 'clean' | 'lorem'
+): string[] {
     return [
         payload.id,
         payload.description,

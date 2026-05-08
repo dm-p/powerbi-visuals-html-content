@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 import { LOREM_PAYLOADS } from './fixtures/lorem';
-import type { Payload } from '../test-integration/csp-harness/corpus';
+import type { LoremPayload } from '../test-integration/csp-harness/corpus';
 
 /**
  * Regression suite for the lorem rich-text fixtures.
@@ -65,9 +65,9 @@ function parseCsvRecords(csv: string): string[] {
 }
 
 describe('lorem fixtures — sanitized output', () => {
-    // Annotated tuple type so `payload` is narrowed to Payload inside the
-    // callback rather than `string | Payload`.
-    it.each(LOREM_PAYLOADS.map((p): [string, Payload] => [p.id, p]))(
+    // Annotated tuple type so `payload` is narrowed to LoremPayload
+    // inside the callback rather than `string | LoremPayload`.
+    it.each(LOREM_PAYLOADS.map((p): [string, LoremPayload] => [p.id, p]))(
         '%s preserves expected substrings',
         (_id, payload) => {
             const out = getSanitizedHtmlForTesting(payload.input, 'html');

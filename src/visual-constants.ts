@@ -337,7 +337,20 @@ export const VisualConstants = {
         'url(vbscript',
         'url( vbscript'
     ],
-    // Comprehensive CSS dangerous patterns for style tag content
+    /**
+     * @deprecated Live CSS pattern enforcement now lives in
+     * `src/css-sanitizer.ts` under `DEFENSE_IN_DEPTH_PATTERNS` and the
+     * postcss-walker-based gates above it. This array is no longer
+     * read by `src/` runtime code — it survives only because several
+     * tests still pin its shape as documentation of the rule set.
+     *
+     * DO NOT add new entries here expecting them to gate sanitization.
+     * Any new dangerous-CSS pattern must be added to the live list in
+     * `css-sanitizer.ts`. The next time the test suite is reorganised,
+     * delete this field and repoint the assertions at the live source
+     * (`DEFENSE_IN_DEPTH_PATTERNS` would need to be exported from
+     * `css-sanitizer.ts` first).
+     */
     cssDangerousPatterns: [
         /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/i,
         /expression\s*\(/i,

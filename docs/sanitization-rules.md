@@ -207,6 +207,16 @@ Most common causes:
 - The element was on an event handler (`onclick`, `onload`, etc.) — the entire element is dropped, not just the attribute.
 - The element is not on the allowed-tag list (`<script>`, `<iframe>`, `<object>`, etc.).
 
+### "My inline `color` / `font-family` / `font-size` is being ignored"
+
+This is **by design** when no Custom stylesheet is supplied on the format pane. The visual targets office-paste residue (Outlook / Teams / Word commonly paste content with inline `style="color: rgb(0,0,0); font-family: Calibri; ..."` declarations that override the visual's Default body styling). The `#htmlViewer.uses-default-body-styling #htmlContent [style]` rule forces every descendant with an inline `style` attribute to inherit `color`, `font-family`, `font-size`, `text-align`, and clears `background-color` to transparent.
+
+The intentional tradeoff: a deliberate `<span style="color: red">important note</span>` is also overridden by this rule.
+
+**Workaround:** supply any value in the **Stylesheet → Custom stylesheet** setting on the format pane. The cascade-override rule is class-gated (`uses-default-body-styling`) and disables itself in custom-stylesheet mode — your inline colors and fonts will then render as authored.
+
+See [docs/solutions/2026-05-issue-144-body-styling-cascade.md](solutions/2026-05-issue-144-body-styling-cascade.md) for the full design rationale.
+
 ---
 
 ## Defense in depth
@@ -1090,6 +1100,20 @@ Payloads that only work inside SVG contexts.
 
 ```html
 <svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SMIL <animate values="..."> carrying TWO url() tokens — a safe data:image/png as the first keyframe and an external https://attacker as the second. The previous funciri gate used value.match() (non-global) so only the first token was validated; the smuggled second triggered a cross-origin fetch on every rendering surface (including the sandbox-weak targets the payload scan defends). Funciri now iterates every url() token and drops the attribute if any non-fragment, non-data scheme survives (security review).
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" values="url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=);url(https://attacker.example/track)" dur="1s"/></rect></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" dur="1s"></animate></rect></svg>
 ```
 
 #### script element inside svg.

@@ -824,5 +824,132 @@ describe('sanitize-pipeline — SVG presentation attributes', () => {
             expect(out).not.toContain('PHN2Zy');
             expect(out).not.toContain('script');
         });
+
+        // Multi-url() smuggling (security review). SMIL animation
+        // values and a few CSS-shaped SVG attributes can carry
+        // multiple url() tokens — the funciri gate must validate
+        // EVERY token, not just the first. Otherwise a smuggled
+        // external url() in any non-first position slips through
+        // the previous single-match check.
+        it('drops SMIL <animate values="url(safe);url(evil)"> — second url is external https', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" fill="red">' +
+                    '<animate attributeName="fill" ' +
+                    'values="url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=);url(https://attacker.example/track)" ' +
+                    'dur="1s"/>' +
+                    '</rect></svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('drops SMIL <animate values="url(safe);url(javascript:...)">', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" fill="red">' +
+                    '<animate attributeName="fill" ' +
+                    'values="url(#g1);url(javascript:alert(1))" ' +
+                    'dur="1s"/>' +
+                    '</rect></svg>'
+            );
+            expect(out).not.toContain('javascript');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops fill with two url() tokens where the second is external', () => {
+            // `fill` accepts a fallback url() chain in some SVG shapes;
+            // both must clear the gate.
+            const out = sanitize(
+                '<svg><defs><linearGradient id="g1"/></defs>' +
+                    '<rect width="10" height="10" fill="url(#g1) url(https://attacker.example/paint)"/>' +
+                    '</svg>'
+            );
+            expect(out).not.toContain('attacker.example');
+        });
+
+        it('preserves SMIL <animate values="url(#a);url(#b)"> — both fragment refs', () => {
+            // Both url() tokens are fragment-only — every iteration
+            // hits the no-scheme branch and continues.
+            const out = sanitize(
+                '<svg><defs><linearGradient id="a"/><linearGradient id="b"/></defs>' +
+                    '<rect width="10" height="10" fill="red">' +
+                    '<animate attributeName="fill" values="url(#a);url(#b)" dur="1s"/>' +
+                    '</rect></svg>'
+            );
+            expect(out).toContain('url(#a)');
+            expect(out).toContain('url(#b)');
+        });
+
+        it('preserves fill with two safe data:image/png url() tokens', () => {
+            const png =
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=';
+            const out = sanitize(
+                `<svg><rect width="10" height="10" fill="red">` +
+                    `<animate attributeName="fill" values="url(${png});url(${png})" dur="1s"/>` +
+                    `</rect></svg>`
+            );
+            expect(out).toContain('data:image/png');
+        });
+
+        // Multi-agent code review (correctness + security cross-confirmed):
+        // SMIL_ATTRIBUTE_NAME_DENYLIST is exact-match on `Set.has`, but
+        // browsers (and the SMIL animator) trim and lowercase
+        // `attributeName` values before resolving them. A padded value
+        // like `attributeName=" href "` would otherwise survive the gate
+        // while still binding the animation to `href` at runtime.
+        it('drops attributeName=" href " (whitespace-padded denylist bypass)', () => {
+            const out = sanitize(
+                '<svg><a href="https://safe.example/x">' +
+                    '<animate attributeName=" href " to="javascript:alert(1)" dur="1s"/>' +
+                    'click</a></svg>'
+            );
+            expect(out).not.toContain('attributeName=" href "');
+            expect(out).not.toContain('javascript:');
+        });
+
+        // NFKC + control-strip extended to SMIL value attrs and funciri
+        // presentation values (security + adversarial review). Without
+        // this, fullwidth-Unicode and control-char obfuscation would
+        // bypass the scriptingPatterns substring scan on `to`/`from`/
+        // `values`/`by` (SMIL) and `cursor`/`fill`/`stroke`/etc. (SVG
+        // funciri presentation attrs).
+        it('drops <animate to="java\\x00script:..."> (control-char obfuscation in SMIL value)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" fill="red">' +
+                    '<animate attributeName="fill" to="java script:alert(1)" dur="1s"/>' +
+                    '</rect></svg>'
+            );
+            expect(out).not.toContain('javascript:');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops <rect cursor="url(\\xFFjavascript:...)"> (control-char obfuscation in funciri presentation attr)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10" cursor="url(java script:alert(1))"/></svg>'
+            );
+            expect(out).not.toContain('javascript:');
+            expect(out).not.toContain('alert');
+        });
+
+        it('drops attributeName="\\thref" (tab-padded denylist bypass)', () => {
+            const out = sanitize(
+                '<svg><rect width="10" height="10">' +
+                    '<animate attributeName="\thref\t" to="javascript:alert(1)" dur="1s"/>' +
+                    '</rect></svg>'
+            );
+            expect(out).not.toContain('attributeName=');
+            expect(out).not.toContain('javascript:');
+        });
+
+        it('drops three-url chain when the third token is external', () => {
+            const png =
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=';
+            const out = sanitize(
+                `<svg><rect width="10" height="10" fill="red">` +
+                    `<animate attributeName="fill" ` +
+                    `values="url(#frag);url(${png});url(https://attacker.example/last)" ` +
+                    `dur="1s"/>` +
+                    `</rect></svg>`
+            );
+            expect(out).not.toContain('attacker.example');
+        });
     });
 });

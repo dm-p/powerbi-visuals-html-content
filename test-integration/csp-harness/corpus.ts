@@ -71,6 +71,18 @@ export type PayloadCategory =
                                //     generator emit the same column shape
                                //     without forking the Payload interface.
 
+/**
+ * Substring assertions for sanitized output. Shared between `Payload`
+ * (CSP harness corpus) and `StylesheetScenario` (custom-stylesheet UAT
+ * fixtures) so both surfaces use one shape.
+ */
+export interface SanitizationAssertion {
+    /** Substrings that MUST appear in the sanitized output. */
+    contains?: string[];
+    /** Substrings that MUST NOT appear in the sanitized output. */
+    notContains?: string[];
+}
+
 export interface Payload {
     /** Stable, unique identifier. See ID NAMING CONVENTION in the header. */
     id: string;
@@ -94,12 +106,18 @@ export interface Payload {
      * assertions" — use this for clean baseline payloads where there is
      * nothing to strip.
      */
-    expectedSanitized: {
-        contains?: string[];
-        notContains?: string[];
-    };
-    /** Grouping for docs and test filtering. See PayloadCategory. */
-    category: PayloadCategory;
+    expectedSanitized: SanitizationAssertion;
+    /**
+     * Grouping for docs and test filtering. See PayloadCategory.
+     *
+     * `'lorem'` is intentionally excluded — lorem rich-text fixtures
+     * use the separate `LoremPayload` interface so a lorem entry can
+     * never accidentally land in `MALICIOUS_PAYLOADS` /
+     * `CLEAN_PAYLOADS`. The compile-time guard makes the cross-array
+     * uniqueness check in csp-regression.spec.ts redundant for the
+     * lorem-vs-corpus collision case.
+     */
+    category: Exclude<PayloadCategory, 'lorem'>;
     /**
      * CSP directive most likely to fire if the sanitizer leaks. Used to
      * triage harness failures — a violation on `img-src` while running a
@@ -109,6 +127,17 @@ export interface Payload {
     cspCategory: CspCategory;
     /** Provenance: cert report, OWASP, GitHub issue, "baseline", etc. */
     source: string;
+}
+
+/**
+ * Lorem rich-text fixture — same shape as `Payload` but with the
+ * `category` narrowed to literal `'lorem'`. Defining this as a
+ * separate interface (rather than reusing `Payload`) makes the
+ * compile-time guard meaningful: a `Payload[]` cannot contain a
+ * lorem entry and vice-versa. Source: test/fixtures/lorem.ts.
+ */
+export interface LoremPayload extends Omit<Payload, 'category'> {
+    category: 'lorem';
 }
 
 /**
@@ -567,6 +596,31 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         category: 'svg',
         cspCategory: 'script-src',
         source: 'Security review — funciri MIME allowlist'
+    },
+    {
+        id: 'svg-funciri-multi-url-smuggle',
+        description:
+            'SMIL <animate values="..."> carrying TWO url() tokens — a ' +
+            'safe data:image/png as the first keyframe and an external ' +
+            'https://attacker as the second. The previous funciri gate ' +
+            'used value.match() (non-global) so only the first token was ' +
+            'validated; the smuggled second triggered a cross-origin ' +
+            'fetch on every rendering surface (including the sandbox-weak ' +
+            'targets the payload scan defends). Funciri now iterates every ' +
+            'url() token and drops the attribute if any non-fragment, ' +
+            'non-data scheme survives (security review).',
+        input:
+            '<svg><rect width="10" height="10" fill="red">' +
+            '<animate attributeName="fill" ' +
+            'values="url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=);url(https://attacker.example/track)" ' +
+            'dur="1s"/>' +
+            '</rect></svg>',
+        expectedSanitized: {
+            notContains: ['attacker.example']
+        },
+        category: 'svg',
+        cspCategory: 'default-src',
+        source: 'Security review — funciri multi-url() iteration'
     },
     {
         id: 'data-uri-svg-nested-base64-script',

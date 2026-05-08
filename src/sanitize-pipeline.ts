@@ -17,7 +17,11 @@ import { marked } from 'marked';
 import { VisualConstants } from './visual-constants';
 import { RenderFormat } from './types';
 import { sanitizeCss } from './css-sanitizer';
-import { hasDangerousSvgPayload, isSafeImageDataUri } from './svg-payload-scan';
+import {
+    hasDangerousSvgPayload,
+    isSafeImageDataUri,
+    SAFE_IMAGE_MIME_TYPES
+} from './svg-payload-scan';
 
 /**
  * Per-tag attribute allowlist enforced by the DOMPurify
@@ -189,10 +193,22 @@ function preprocessStyleTags(input: string): string {
  * default import is already pre-bound. Under jsdom we need to call
  * `DOMPurify(window)` once.
  */
+
+/**
+ * The shape of the `DOMPurify` namespace export at runtime: it exposes
+ * a fully-bound `DOMPurifyType` API (sanitize/addHook/etc.) AND is
+ * callable as a factory that binds a fresh instance to a Window. The
+ * upstream `dompurify` types describe the bound API only, so we
+ * declare the factory shape here and use it in `getPurify` instead of
+ * an opaque intersection cast at the call site. Documenting it as a
+ * named alias makes the dual nature explicit for future maintainers.
+ */
+type DOMPurifyFactory = DOMPurifyType & ((win: Window) => DOMPurifyType);
+
 let purifyInstance: DOMPurifyType | null = null;
 function getPurify(): DOMPurifyType {
     if (purifyInstance) return purifyInstance;
-    const dp = DOMPurify as DOMPurifyType & ((win: Window) => DOMPurifyType);
+    const dp = DOMPurify as DOMPurifyFactory;
     if (typeof dp.sanitize === 'function') {
         purifyInstance = dp;
     } else if (typeof window !== 'undefined') {
@@ -258,23 +274,59 @@ export const getSanitizedContent = (content: string): string => {
                         : '';
                     let value: string = hookEvent.attrValue;
 
+                    const isSvgTag = SVG_TAGS.has(tagName);
+
                     // NFKC normalize URL-bearing attribute values to defeat Unicode
                     // obfuscation of dangerous schemes, and strip control characters
                     // (browsers ignore C0 controls when parsing URLs, so e.g.
                     // `java\x00script:` is parsed as `javascript:` and must be
                     // rejected by the same scheme check).
-                    if (
+                    //
+                    // Scope:
+                    //   - HTML and SVG: href / src / xlink:href (URL attributes)
+                    //   - SMIL elements: to / from / values / by \u2014 animation
+                    //     value attributes that the scriptingPatterns substring
+                    //     scan further down checks. Without normalization,
+                    //     fullwidth-Unicode `to="\uFF4A\uFF41\uFF56\uFF41\uFF53\uFF43\uFF52\uFF49\uFF50\uFF54:..."` and
+                    //     control-char obfuscation (`j\x00avascript:`) would
+                    //     evade the substring scan.
+                    //   - SVG funciri-bearing presentation attributes:
+                    //     fill / stroke / cursor / mask / clip-path / filter /
+                    //     marker-start / marker-mid / marker-end. These accept
+                    //     `url(scheme:...)` references and are checked by the
+                    //     funciri loop below, but the pre-funciri value-text
+                    //     `scriptingPatterns` scan also runs against them.
+                    const isUrlAttr =
                         attrName === 'href' ||
                         attrName === 'src' ||
-                        attrName === 'xlink:href'
+                        attrName === 'xlink:href';
+                    const isSmilValueAttr =
+                        SMIL_TAGS.has(tagName) &&
+                        (attrName === 'to' ||
+                            attrName === 'from' ||
+                            attrName === 'values' ||
+                            attrName === 'by');
+                    const isSvgFunciriPresentation =
+                        isSvgTag &&
+                        (attrName === 'fill' ||
+                            attrName === 'stroke' ||
+                            attrName === 'cursor' ||
+                            attrName === 'mask' ||
+                            attrName === 'clip-path' ||
+                            attrName === 'filter' ||
+                            attrName === 'marker-start' ||
+                            attrName === 'marker-mid' ||
+                            attrName === 'marker-end');
+                    if (
+                        isUrlAttr ||
+                        isSmilValueAttr ||
+                        isSvgFunciriPresentation
                     ) {
                         value = value
                             .normalize('NFKC')
                             .replace(/[\x00-\x1F\x7F\uFFFD]/g, '');
                         hookEvent.attrValue = value;
                     }
-
-                    const isSvgTag = SVG_TAGS.has(tagName);
 
                     // Keep strict per-tag allowlist behavior for HTML tags. For SVG
                     // tags, use a denylist so legitimate presentation/filter attrs are
@@ -354,39 +406,56 @@ export const getSanitizedContent = (content: string): string => {
                     // and we want partial-survival behavior (drop only the offending
                     // declaration, keep the rest).
                     if (isSvgTag && attrName !== 'style') {
-                        const funciriScheme = value.match(
-                            /url\(\s*["']?([a-z][a-z0-9+.\-]*)\s*:/i
-                        );
-                        if (funciriScheme) {
-                            const fScheme = funciriScheme[1].toLowerCase();
-                            if (fScheme !== 'data') {
+                        // Iterate EVERY url() token in the value, not
+                        // just the first. SMIL animation values
+                        // (`values`, `to`, `from`, `by`) and a few
+                        // CSS-shaped SVG attributes can carry multiple
+                        // url() tokens separated by `;` or `,` — e.g.
+                        // `values="url(data:image/png;base64,AAA);
+                        // url(https://attacker.example/track)"` on an
+                        // <animate attributeName="fill">. A single
+                        // value.match() finds only the first
+                        // occurrence, so a smuggled later url() with
+                        // an external scheme would slip through (the
+                        // scriptingPatterns scan does not include
+                        // `https:`). The exec-loop with the global
+                        // flag forces every url() token to clear the
+                        // gate.
+                        const urlTokenRegex =
+                            /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/gi;
+                        let urlTokenMatch: RegExpExecArray | null;
+                        while (
+                            (urlTokenMatch = urlTokenRegex.exec(value)) !== null
+                        ) {
+                            const fullUrl = (
+                                urlTokenMatch[1] ??
+                                urlTokenMatch[2] ??
+                                urlTokenMatch[3] ??
+                                ''
+                            ).trim();
+                            if (!fullUrl) continue;
+                            const schemeMatch = fullUrl.match(
+                                /^([a-z][a-z0-9+.\-]*):/i
+                            );
+                            // No scheme — fragment-only (#id) or
+                            // relative ref. Both safe; no fetch.
+                            if (!schemeMatch) continue;
+                            const scheme = schemeMatch[1].toLowerCase();
+                            if (scheme !== 'data') {
                                 hookEvent.keepAttr = false;
                                 return;
                             }
-                            // Scheme is `data:` — extract the full URL
-                            // inside `url(...)` and run the shared
+                            // Scheme is `data:` — run the shared
                             // image-data-URI safety check (MIME
                             // allowlist + base64 enforcement +
-                            // svg+xml payload scan). Without this,
-                            // `<rect filter="url(data:image/svg+xml;
-                            // base64,<svg with embedded foreignObject
-                            // / external href>)">` would pass on
-                            // sandbox-weak surfaces (older WebView2,
-                            // mobile, export pipelines). Mirrors the
-                            // gate already applied to top-level
-                            // `src`/`href` (getSanitizedDataUri) and
-                            // CSS `url()` values (isSafeImageDataUri
-                            // via hasUnsafeFunction).
-                            const urlMatch = value.match(
-                                /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/i
-                            );
-                            const fullUrl = (
-                                urlMatch?.[1] ??
-                                urlMatch?.[2] ??
-                                urlMatch?.[3] ??
-                                ''
-                            ).trim();
-                            if (fullUrl && !isSafeImageDataUri(fullUrl)) {
+                            // svg+xml payload scan, recursive on
+                            // nested data:image/svg+xml inner
+                            // hrefs). Mirrors the gate already
+                            // applied to top-level `src`/`href`
+                            // (getSanitizedDataUri) and CSS `url()`
+                            // values (isSafeImageDataUri via
+                            // hasUnsafeFunction).
+                            if (!isSafeImageDataUri(fullUrl)) {
                                 hookEvent.keepAttr = false;
                                 return;
                             }
@@ -408,7 +477,15 @@ export const getSanitizedContent = (content: string): string => {
                     if (
                         SMIL_TAGS.has(tagName) &&
                         attrName === 'attributename' &&
-                        SMIL_ATTRIBUTE_NAME_DENYLIST.has(value.toLowerCase())
+                        // Trim before lookup — Set.has is exact-match but
+                        // browsers (and the SMIL animator) trim and lowercase
+                        // attributeName values before resolving them. A
+                        // padded value like `attributeName=" href "` would
+                        // otherwise survive the gate while still binding
+                        // the animation to `href` at runtime.
+                        SMIL_ATTRIBUTE_NAME_DENYLIST.has(
+                            value.trim().toLowerCase()
+                        )
                     ) {
                         hookEvent.keepAttr = false;
                         return;
@@ -639,17 +716,9 @@ export const getSanitizedDataUri = (dataUri: string): string => {
     }
 
     const mimeType = mimeMatch[1].toLowerCase();
-    const safeMimeTypes = [
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'image/gif',
-        'image/webp',
-        'image/bmp',
-        'image/svg+xml'
-    ];
-
-    if (!safeMimeTypes.includes(mimeType)) {
+    // Reuse the shared SAFE_IMAGE_MIME_TYPES set from svg-payload-scan.ts
+    // so this entry point and isSafeImageDataUri stay in lockstep.
+    if (!SAFE_IMAGE_MIME_TYPES.has(mimeType)) {
         console.warn(
             `Blocked data URI with unsafe MIME type: ${mimeType.slice(0, 64)}`
         );

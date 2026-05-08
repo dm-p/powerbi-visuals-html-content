@@ -70,6 +70,8 @@
  * 7. Run `npm run uat:generate` to refresh `test-uat/stylesheet.csv`.
  */
 
+import type { SanitizationAssertion } from '../../test-integration/csp-harness/corpus';
+
 export interface StylesheetScenario {
     /** Stable, unique identifier. Must start with `style-`. */
     id: string;
@@ -82,10 +84,7 @@ export interface StylesheetScenario {
     /** CSS to paste into the Custom stylesheet setting on the format pane. */
     cssInput: string;
     /** Sanitization assertions on `getSanitizedCss(cssInput)`. */
-    cssExpectedSanitized: {
-        contains?: string[];
-        notContains?: string[];
-    };
+    cssExpectedSanitized: SanitizationAssertion;
 }
 
 export const STYLESHEET_PAYLOADS: StylesheetScenario[] = [
