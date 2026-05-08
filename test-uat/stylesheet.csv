@@ -1,0 +1,65 @@
+id,description,expected_outcome,html_input,html_sanitized,css_input,css_sanitized
+style-basic-color,A single class selector setting color. Verifies the most common authored-stylesheet shape survives surface 3 sanitization.,"The ""target"" paragraph renders in red.","<p class=""target"">red text via custom stylesheet</p>","<p class=""target"">red text via custom stylesheet</p>",.target { color: red; },.target { color: red; }
+style-css-variables,"CSS custom properties on :root, referenced via var() in a class rule. Surface 3 must preserve both the declaration and the reference unchanged.","The ""card"" block renders with a blue background and white text.","<div class=""card"">var() reference test</div>","<div class=""card"">var() reference test</div>",":root { --card-bg: #2F06D2; --card-fg: #ffffff; }
+.card { background: var(--card-bg); color: var(--card-fg); padding: 12px; }",":root { --card-bg: #2F06D2; --card-fg: #ffffff; }
+.card { background: var(--card-bg); color: var(--card-fg); padding: 12px; }"
+style-modern-functions,"Modern CSS value functions — clamp(), rgba() — and !important. These exercise the postcss value-parser path inside sanitizeCss and are common in real reporter content (issue #143 follow-up).","The ""shape"" element renders with a fluid font-size, semi-transparent shadow, and the !important font-weight wins over any inherited rule.","<div class=""shape"">modern css functions</div>","<div class=""shape"">modern css functions</div>",".shape {
+    font-size: clamp(12px, 3vw, 24px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-weight: 700 !important;
+}",".shape {
+    font-size: clamp(12px, 3vw, 24px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-weight: 700 !important;
+}"
+style-multiline-selector-has-hover,Multi-line comma-separated selector list using :has(:hover) — the exact shape that broke on Power BI 1.6.1.0 (issue #143 kriscs1). Surface 3 must preserve the LF-separated selector list intact.,Hovering the .row element fades the .panel inside it; both selectors must survive sanitization for the rule to apply.,"<div class=""row""><div class=""panel"">hover the parent row to fade me</div></div>","<div class=""row""><div class=""panel"">hover the parent row to fade me</div></div>",".row:has(.panel:hover) .panel,
+.row:has(.panel:focus) .panel {
+    opacity: 0.4;
+    transition: opacity 0.2s ease-in;
+}",".row:has(.panel:hover) .panel,
+.row:has(.panel:focus) .panel {
+    opacity: 0.4;
+    transition: opacity 0.2s ease-in;
+}"
+style-fragment-url-fill,CSS rule using url(#fragment) to reference an in-document SVG gradient. Same-document fragment refs must survive surface 3 sanitization (Greptile review fix).,The .badge rectangle renders with the in-document gradient applied as fill.,"<svg viewBox=""0 0 100 50""><defs><linearGradient id=""g1""><stop offset=""0%"" stop-color=""#2F06D2""/><stop offset=""100%"" stop-color=""#D24013""/></linearGradient></defs><rect class=""badge"" width=""100"" height=""50""/></svg>","<svg viewBox=""0 0 100 50""><defs><linearGradient id=""g1""><stop offset=""0%"" stop-color=""#2F06D2""></stop><stop offset=""100%"" stop-color=""#D24013""></stop></linearGradient></defs><rect class=""badge"" width=""100"" height=""50""></rect></svg>",.badge { fill: url(#g1); },.badge { fill: url(#g1); }
+style-data-image-svg-xml,CSS background-image with a data:image/svg+xml URI (URL-encoded angle brackets — the canonical CSS-embedded SVG form). Verifies the MIME-conditional base64 bypass added for issue #143.,The .swatch span shows a 16x16 SVG icon as its background-image.,"<span class=""swatch"">swatch</span>","<span class=""swatch"">swatch</span>",".swatch {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    background-image: url(""data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23E07A5F'/%3E%3C/svg%3E"");
+}",".swatch {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    background-image: url(""data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23E07A5F'/%3E%3C/svg%3E"");
+}"
+style-media-keyframes,@media query plus @keyframes animation. Both at-rules are on the sanitizer allowlist; the inner declarations must round-trip.,The .pulse element fades in over 1s. On viewports ≤ 600px the font-size shrinks to 12px.,"<div class=""pulse"">animated</div>","<div class=""pulse"">animated</div>","@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.pulse { animation: fadein 1s ease-in forwards; font-size: 16px; }
+@media (max-width: 600px) {
+    .pulse { font-size: 12px; }
+}","@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.pulse { animation: fadein 1s ease-in forwards; font-size: 16px; }
+@media (max-width: 600px) {
+    .pulse { font-size: 12px; }
+}"
+style-at-import-external,@import of an external stylesheet. Triggers a CSP violation and must be stripped by sanitizeCss before the rule reaches the page <head>. The safe sibling `.target { color: red }` rule must survive (partial-survival — same shape as style-url-javascript and style-moz-binding).,The .target paragraph renders red (the sibling rule survives sanitization). The @import line is silently dropped — no network request to attacker.example fires.,"<p class=""target"">@import dropped, color rule survives</p>","<p class=""target"">@import dropped, color rule survives</p>","@import url('https://attacker.example/evil.css');
+.target { color: red; }",.target { color: red; }
+style-expression,CSS expression() (legacy IE attack vector). The whole declaration must be dropped by the postcss walker.,"The .target paragraph renders with default width, no script execution.","<p class=""target"">expression() should be dropped</p>","<p class=""target"">expression() should be dropped</p>",.target { width: expression(alert(1)); color: red; },.target { color: red; }
+style-url-javascript,background-image using url(javascript:...). Declaration must be dropped; the safe color: red sibling MUST survive (partial-survival).,The .target paragraph renders red but has no background image (the background declaration was dropped).,"<p class=""target"">background dropped, color survives</p>","<p class=""target"">background dropped, color survives</p>",".target {
+    color: red;
+    background-image: url(javascript:alert(1));
+}",".target {
+    color: red;
+}"
+style-url-external,background-image using an external https: URL. Must be dropped (Power BI sandbox blocks external resource loading).,The .target element renders with no background image and no network request to attacker.example.,"<div class=""target"">no external background</div>","<div class=""target"">no external background</div>",".target {
+    background-image: url(https://attacker.example/bg.png);
+    padding: 16px;
+}",".target {
+    padding: 16px;
+}"
+style-moz-binding,-moz-binding (legacy Firefox XBL injection vector). Property name is denied; whole declaration dropped.,The .target paragraph renders red. No XBL binding is applied.,"<p class=""target"">moz-binding stripped</p>","<p class=""target"">moz-binding stripped</p>",".target {
+    color: red;
+    -moz-binding: url('https://attacker.example/binding.xml#x');
+}",".target {
+    color: red;
+}"
