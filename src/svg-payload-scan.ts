@@ -79,6 +79,18 @@ export function decodeSvgDataUriPayload(dataUri: string): string | null {
 }
 
 /**
+ * Maximum recursion depth for nested `data:image/svg+xml` payloads.
+ * Without a cap, an attacker could base64-wrap `<svg><script>...</script></svg>`
+ * inside several SVG layers; the regex check stays opaque to the
+ * inner script for as many layers as the URL length allows. Four is
+ * generous — each base64 wrap roughly 4/3-multiplies the parent's URL
+ * length, so depth 4 already implies a single-attribute payload close
+ * to 1 MB. Reaching the cap is fail-closed: we cannot finish
+ * verifying the deepest layer.
+ */
+const MAX_PAYLOAD_SCAN_DEPTH = 4;
+
+/**
  * Defense-in-depth scan of an `image/svg+xml` data URI for content the
  * browser sandbox would normally neuter. Rejects on:
  *   - `<script>` tags
@@ -88,9 +100,23 @@ export function decodeSvgDataUriPayload(dataUri: string): string | null {
  *     non-data scheme (sandbox blocks fetches in image context, but a
  *     sandbox-weak surface would let them through)
  *
+ * Recursive on nested `data:image/svg+xml` inner hrefs. A
+ * Russian-doll payload that base64-wraps a `<script>` SVG inside an
+ * outer SVG would otherwise be opaque to the regex checks at the
+ * outer layer — the inner `<script>` only appears after decoding the
+ * inner data URI. Recursion is depth-capped (see
+ * MAX_PAYLOAD_SCAN_DEPTH); reaching the cap returns true.
+ *
+ * The `depth` parameter is internal; public callers leave it at the
+ * default 0.
+ *
  * Returns true when the payload is dangerous (caller should reject).
  */
-export function hasDangerousSvgPayload(dataUri: string): boolean {
+export function hasDangerousSvgPayload(
+    dataUri: string,
+    depth: number = 0
+): boolean {
+    if (depth > MAX_PAYLOAD_SCAN_DEPTH) return true;
     const decoded = decodeSvgDataUriPayload(dataUri);
     if (decoded == null) return true;
     if (/<script\b/i.test(decoded)) return true;
@@ -129,6 +155,17 @@ export function hasDangerousSvgPayload(dataUri: string): boolean {
             // to inner-element href / xlink:href so a payload like
             // <image href="data:text/html,<script>..."> is flagged
             // even when wrapped inside an outer image-context SVG.
+            //
+            // Inner data:image/svg+xml is recursively scanned — a
+            // base64 inner SVG could otherwise hide <script> /
+            // <foreignObject> / on*= behind opaque base64 that the
+            // outer regex can't see through.
+            if (/^data:image\/svg\+xml/i.test(value)) {
+                if (hasDangerousSvgPayload(value, depth + 1)) {
+                    return true;
+                }
+                continue;
+            }
             if (/^data:image\//i.test(value)) continue;
             return true;
         }

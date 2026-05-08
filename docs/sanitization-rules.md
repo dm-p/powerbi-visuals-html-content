@@ -786,6 +786,20 @@ Data URIs that declare a safe MIME type but carry unsafe content.
 <img>
 ```
 
+#### Outer data:image/svg+xml whose <image href> points at a nested data:image/svg+xml;base64 URI that base64-encodes `<svg><script>alert(1)</script></svg>`. The outer regex cannot see through the opaque base64 wrapper — the payload scan recursively decodes nested data:image/svg+xml inner hrefs (depth-capped at MAX_PAYLOAD_SCAN_DEPTH) so the inner script is exposed and the entire chain is rejected (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
 #### SVG payload with an inner element href placed adjacent to a closing attribute quote (no whitespace between). HTML5's lenient tokenizer treats the closing `"` as an attribute boundary and would initiate the fetch — the boundary regex on the inner-href scan must match `"href=` and `'href=` as well as `\shref=` for sandbox-weak surfaces. Symmetric to the on* event-handler boundary fix (security review).
 
 **Input:**

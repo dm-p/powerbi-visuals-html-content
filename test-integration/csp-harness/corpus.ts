@@ -569,6 +569,31 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         source: 'Security review — funciri MIME allowlist'
     },
     {
+        id: 'data-uri-svg-nested-base64-script',
+        description:
+            'Outer data:image/svg+xml whose <image href> points at a ' +
+            'nested data:image/svg+xml;base64 URI that base64-encodes ' +
+            '`<svg><script>alert(1)</script></svg>`. The outer regex ' +
+            'cannot see through the opaque base64 wrapper — the payload ' +
+            'scan recursively decodes nested data:image/svg+xml inner ' +
+            'hrefs (depth-capped at MAX_PAYLOAD_SCAN_DEPTH) so the inner ' +
+            'script is exposed and the entire chain is rejected ' +
+            '(security review).',
+        // base64 of `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`
+        input: '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><image href=\'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=\' width=\'10\' height=\'10\'/></svg>">',
+        expectedSanitized: {
+            notContains: [
+                'data:image/svg+xml',
+                'PHN2Zy',
+                '<script',
+                'alert(1)'
+            ]
+        },
+        category: 'data-uri-smuggling',
+        cspCategory: 'script-src',
+        source: 'Security review — recursive nested svg+xml payload scan'
+    },
+    {
         id: 'data-uri-svg-href-quote-adjacent',
         description:
             'SVG payload with an inner element href placed adjacent to a ' +

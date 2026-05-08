@@ -331,12 +331,110 @@ describe('hasDangerousSvgPayload', () => {
             ).toBe(false);
         });
 
-        it('preserves nested data:image/svg+xml href (allowlisted MIME)', () => {
+        it('preserves nested data:image/svg+xml href (allowlisted MIME) when inner is benign', () => {
+            // Inner is base64 of `<svg/>` — recursion scans it and finds
+            // nothing dangerous, so the outer payload also passes.
             expect(
                 hasDangerousSvgPayload(
                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/svg+xml;base64,PHN2Zy8+' width='10' height='10'/></svg>"
                 )
             ).toBe(false);
+        });
+
+        // Recursive scan of nested data:image/svg+xml inner hrefs
+        // (security review). Without recursion, a base64 inner SVG
+        // could hide <script>/<foreignObject>/on*= behind opaque
+        // base64 that the outer regex can't see through. The outer
+        // <script> regex catches a literal <script> string in the
+        // outer decoded body, but base64 wrapping is opaque until
+        // the inner data URI is itself decoded.
+        it('rejects inner data:image/svg+xml with embedded <script> (utf8)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>\"/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects inner data:image/svg+xml;base64 carrying base64-encoded <script> (security bypass)', () => {
+            // base64 of `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`
+            const innerB64 =
+                'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=';
+            expect(
+                hasDangerousSvgPayload(
+                    `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/svg+xml;base64,${innerB64}'/></svg>`
+                )
+            ).toBe(true);
+        });
+
+        it('rejects inner data:image/svg+xml with <foreignObject>', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject/></svg>\"/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects inner data:image/svg+xml with on*= handler', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>\"/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        it('rejects inner data:image/svg+xml whose innermost element has external href (transitive)', () => {
+            // Outer wraps inner svg+xml; that inner svg has an <image>
+            // pointing at https://attacker — caught at recursion depth 1.
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='https://attacker.example/x.png'/></svg>\"/></svg>"
+                )
+            ).toBe(true);
+        });
+
+        // For depth-cap testing the inner URI must be base64-encoded.
+        // The href regex captures `[^"'\s>]+` — a `;utf8,` inner URI
+        // containing literal `'` (e.g. `xmlns='...'`) gets truncated
+        // at the first quote, so recursion never actually descends.
+        // Real-world bypass payloads use base64 wrapping (which is
+        // quote-free), so this is also closer to the threat model.
+        const wrapInBase64Svg = (innerHref: string): string => {
+            const inner = `<svg xmlns="http://www.w3.org/2000/svg"><image href="${innerHref}"/></svg>`;
+            const b64 = Buffer.from(inner).toString('base64');
+            return `data:image/svg+xml;base64,${b64}`;
+        };
+
+        it('preserves benign nesting up to the depth cap', () => {
+            // 4 base64-wrapped layers of benign svg+xml — recursion
+            // should scan every layer, find nothing dangerous, and
+            // admit the outer URI.
+            const innermost =
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
+            let nested = innermost;
+            for (let i = 0; i < 4; i++) nested = wrapInBase64Svg(nested);
+            expect(hasDangerousSvgPayload(nested)).toBe(false);
+        });
+
+        it('rejects payload nesting that exceeds the depth cap (fail-closed)', () => {
+            // 6 base64-wrapped layers — exceeds MAX_PAYLOAD_SCAN_DEPTH
+            // (4). Reaching the cap returns true, because we can no
+            // longer verify the deepest layer's content.
+            const innermost =
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
+            let nested = innermost;
+            for (let i = 0; i < 6; i++) nested = wrapInBase64Svg(nested);
+            expect(hasDangerousSvgPayload(nested)).toBe(true);
+        });
+
+        it('depth-cap fires when called directly at the cap boundary', () => {
+            // Direct test of the `depth > MAX_PAYLOAD_SCAN_DEPTH`
+            // gate. A trivially-benign URI returns true when entered
+            // at depth 5, false at depth 0.
+            const benign =
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
+            expect(hasDangerousSvgPayload(benign, 5)).toBe(true);
+            expect(hasDangerousSvgPayload(benign, 0)).toBe(false);
         });
 
         // HTML5's lenient tokenizer accepts adjacent attributes
