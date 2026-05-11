@@ -824,6 +824,34 @@ Data URIs that declare a safe MIME type but carry unsafe content.
 <img>
 ```
 
+#### SVG data URI whose percent-encoded payload carries `<script>` plus a trailing malformed `%GG` escape. Pre-fix, `decodeSvgDataUriPayload` caught the `decodeURIComponent` throw and returned the raw still-encoded string; the `/<script\b/i` regex never saw through `%3Cscript%3E` and the URI passed sanitization, while a sandbox-weak surface would still decode and execute it. The decoder now fail-closes (returns null) on malformed percent-encoding, matching the symmetric base64-failure path (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E%3C%2Fsvg%3E%GG">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Companion to data-uri-svg-malformed-percent-script with the attack vector swapped to an `onload=` event handler. Same bypass primitive (malformed `%XX` causes `decodeURIComponent` to throw; pre-fix the raw still-encoded string was scanned and the encoded `onload=` slipped past the boundary regex). Demonstrates the fix covers all the downstream regex checks in `hasDangerousSvgPayload`, not just `<script>` (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 onload%3D%27alert(1)%27%2F%3E%G">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
 #### CSS url() with a safe image MIME type but no base64 encoding — the content is plain-text HTML smuggled behind an image/png declaration.
 
 **Input:**
