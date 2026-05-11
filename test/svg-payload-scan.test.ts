@@ -24,19 +24,31 @@ describe('decodeSvgDataUriPayload', () => {
             expect(out).toContain('</svg>');
         });
 
-        it('falls back to raw payload when decodeURIComponent throws (literal angle brackets — DAX form)', () => {
-            // `decodeURIComponent` throws on stray `%` that does not begin
-            // a valid escape — DAX-emitted SVG payloads with literal `<`,
-            // `>`, `=`, etc. don't trip this, but a payload with a `%XY`
-            // sequence that is not a valid escape will. The decoder must
-            // not return null in that case; the caller's regex scan
-            // operates on the raw payload.
+        it('decodes plain-text payload with literal angle brackets (DAX form)', () => {
+            // DAX measures emit `data:image/svg+xml,<svg>...</svg>` with
+            // literal `<`, `>`, `=`. `decodeURIComponent` is a no-op on
+            // unencoded ASCII (it only throws on malformed `%XX`), so
+            // the plain-text payload decodes cleanly without needing
+            // any fallback path.
             const out = decodeSvgDataUriPayload(
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'>%ZZ</svg>"
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"
             );
             expect(out).not.toBeNull();
             expect(out).toContain('<svg');
-            expect(out).toContain('%ZZ');
+        });
+
+        it('returns null for malformed percent-encoding (fail-closed)', () => {
+            // A stray `%` not followed by two hex digits makes
+            // `decodeURIComponent` throw. The decoder must return null
+            // (same fail-closed contract as the base64 branch) so
+            // hasDangerousSvgPayload rejects. Returning the raw,
+            // still-encoded payload would let `%3Cscript%3E...%GG`
+            // slip past the caller's `/<script\b/i` regex while a
+            // sandbox-weak surface still decoded and executed it.
+            const out = decodeSvgDataUriPayload(
+                'data:image/svg+xml;utf8,%3Cscript%3Ealert(1)%3C/script%3E%GG'
+            );
+            expect(out).toBeNull();
         });
 
         it('decodes bare-comma form (no charset parameter)', () => {
@@ -269,9 +281,13 @@ describe('hasDangerousSvgPayload', () => {
 
         it('does not false-positive on attribute names that merely start with "on"', () => {
             // `offset` and `opacity` start with "o" but not the `on<word>=` shape.
+            // Note: literal `%` in a `;utf8,` payload must be encoded as
+            // `%25` to be a well-formed URI — `decodeSvgDataUriPayload`
+            // now fail-closes on malformed percent-escapes per the
+            // security review (2026-05-11).
             expect(
                 hasDangerousSvgPayload(
-                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><stop offset='0%' stop-color='red'/></svg>"
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><stop offset='0%25' stop-color='red'/></svg>"
                 )
             ).toBe(false);
         });

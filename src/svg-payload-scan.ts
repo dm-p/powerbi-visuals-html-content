@@ -49,15 +49,19 @@ export const SAFE_IMAGE_MIME_TYPES = new Set<string>([
 
 /**
  * Decode the body of a `data:image/svg+xml` URI for content inspection.
- * Returns null when the URI is malformed or base64 decoding fails — the
- * caller treats that as "dangerous" and rejects.
+ * Returns null when the URI is malformed, base64 decoding fails, or
+ * percent-decoding fails — the caller treats that as "dangerous" and
+ * rejects.
  *
  * Detects encoding from the header before the first comma:
  *   - `;base64,` → atob
  *   - anything else (`;utf8,`, bare comma, percent-encoded) →
- *     decodeURIComponent, falling back to the raw payload when the
- *     payload is already plain text with literal angle brackets (the
- *     form DAX measures emit).
+ *     decodeURIComponent.
+ *
+ * Plain-text payloads with literal angle brackets (the form DAX
+ * measures emit, e.g. `data:image/svg+xml,<svg>...</svg>`) decode
+ * cleanly because `decodeURIComponent` is a no-op on unencoded ASCII;
+ * it only throws on malformed `%XX` sequences.
  */
 export function decodeSvgDataUriPayload(dataUri: string): string | null {
     const commaIdx = dataUri.indexOf(',');
@@ -80,7 +84,12 @@ export function decodeSvgDataUriPayload(dataUri: string): string | null {
     try {
         return decodeURIComponent(payload);
     } catch {
-        return payload;
+        // Malformed percent-encoding (stray `%`, `%GG`, etc.) — fail
+        // closed, same as the base64 path above. Returning the raw
+        // still-encoded payload would let `%3Cscript%3E...` slip past
+        // the caller's `/<script\b/i` regex while a downstream parser
+        // (or sandbox-weak surface) still decoded and executed it.
+        return null;
     }
 }
 
