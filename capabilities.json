@@ -80,6 +80,11 @@
                         }
                     }
                 },
+                "overrideInlineStyling": {
+                    "type": {
+                        "bool": true
+                    }
+                },
                 "hyperlinks": {
                     "type": {
                         "bool": true

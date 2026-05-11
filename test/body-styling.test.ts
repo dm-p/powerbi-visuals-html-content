@@ -54,6 +54,7 @@ function buildSettings(opts: {
     fontColour?: string;
     align?: string;
     customStylesheet?: string;
+    overrideInlineStyling?: boolean;
 }): SettingsFixture {
     return {
         contentFormatting: {
@@ -64,7 +65,12 @@ function buildSettings(opts: {
                 fontFamily: { value: opts.fontFamily ?? 'Arial' },
                 fontSize: { value: opts.fontSize ?? 14 },
                 fontColour: { value: { value: opts.fontColour ?? '#ff0000' } },
-                align: { value: opts.align ?? 'left' }
+                align: { value: opts.align ?? 'left' },
+                // Default OFF mirrors the production default. Tests that
+                // exercise the cascade override path pass `true` explicitly.
+                overrideInlineStyling: {
+                    value: opts.overrideInlineStyling ?? false
+                }
             }
         },
         stylesheet: {
@@ -96,23 +102,46 @@ function makeRoots() {
 }
 
 describe('issue #144 — default body styling apply layer', () => {
-    describe('resolveStyling class toggle', () => {
-        it('adds the override class when no custom stylesheet is supplied', () => {
+    describe('resolveStyling class toggle (default OFF)', () => {
+        it('does NOT add the override class by default (toggle off, no stylesheet)', () => {
+            // Default behaviour: respect inline author intent. The class
+            // only fires when the user opts into paste-cleanup via the
+            // overrideInlineStyling toggle.
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
                 styleSheetContainer,
                 bodyContainer,
                 buildSettings({}) as unknown as VisualFormattingSettingsModel
             );
-            expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
+            expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
         });
 
-        it('omits the override class when a custom stylesheet IS supplied', () => {
+        it('adds the override class when overrideInlineStyling=true and no custom stylesheet', () => {
+            // Paste-cleanup mode: user opted into the cascade override
+            // explicitly. Issue #144 reporters land here.
             const { styleSheetContainer, bodyContainer } = makeRoots();
             resolveStyling(
                 styleSheetContainer,
                 bodyContainer,
-                buildSettings({ customStylesheet: 'body { color: blue; }' }) as unknown as VisualFormattingSettingsModel
+                buildSettings({
+                    overrideInlineStyling: true
+                }) as unknown as VisualFormattingSettingsModel
+            );
+            expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
+        });
+
+        it('omits the override class when a custom stylesheet IS supplied (regardless of toggle)', () => {
+            // Custom-stylesheet mode supersedes the toggle. The user's
+            // own CSS is the sole source of styling truth, so the
+            // built-in cascade override would only fight it.
+            const { styleSheetContainer, bodyContainer } = makeRoots();
+            resolveStyling(
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({
+                    customStylesheet: 'body { color: blue; }',
+                    overrideInlineStyling: true
+                }) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
         });
@@ -122,13 +151,40 @@ describe('issue #144 — default body styling apply layer', () => {
             resolveStyling(
                 styleSheetContainer,
                 bodyContainer,
-                buildSettings({}) as unknown as VisualFormattingSettingsModel
+                buildSettings({
+                    overrideInlineStyling: true
+                }) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
             resolveStyling(
                 styleSheetContainer,
                 bodyContainer,
-                buildSettings({ customStylesheet: 'p { color: green; }' }) as unknown as VisualFormattingSettingsModel
+                buildSettings({
+                    customStylesheet: 'p { color: green; }',
+                    overrideInlineStyling: true
+                }) as unknown as VisualFormattingSettingsModel
+            );
+            expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
+        });
+
+        it('removes the class when the toggle is flipped off mid-session', () => {
+            // Operator turned the override on, then off again. The class
+            // must clear so inline styling resumes — no stale residue.
+            const { styleSheetContainer, bodyContainer } = makeRoots();
+            resolveStyling(
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({
+                    overrideInlineStyling: true
+                }) as unknown as VisualFormattingSettingsModel
+            );
+            expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(true);
+            resolveStyling(
+                styleSheetContainer,
+                bodyContainer,
+                buildSettings({
+                    overrideInlineStyling: false
+                }) as unknown as VisualFormattingSettingsModel
             );
             expect(bodyContainer.node()!.classList.contains(CLASS)).toBe(false);
         });
@@ -223,7 +279,7 @@ describe('issue #144 — default body styling apply layer', () => {
             );
         });
 
-        it('style/visual.less inherits color, font-family, font-size, text-align and clears background-color', () => {
+        it('style/visual.less inherits color, font-family, font-size, text-align and does NOT touch background-color', () => {
             const less = fs.readFileSync(VISUAL_LESS_PATH, 'utf-8');
             const selector =
                 `#htmlViewer\\.${VisualConstants.dom.defaultBodyStylingClass}\\s+#htmlContent\\s+\\[style\\]`;
@@ -236,7 +292,11 @@ describe('issue #144 — default body styling apply layer', () => {
             expect(body).toMatch(/font-family:\s*inherit\s*!important/);
             expect(body).toMatch(/font-size:\s*inherit\s*!important/);
             expect(body).toMatch(/text-align:\s*inherit\s*!important/);
-            expect(body).toMatch(/background-color:\s*transparent\s*!important/);
+            // Issue #147 secondary symptom: pane has no background-color
+            // property to inherit, so the override must NOT touch it.
+            // Authored inline backgrounds (table/cell shading from DAX
+            // measures, callout boxes) must render as written.
+            expect(body).not.toMatch(/background-color\s*:/);
         });
     });
 });

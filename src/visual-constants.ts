@@ -194,6 +194,13 @@ export const VisualConstants = {
         separation: 'none',
         hyperlinks: false,
         userSelect: false,
+        // Default OFF: inline color/font/alignment are honored as authored.
+        // When ON, the cascade override in style/visual.less forces every
+        // inline-styled descendant to inherit the four pane-aligned
+        // properties — paste-cleanup mode for the original issue #144
+        // reporters. Custom-stylesheet mode disables this gate entirely
+        // regardless of the toggle's value.
+        overrideInlineStyling: false,
         noDataMessage: 'No data available to display'
     },
     stylesheet: {

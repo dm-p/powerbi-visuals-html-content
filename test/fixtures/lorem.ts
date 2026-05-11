@@ -731,5 +731,127 @@ export const LOREM_PAYLOADS: LoremPayload[] = [
         category: 'lorem',
         cspCategory: 'none',
         source: 'issue #145 — HomeTetris SMIL animation pattern'
+    },
+    {
+        id: 'lorem-inline-svg-icon-evenodd-cutout',
+        description:
+            'A table row with a small inline <svg> icon next to body text — ' +
+            'the canonical DAX-measure pattern for in-line icons (info / warning / ' +
+            'status glyphs). The icon is a single <path> using fill-rule="evenodd" ' +
+            'and clip-rule="evenodd" to cut the inner glyph (an exclamation mark) ' +
+            'out of the outer disc. If either rule attribute is dropped, the path ' +
+            'fills as one solid shape and the cutout collapses to a blue circle ' +
+            'with no visible glyph — the exact symptom reported in issue #147. ' +
+            'The fixture asserts that fill-rule, clip-rule, the d path data, the ' +
+            'path fill colour, and the svg viewBox all survive sanitization. ' +
+            'Single-quoted attributes in the input are normalized to double ' +
+            'quotes by DOMPurify; expected substrings reflect the post-sanitization ' +
+            'shape.',
+        input:
+            "<table style='border-collapse:collapse;width:100%;background-color:#eaedf4'>" +
+            '<tr>' +
+            "<td style='border:none;width:40px;vertical-align:middle;padding-bottom:0px'>" +
+            "<svg width='32' height='32' viewBox='0 0 32 32' fill='none' " +
+            "xmlns='http://www.w3.org/2000/svg'>" +
+            "<path fill-rule='evenodd' clip-rule='evenodd' " +
+            "d='M16 29.33C23.36 29.33 29.33 23.36 29.33 16C29.33 8.64 23.36 2.67 16 2.67C8.64 2.67 2.67 8.64 2.67 16C2.67 23.36 8.64 29.33 16 29.33ZM17.33 12V9.33H14.67V12H17.33ZM17.33 22.67V14.67H14.67V22.67H17.33Z' " +
+            "fill='#002664'/>" +
+            '</svg>' +
+            '</td>' +
+            "<td style='border:none;vertical-align:middle;padding-bottom:5px'>" +
+            'If there is no data, please check the slicers.' +
+            '</td>' +
+            '</tr>' +
+            '</table>',
+        expectedSanitized: {
+            contains: [
+                '<svg',
+                'viewBox="0 0 32 32"',
+                'xmlns="http://www.w3.org/2000/svg"',
+                '<path',
+                'fill-rule="evenodd"',
+                'clip-rule="evenodd"',
+                'd="M16 29.33',
+                'fill="#002664"',
+                'If there is no data'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #147 — inline-SVG icon with evenodd cutout (DAX measure pattern)'
+    },
+    {
+        id: 'lorem-inline-callout-with-background',
+        description:
+            'A two-row callout strip with an inline background-color on each ' +
+            'cell — the typical "info / warning" shape a DAX measure emits ' +
+            'when shading rows by status. Asserts the sanitizer preserves ' +
+            'the inline background-color declarations so the visual\'s ' +
+            'render layer can show them. Visual UAT: with the "Override ' +
+            'inline styling" toggle OFF (default), the cell backgrounds ' +
+            'render as authored (#eaedf4 / #fff4ce). With the toggle ON, ' +
+            'the cascade override leaves background-color alone (it is no ' +
+            'longer in the rule body, issue #147 secondary symptom) and ' +
+            'only color/font/alignment are forced to inherit. Either way, ' +
+            'the backgrounds are visible.',
+        input:
+            "<table style='border-collapse:collapse;width:100%'>" +
+            '<tr>' +
+            "<td style='background-color:#eaedf4;padding:8px;border:1px solid #c8c8c8'>" +
+            'Informational note: rows shaded for context.' +
+            '</td>' +
+            '</tr>' +
+            '<tr>' +
+            "<td style='background-color:#fff4ce;padding:8px;border:1px solid #c8c8c8'>" +
+            'Warning: action required before continuing.' +
+            '</td>' +
+            '</tr>' +
+            '</table>',
+        expectedSanitized: {
+            contains: [
+                'background-color:#eaedf4',
+                'background-color:#fff4ce',
+                'Informational note',
+                'Warning: action required'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #147 — inline background-color survival (callout pattern)'
+    },
+    {
+        id: 'lorem-inline-coloured-spans-coperf-shape',
+        description:
+            'Paragraph with inline-styled <span style="color:..."> for ' +
+            'conditional formatting — the shape a DAX measure emits when ' +
+            'highlighting status values inline (e.g. red for low, green for ' +
+            'high, the HTML CoPerf measure pattern reported on issue #144 ' +
+            'follow-up). Asserts the sanitizer preserves the inline color ' +
+            'declarations. Visual UAT path 2 (default): with the "Override ' +
+            'inline styling" toggle OFF, the per-span colors render as ' +
+            'authored — red, amber, green appear inline. Path 1: with the ' +
+            'toggle ON, the cascade override forces every inline-styled ' +
+            'descendant to inherit the body Font color (paste-cleanup mode). ' +
+            'Both behaviors are valid; the toggle expresses author intent.',
+        input:
+            '<p>' +
+            'Status: ' +
+            "<span style='color:#d13438;font-weight:600'>Low</span>, " +
+            "<span style='color:#f7630c;font-weight:600'>Medium</span>, " +
+            "<span style='color:#107c10;font-weight:600'>High</span>." +
+            '</p>',
+        expectedSanitized: {
+            contains: [
+                'color:#d13438',
+                'color:#f7630c',
+                'color:#107c10',
+                'Low',
+                'Medium',
+                'High'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #144 follow-up — HTML CoPerf inline-coloured-spans pattern'
     }
 ];

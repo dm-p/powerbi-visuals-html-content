@@ -107,14 +107,23 @@ export const resolveStyling = (
                 bodyProps.contentFormattingCardDefaultBodyStyling.align.value
             )
         );
-    // Default body styling must win against inline `style` declarations
+    // Default body styling can win against inline `style` declarations
     // carried in the bound content (typically Outlook/Teams/Word paste
-    // residue with embedded color/font-family/font-size/background-color).
-    // Toggle a class on the body container so the matching stylesheet rule
-    // in style/visual.less can fire only when the user is in default-body
-    // mode — in custom-stylesheet mode the user's own rules take over and
-    // we do not force inheritance. Issue #144.
-    bodyContainer.classed(VisualConstants.dom.defaultBodyStylingClass, !useSS);
+    // residue with embedded color/font-family/font-size). Gated on:
+    //   1. NOT in custom-stylesheet mode (the user's CSS is sole truth)
+    //   2. The "Override inline styling" toggle is enabled
+    // Default OFF preserves author intent — inline color/font/alignment
+    // render as written. Issue #144 reporters who hit Office paste
+    // residue can opt in via the toggle. The matching cascade rule
+    // lives in style/visual.less.
+    const applyOverride =
+        !useSS &&
+        bodyProps.contentFormattingCardDefaultBodyStyling.overrideInlineStyling
+            .value;
+    bodyContainer.classed(
+        VisualConstants.dom.defaultBodyStylingClass,
+        applyOverride
+    );
 };
 
 /**

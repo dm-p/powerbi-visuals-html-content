@@ -27,6 +27,8 @@
     "Objects_ContentFormatting_FontColour_Description": "The default color to apply to the HTML body text.\n\n𝙉𝙤𝙩𝙚 𝘵𝘩𝘢𝘵 𝘢𝘱𝘱𝘭𝘺𝘪𝘯𝘨 𝘪𝘯𝘭𝘪𝘯𝘦 𝘴𝘵𝘺𝘭𝘦𝘴 𝘵𝘰 𝘦𝘭𝘦𝘮𝘦𝘯𝘵𝘴 𝘮𝘢𝘺 𝘰𝘷𝘦𝘳𝘳𝘪𝘥𝘦 𝘵𝘩𝘪𝘴.",
     "Objects_ContentFormatting_Align": "Text alignment",
     "Objects_ContentFormatting_Alig_Description": "The default text alignment to apply to the the HTML Body.\n\n𝙉𝙤𝙩𝙚 𝘵𝘩𝘢𝘵 𝘢𝘱𝘱𝘭𝘺𝘪𝘯𝘨 𝘪𝘯𝘭𝘪𝘯𝘦 𝘴𝘵𝘺𝘭𝘦𝘴 𝘵𝘰 𝘦𝘭𝘦𝘮𝘦𝘯𝘵𝘴 𝘮𝘢𝘺 𝘰𝘷𝘦𝘳𝘳𝘪𝘥𝘦 𝘵𝘩𝘪𝘴.",
+    "Objects_ContentFormatting_OverrideInlineStyling": "Override inline styling",
+    "Objects_ContentFormatting_OverrideInlineStyling_Description": "Force the four properties above (font family, font size, font color, text alignment) to apply to every element in the rendered HTML, even those carrying inline 𝚜𝚝𝚢𝚕𝚎 attributes. Useful when content was pasted from Outlook, Teams, or Word and you want the visual's body styling to be authoritative.\n\nWhen disabled (default), inline color, font, and alignment are honored as authored — recommended when your data emits intentional inline styles (e.g., conditional formatting via DAX).\n\nThis setting has no effect when a 𝗖𝘂𝘀𝘁𝗼𝗺 𝘀𝘁𝘆𝗹𝗲𝘀𝗵𝗲𝗲𝘁 is supplied; in that mode the stylesheet is the sole source of styling.",
     "Objects_ContentFormatting_Hyperlinks": "Allow opening URLs",
     "Objects_ContentFormatting_Hyperlinks_Description": "For security reasons, custom visuals cannot directly open hyperlinks that redirect to a URL.\n\nBy setting this option, the visual will 𝗱𝗲𝗹𝗲𝗴𝗮𝘁𝗲 𝘁𝗵𝗲 𝘂𝘀𝗲𝗿'𝘀 𝗿𝗲𝗾𝘂𝗲𝘀𝘁 𝘁𝗼 𝗻𝗮𝘃𝗶𝗴𝗮𝘁𝗲 𝘁𝗼 𝗮 𝗨𝗥𝗟 𝘁𝗼 𝗣𝗼𝘄𝗲𝗿 𝗕𝗜, which if permitted, will prompt the user for their approval for any remote navigation.",
     "Objects_ContentFormatting_UserSelect": "Allow text select",
