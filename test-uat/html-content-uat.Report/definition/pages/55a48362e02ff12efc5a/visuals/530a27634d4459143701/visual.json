@@ -1,0 +1,232 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "530a27634d4459143701",
+  "position": {
+    "x": 336,
+    "y": 0,
+    "z": 1000,
+    "height": 352,
+    "width": 1584,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "pivotTable",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "stylesheet"
+                        }
+                      },
+                      "Property": "description"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(stylesheet.description)",
+              "nativeQueryRef": "Description1",
+              "displayName": "Description"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "stylesheet"
+                        }
+                      },
+                      "Property": "html_input"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(stylesheet.html_input)",
+              "nativeQueryRef": "HTML Input",
+              "displayName": "HTML Input"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "stylesheet"
+                        }
+                      },
+                      "Property": "html_sanitized"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(stylesheet.html_sanitized)",
+              "nativeQueryRef": "HTML (Sanitized)",
+              "displayName": "HTML (Sanitized)"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "stylesheet"
+                        }
+                      },
+                      "Property": "css_input"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(stylesheet.css_input)",
+              "nativeQueryRef": "CSS Input",
+              "displayName": "CSS Input"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "stylesheet"
+                        }
+                      },
+                      "Property": "css_sanitized"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(stylesheet.css_sanitized)",
+              "nativeQueryRef": "CSS (Sanitized)",
+              "displayName": "CSS (Sanitized)"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "values": [
+        {
+          "properties": {
+            "valuesOnRow": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            },
+            "fontFamily": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Consolas'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "columnWidth": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "1418.9656874763004D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "grid": [
+        {
+          "properties": {
+            "outlineColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "rowHeaders": [
+        {
+          "properties": {
+            "bold": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "columnHeaders": [
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "8D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "stylePreset": [
+        {
+          "properties": {
+            "name": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Minimal'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

@@ -2,11 +2,19 @@ import './setup-dom';
 import { test, expect } from '@playwright/test';
 import { createHarness, formatFailure, RenderResult } from './csp-harness/runner';
 import { MALICIOUS_PAYLOADS, CLEAN_PAYLOADS } from './csp-harness/corpus';
+import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 
-// Sanity: assert ids are unique across both arrays. Catches copy-paste
-// duplicates that the corpus's structural type checking can't.
-const allIds = [...MALICIOUS_PAYLOADS, ...CLEAN_PAYLOADS].map(p => p.id);
+// Sanity: assert ids are unique across all corpus arrays (sanitization
+// + lorem). Catches copy-paste duplicates that the corpus's structural
+// type checking can't. Includes LOREM_PAYLOADS so a `lorem-foo` id
+// can't collide with a malicious or clean entry, per the rule
+// documented in test/fixtures/lorem.ts.
+const allIds = [
+    ...MALICIOUS_PAYLOADS,
+    ...CLEAN_PAYLOADS,
+    ...LOREM_PAYLOADS
+].map(p => p.id);
 const dupes = allIds.filter((id, i) => allIds.indexOf(id) !== i);
 if (dupes.length > 0) {
     throw new Error(`Duplicate payload ids in corpus: ${dupes.join(', ')}`);

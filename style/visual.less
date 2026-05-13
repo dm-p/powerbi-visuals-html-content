@@ -8,6 +8,37 @@
     }
 }
 
+// Default body styling override. When `resolveStyling` (src/domain-utils.ts)
+// detects that the user is in default-body mode AND the
+// "Override inline styling" toggle is enabled, it adds
+// `.uses-default-body-styling` to #htmlViewer. This rule then forces any
+// descendant inside #htmlContent that carries an inline `style` attribute
+// to inherit color, font-family, font-size, and text-align from the body
+// container — overriding the embedded styles commonly introduced by
+// Outlook/Teams/Word paste residue (issue #144).
+//
+// Scoped to `[style]` so descendants WITHOUT inline styles (`<h1>`,
+// `<code>`, `<strong>`, etc.) keep their browser/user-agent defaults via
+// normal inheritance and only the cascade-conflicting elements are forced.
+//
+// Scoped to the four properties that map 1:1 to format-pane settings.
+// `background-color` is intentionally NOT overridden: the pane has no
+// background-colour property to inherit from, so forcing transparency
+// would clobber legitimate inline backgrounds (e.g. table/cell shading
+// emitted by DAX measures — issue #147 secondary symptom) without
+// expressing any pane intent.
+//
+// Tradeoff: a deliberate `<span style="color: red">` is overridden when
+// the toggle is on. Users who want inline styling preserved should
+// either leave the toggle off (default) or supply a custom stylesheet
+// (which clears the class and disables this rule unconditionally).
+#htmlViewer.uses-default-body-styling #htmlContent [style] {
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    text-align: inherit !important;
+}
+
 #rawHtmlOutput {
     height: 97vh;
     width: 100vw;

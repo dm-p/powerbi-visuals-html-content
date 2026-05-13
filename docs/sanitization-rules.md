@@ -19,6 +19,15 @@ There are three places where content enters the visual and gets sanitized:
 
 All three go through the same CSS rule set. Inline attributes additionally pass through the HTML-layer attribute allowlist.
 
+**Surfaces 2 and 3 are equivalent for sanitization.** A `<style>` block in your bound data and the same CSS pasted into the format pane's custom stylesheet setting both run through `sanitizeCss` in stylesheet mode and produce the same surviving CSS. The only difference is *where* the resulting `<style>` element ends up in the DOM:
+
+- **Custom stylesheet setting** → `<style id="visualUserStylesheet">` in the page `<head>`. Created and managed by the visual itself.
+- **`<style>` tag in bound data** → ends up inside the visual's content container (in the body). Browsers apply CSS from `<style>` tags wherever they appear in the document, so selectors work identically from both surfaces.
+
+CSS custom properties (`:root { --my-var: ... }` plus `var(--my-var)` references) work in both surfaces. So do `clamp()`, `rgba()`, `:hover`, `@media`, `@keyframes`, `@supports`, `inherit`, `!important`, `aspect-ratio`, transitions, and the rest of modern CSS.
+
+> **Tip:** if you embed a `<style>` tag in your bound data, avoid `id="visualUserStylesheet"` — that's the id the visual uses for its own host stylesheet element in `<head>`, and a duplicate id is invalid HTML even though browsers tolerate it. Any other id (or no id at all) works.
+
 ---
 
 ## What's allowed
@@ -40,14 +49,14 @@ The visual permits the following elements (everything else is dropped):
 `img`, `style`
 
 #### SVG
-`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.). SVG animation elements (`animate`, `animatemotion`, `animatetransform`, `set`) are **not** permitted — SMIL animation can override sanitized attributes at runtime.
+`svg`, `circle`, `clippath`, `defs`, `desc`, `ellipse`, `g`, `image`, `line`, `marker`, `mask`, `metadata`, `path`, `pattern`, `polygon`, `polyline`, `rect`, `stop`, `symbol`, `text`, `textpath`, `title`, `tspan`, `view`, `lineargradient`, `radialgradient`, and the SVG filter primitives (`filter`, `feblend`, `fecolormatrix`, etc.). SMIL animation elements (`animate`, `animatemotion`, `animatetransform`, `set`) are **permitted** but locked down: the element's own `href`/`xlink:href` may only point at same-document fragments, and the `attributeName="..."` value must name a safe presentation/geometry property. Animation that targets `href`, `xlink:href`, `src`, `style`, `cursor`, `clip-path`, `mask`, `filter`, `marker-*`, or the meta `attributeName` itself has its `attributeName` attribute dropped — the SMIL element survives but cannot bind to a target, so the well-known SMIL sanitizer-bypass primitive (`<animate attributeName="href" to="javascript:..."/>`) is closed.
 
 ### HTML attributes
 
 **Global attributes** (allowed on every element above):
 `class`, `id`, `title`, `lang`, `dir`, `style`, `role`, `aria-*`, `data-*`, `tabindex`
 
-**Element-specific attributes** are allowed on a per-element basis. For example:
+**HTML element-specific attributes** are allowed on a per-element basis. Anything not on the global or element-specific list is dropped:
 
 | Element | Element-specific attributes |
 |---|---|
@@ -60,19 +69,31 @@ The visual permits the following elements (everything else is dropped):
 | `progress` | `value`, `max` |
 | `details` | `open` |
 | `table` cells | `colspan`, `rowspan`, `headers`, `scope` |
-| SVG elements | The standard SVG attribute set for each element (positions, dimensions, styling, gradients, animation timing, etc.) |
 
-Anything not on the global or element-specific list is dropped.
+**SVG attributes** follow a different model. Because the SVG spec defines a sprawling set of presentation, filter, gradient, and accessibility attributes that vary by element, the visual uses a denylist for SVG-namespaced tags: any attribute is allowed *except* event handlers (`on*`) and the dangerous attributes listed under [Disabled HTML attributes](#disabled-html-attributes) below. URL-bearing SVG attributes (`href`, `xlink:href`) are additionally subject to per-tag scheme rules — see [URL schemes](#url-schemes).
 
 ### URL schemes
 
-For attributes that carry URLs (`href`, `src`, `xlink:href`):
+For attributes that carry URLs (`href`, `src`, `xlink:href`), the allowed scheme depends on the element:
 
-- **`https:`** is allowed for `<a href>` (and processed by Power BI's `launchUrl()` API).
-- **`http:`** is allowed for `<a href>` for backwards compatibility.
-- **`data:` URIs** are allowed for `<img src>` and similar image attributes, but **only** if:
-  - The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`. **`image/svg+xml` is rejected** because SVG can carry scripts.
-  - The URI is **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
+| Element | Allowed schemes |
+|---|---|
+| `<a href>` | `https:` (processed by Power BI's `launchUrl()` API), `http:` (backwards compatibility) |
+| `<img src>` | `data:` only — no external resource loading |
+| `<image href>` / `<image xlink:href>` (SVG) | `data:` only — same restriction as `<img>` |
+| `<feImage href>` / `<feImage xlink:href>` (SVG) | `data:` only — same restriction as `<image>` |
+| `<textPath href>` / `<textPath xlink:href>` (SVG) | Same-document fragment references only (e.g. `#myPath`) — no external URLs |
+| `<pattern href>`, `<linearGradient href>`, `<radialGradient href>`, `<filter href>` (SVG) | Same-document fragment references only — no external URLs |
+| `<animate>` / `<animateMotion>` / `<animateTransform>` / `<set>` (SVG SMIL) | Same-document fragment references only — the element's own `href`/`xlink:href` names which element to animate, never an external resource |
+| Any other SVG tag with `href` / `xlink:href` | **Default-deny** — must have an explicit entry in `allowedSchemesByTag`; missing entries cause the URL attribute to be dropped |
+
+In addition, SVG presentation attributes that accept functional IRI values (`mask`, `clip-path`, `filter`, `marker-*`, `fill`, `stroke`, `cursor`) are scanned for embedded `url(<scheme>:...)` references. The same rules apply to the embedded scheme: empty (fragment-only `url(#id)`) and `data:` are allowed; `http:`, `https:`, `blob:`, etc. are rejected.
+
+`data:` URIs (where allowed) must additionally satisfy:
+
+- The MIME type is one of: `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`, `image/svg+xml`.
+- For raster MIME types (`image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`), the URI must be **base64-encoded** (`data:image/png;base64,...`). A `data:image/png,...` URI without `;base64,` is always rejected because real binary image data cannot be plain-text — such a URI is always smuggling HTML or text behind an image declaration.
+- `image/svg+xml` is allowed in any of three forms: `data:image/svg+xml;base64,...`, `data:image/svg+xml;utf8,<svg ...>`, or `data:image/svg+xml,<svg ...>`. SVG is text by spec, and DAX measures and similar tooling legitimately emit the `;utf8,` and bare-comma forms. SVG loaded via `<img>` / `<svg image>` / `<feImage>` / CSS `url()` runs in browser image-loading context, so embedded `<script>`, event handlers, and external resource references inside the SVG **do not execute** — the browser sandbox is the load-bearing security boundary, not the sanitizer. Inline `<svg>...</svg>` parsed into the DOM is a different surface and is still subject to the full DOMPurify SVG profile (script tags and event handlers are stripped; SMIL animation tags are permitted but constrained by the `attributeName` denylist; `<use>` is blocked at the tag allowlist).
 
 All other schemes (`javascript:`, `vbscript:`, `blob:`, `file:`, `ftp:`, `mailto:`, `tel:`, etc.) are rejected.
 
@@ -92,11 +113,12 @@ Inline `style` attributes, `<style>` tag bodies, and the custom stylesheet setti
 
 ### Non-image data URIs
 
-**Blocked.** A `data:` URI is only allowed inside CSS `url()` (or in `src`/`href` attributes) if its MIME type is on the image allowlist AND it is base64-encoded. This catches three categories of attack:
+**Blocked.** A `data:` URI is only allowed inside CSS `url()` (or in `src`/`href` attributes) if its MIME type is on the image allowlist (`image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, `image/bmp`, `image/svg+xml`) AND, for raster MIME types, it is base64-encoded. `image/svg+xml` is exempt from the base64 requirement because SVG is text by spec — the `;utf8,` and bare-comma forms are normal output for tools and DAX measures. This catches two categories of attack:
 
 1. `data:text/html,<script>...</script>` smuggling executable HTML
-2. `data:image/png,<html>...</html>` declaring an image MIME but carrying plain text
-3. `data:image/svg+xml,...` declaring an image MIME but carrying SVG (which can contain `<script>`)
+2. `data:image/png,<html>...</html>` declaring a raster image MIME but carrying plain text
+
+`image/svg+xml` is treated separately rather than blocked: SVG loaded through an image-loading context (`<img src>`, `<svg image href>`, `<feImage href>`, CSS `url()`) is sandboxed by the browser — embedded scripts, event handlers, and external resource references do not execute. Inline `<svg>` in the DOM is a different surface and is still scrubbed by the full DOMPurify pass.
 
 ### `@import` and `@font-face`
 
@@ -176,14 +198,24 @@ The block contained content matched by the [defense-in-depth final pass](#defens
 Check the `src` value:
 
 - External URLs (`http://`, `https://`) are blocked. Convert to a base64 data URI.
-- `data:image/svg+xml,...` is blocked. Use PNG/JPEG instead.
-- `data:image/png,...` without `;base64,` is blocked. Re-encode as base64.
+- `data:image/svg+xml,...` (and the `;utf8,` / `;base64,` variants) is allowed. SVG loaded via `<img>` / CSS `url()` is browser-sandboxed.
+- `data:image/png,...` (and the other raster types) without `;base64,` is blocked. Re-encode as base64.
 
 ### "An entire `<element>` is missing"
 
 Most common causes:
 - The element was on an event handler (`onclick`, `onload`, etc.) — the entire element is dropped, not just the attribute.
 - The element is not on the allowed-tag list (`<script>`, `<iframe>`, `<object>`, etc.).
+
+### "My inline `color` / `font-family` / `font-size` is being ignored"
+
+This is **by design** when no Custom stylesheet is supplied on the format pane. The visual targets office-paste residue (Outlook / Teams / Word commonly paste content with inline `style="color: rgb(0,0,0); font-family: Calibri; ..."` declarations that override the visual's Default body styling). The `#htmlViewer.uses-default-body-styling #htmlContent [style]` rule forces every descendant with an inline `style` attribute to inherit `color`, `font-family`, `font-size`, `text-align`, and clears `background-color` to transparent.
+
+The intentional tradeoff: a deliberate `<span style="color: red">important note</span>` is also overridden by this rule.
+
+**Workaround:** supply any value in the **Stylesheet → Custom stylesheet** setting on the format pane. The cascade-override rule is class-gated (`uses-default-body-styling`) and disables itself in custom-stylesheet mode — your inline colors and fonts will then render as authored.
+
+See [docs/solutions/2026-05-issue-144-body-styling-cascade.md](solutions/2026-05-issue-144-body-styling-cascade.md) for the full design rationale.
 
 ---
 
@@ -536,20 +568,6 @@ Every scheme or pseudo-scheme that might appear inside a `url()` argument.
 (empty — entire input was dropped)
 ```
 
-#### data:image/svg+xml is blocked even though it is image/* — SVG can carry scripts.
-
-**Input:**
-
-```html
-<img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>">
-```
-
-**Output:**
-
-```html
-<img>
-```
-
 #### blob: scheme in background.
 
 **Input:**
@@ -672,6 +690,160 @@ Data URIs that declare a safe MIME type but carry unsafe content.
 
 ```html
 <img src="data:image/png,abc">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains <script>. Browsers sandbox SVG in image-loading context but the sanitizer scans the decoded payload as defense-in-depth for sandbox-weak rendering surfaces (older WebView2, mobile, export pipelines).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains an on* event handler. Same defense-in-depth scan rejects the URI before it reaches the DOM.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains a <foreignObject>. Even though image-context loading neuters foreignObject HTML in the browser, the sanitizer rejects it as defense-in-depth.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI payload contains an inner element with external xlink:href. Image-context sandbox blocks fetches but the sanitizer rejects the URI to keep external references out of sandbox-weak surfaces.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image xlink:href='https://attacker.example/track.png' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Base64-encoded SVG data URI carrying a <script> tag. Verifies the payload scanner decodes base64 before pattern-matching, not just the ;utf8, form.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG payload with an on* event handler placed adjacent to a closing attribute quote (no whitespace between). HTML5's lenient tokenizer treats the closing `"` as an attribute boundary and fires onclick — the boundary regex must match `"on...=` as well as `\son...=` for sandbox-weak surfaces (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' id='x'onclick='alert(1)'/>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG payload with an inner element href pointing at a nested data:text/html URI. Even though the outer image-context sandbox blocks the inner fetch, the payload scanner now restricts inner data: hrefs to data:image/* MIME types — matching the outer allowlist so sandbox-weak surfaces also reject it (Security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:text/html,<script>alert(1)</script>' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Outer data:image/svg+xml whose <image href> points at a nested data:image/svg+xml;base64 URI that base64-encodes `<svg><script>alert(1)</script></svg>`. The outer regex cannot see through the opaque base64 wrapper — the payload scan recursively decodes nested data:image/svg+xml inner hrefs (depth-capped at MAX_PAYLOAD_SCAN_DEPTH) so the inner script is exposed and the entire chain is rejected (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image href='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG payload with an inner element href placed adjacent to a closing attribute quote (no whitespace between). HTML5's lenient tokenizer treats the closing `"` as an attribute boundary and would initiate the fetch — the boundary regex on the inner-href scan must match `"href=` and `'href=` as well as `\shref=` for sandbox-weak surfaces. Symmetric to the on* event-handler boundary fix (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image id='x'href='https://attacker.example/pixel' width='10' height='10'/></svg>">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### SVG data URI whose percent-encoded payload carries `<script>` plus a trailing malformed `%GG` escape. Pre-fix, `decodeSvgDataUriPayload` caught the `decodeURIComponent` throw and returned the raw still-encoded string; the `/<script\b/i` regex never saw through `%3Cscript%3E` and the URI passed sanitization, while a sandbox-weak surface would still decode and execute it. The decoder now fail-closes (returns null) on malformed percent-encoding, matching the symmetric base64-failure path (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E%3C%2Fsvg%3E%GG">
+```
+
+**Output:**
+
+```html
+<img>
+```
+
+#### Companion to data-uri-svg-malformed-percent-script with the attack vector swapped to an `onload=` event handler. Same bypass primitive (malformed `%XX` causes `decodeURIComponent` to throw; pre-fix the raw still-encoded string was scanned and the encoded `onload=` slipped past the boundary regex). Demonstrates the fix covers all the downstream regex checks in `hasDangerousSvgPayload`, not just `<script>` (security review).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 onload%3D%27alert(1)%27%2F%3E%G">
 ```
 
 **Output:**
@@ -930,6 +1102,48 @@ HTML `on*` attributes that execute script.
 
 Payloads that only work inside SVG contexts.
 
+#### SVG funciri presentation attribute (filter) pointing at a data:image/svg+xml URI whose embedded payload contains <foreignObject>. The funciri scheme gate alone admits any data: URI; the new payload check runs the same image-data-URI safety predicate (isSafeImageDataUri) as the top-level src/href and CSS url() paths so sandbox-weak surfaces (older WebView2, mobile, export pipelines) still drop the embedded foreignObject (Security review).
+
+**Input:**
+
+```html
+<svg><rect filter="url(data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><foreignObject><iframe src='https://attacker.example'/></foreignObject></svg>)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG funciri pointing at data:text/html (a non-image MIME). Pre-fix, the funciri gate only checked scheme==data and admitted any subtype; now the MIME allowlist drops it before the inner <script> can ever be parsed by a sandbox-weak surface (security review).
+
+**Input:**
+
+```html
+<svg><rect mask="url(data:text/html,<script>alert(1)</script>)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SMIL <animate values="..."> carrying TWO url() tokens — a safe data:image/png as the first keyframe and an external https://attacker as the second. The previous funciri gate used value.match() (non-global) so only the first token was validated; the smuggled second triggered a cross-origin fetch on every rendering surface (including the sandbox-weak targets the payload scan defends). Funciri now iterates every url() token and drops the attribute if any non-fragment, non-data scheme survives (security review).
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" values="url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=);url(https://attacker.example/track)" dur="1s"/></rect></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" dur="1s"></animate></rect></svg>
+```
+
 #### script element inside svg.
 
 **Input:**
@@ -969,10 +1183,10 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg></svg>
+<svg><animate></animate></svg>
 ```
 
-#### set element with javascript: target.
+#### set element with javascript: target via attributeName="href". The SMIL_ATTRIBUTE_NAME_DENYLIST drops the attributeName attribute, neutering the animation; the javascript: value is also rejected by the scriptingPatterns gate.
 
 **Input:**
 
@@ -983,10 +1197,10 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg></svg>
+<svg><set></set></svg>
 ```
 
-#### SMIL animate overriding image href to an external URL at runtime. The animate element is dropped entirely (not in allowedTags).
+#### SMIL animate attempting to override <image> href to an external URL at runtime. SMIL animation elements are allowed (issue #145) but attributeName="href" is on SMIL_ATTRIBUTE_NAME_DENYLIST, so the attributeName attribute is dropped — the animate element survives but has nothing to bind to and cannot rewrite the sanitized href.
 
 **Input:**
 
@@ -997,7 +1211,49 @@ Payloads that only work inside SVG contexts.
 **Output:**
 
 ```html
-<svg><image href="data:image/png;base64,iVBORw0KGgo="></image></svg>
+<svg><image href="data:image/png;base64,iVBORw0KGgo="><animate to="https://attacker.example/track.png" begin="0s" dur="1ms" fill="freeze"></animate></image></svg>
+```
+
+#### SMIL animate attempting to overwrite the entire inline style attribute at runtime. attributeName="style" is on the denylist because animating style replaces the whole declaration string, re-introducing url() declarations the static sanitizer never saw.
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" style="fill: red"><animate attributeName="style" to="background:url(javascript:alert(1))" dur="1s"/></rect></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10" style="fill:red"><animate dur="1s"></animate></rect></svg>
+```
+
+#### SMIL animate with an external xlink:href (referencing the element to animate). Per-tag scheme allowlist for SMIL tags is fragment-only, so external URLs are dropped at the URL gate.
+
+**Input:**
+
+```html
+<svg><animate xlink:href="https://attacker.example/evil.svg" attributeName="opacity" from="0" to="1" dur="1s"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><animate attributeName="opacity" from="0" to="1" dur="1s"></animate></svg>
+```
+
+#### SMIL animate where attributeName names a SAFE presentation property (fill) but the `to` value carries a `javascript:` scheme. Once attributeName clears SMIL_ATTRIBUTE_NAME_DENYLIST, the value-side gate is the scriptingPatterns substring scan — this row pins that contract so a future weakening of scriptingPatterns is caught (security review).
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" to="javascript:alert(1)" dur="1s"/></rect></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10" fill="red"><animate attributeName="fill" dur="1s"></animate></rect></svg>
 ```
 
 #### use with javascript: xlink:href.
@@ -1068,6 +1324,146 @@ Payloads that only work inside SVG contexts.
 
 ```html
 <svg><text><textPath>label</textPath></text></svg>
+```
+
+#### SVG2 <marker href> can reference another marker by fragment ID; external URLs must be dropped. Per-tag URL gate enforces fragment-only via allowedSchemesByTag.
+
+**Input:**
+
+```html
+<svg><marker id="m" href="https://attacker.example/m.svg" viewBox="0 0 10 10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><marker id="m" viewBox="0 0 10 10"></marker></svg>
+```
+
+#### SVG2 <symbol href> can reference another symbol by fragment ID; external URLs must be dropped. Per-tag URL gate enforces fragment-only via allowedSchemesByTag.
+
+**Input:**
+
+```html
+<svg><symbol id="s" href="https://attacker.example/s.svg" viewBox="0 0 10 10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><symbol id="s" viewBox="0 0 10 10"></symbol></svg>
+```
+
+#### SVG feImage filter primitive with external href. Same restriction as <image>: only data: URIs are permitted, no external resource loading.
+
+**Input:**
+
+```html
+<svg><filter id="f"><feImage href="https://attacker.example/x.png"/></filter></svg>
+```
+
+**Output:**
+
+```html
+<svg><filter id="f"><feImage></feImage></filter></svg>
+```
+
+#### SVG pattern element with external href. Patterns should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><pattern id="p" href="https://attacker.example/x.svg"><rect width="10" height="10"/></pattern></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><pattern id="p"><rect width="10" height="10"></rect></pattern></defs></svg>
+```
+
+#### SVG linearGradient with external href. Gradients should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><linearGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></linearGradient></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><linearGradient id="g"><stop offset="0%" stop-color="red"></stop></linearGradient></defs></svg>
+```
+
+#### SVG radialGradient with external href. Gradients should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><defs><radialGradient id="g" href="https://attacker.example/x.svg"><stop offset="0%" stop-color="red"/></radialGradient></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><radialGradient id="g"><stop offset="0%" stop-color="red"></stop></radialGradient></defs></svg>
+```
+
+#### SVG filter element with external href. Filters should only reference same-document fragment IDs, not external URLs.
+
+**Input:**
+
+```html
+<svg><filter id="f" href="https://attacker.example/x.svg"><feGaussianBlur stdDeviation="2"/></filter></svg>
+```
+
+**Output:**
+
+```html
+<svg><filter id="f"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter></svg>
+```
+
+#### SVG mask attribute carrying url(https://...). Funciri values on SVG presentation attributes must be scheme-checked, not just the src/href/xlink:href attribute names.
+
+**Input:**
+
+```html
+<svg><rect mask="url(https://attacker.example/m.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG clip-path attribute carrying url(https://...). Same funciri concern as mask.
+
+**Input:**
+
+```html
+<svg><rect clip-path="url(https://attacker.example/c.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### SVG filter attribute carrying url(https://...). Same funciri concern as mask and clip-path.
+
+**Input:**
+
+```html
+<svg><rect filter="url(https://attacker.example/f.svg)" width="10" height="10"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
 ```
 
 ### Disallowed HTML elements
@@ -1585,7 +1981,7 @@ Legitimate content that must continue to render unchanged.
 <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z3I3rUAAAAASUVORK5CYII=" alt="dot">
 ```
 
-#### An inline style attribute using only safe properties (color and font-weight) with no external resource references.
+#### An inline style attribute using only safe properties (color and font-weight) with no external resource references. Sanitizer preserves both declarations verbatim. UAT visual expectation: when no Custom stylesheet is supplied, the issue #144 cascade override forces `color: inherit !important` on every descendant with an inline style, so the rendered text appears in the visual's Default body color (typically black) rather than red — this is by design (see docs/solutions/2026-05-issue-144-body-styling-cascade.md). `font-weight: bold` is not on the override list and renders as authored. To preserve the inline red, supply a Custom stylesheet.
 
 **Input:**
 
@@ -1599,49 +1995,214 @@ Legitimate content that must continue to render unchanged.
 <p style="color:red;font-weight:bold">red bold</p>
 ```
 
-<!-- WORKED_EXAMPLES_END -->
+#### A small inline SVG with the most common primitive shapes — circle, rect, and line — using basic fill and stroke. Should render as three side-by-side shapes.
 
----
+**Input:**
 
-## UAT testing with the corpus
-
-A CSV export of the full test corpus is available for manual UAT in Power BI Desktop. The CSV includes every malicious and clean payload alongside the sanitized output produced by the current sanitizer, making it straightforward to bind the HTML Content visual to the data and verify behavior as an end user.
-
-**Regenerating the CSV:**
-
-```bash
-npm run uat:generate
+```html
+<svg width="180" height="40" viewBox="0 0 180 40"><circle cx="20" cy="20" r="15" fill="steelblue"/><rect x="60" y="5" width="30" height="30" fill="orange"/><line x1="120" y1="20" x2="170" y2="20" stroke="#333" stroke-width="3"/></svg>
 ```
 
-This writes `test-uat/corpus.csv` with the following columns:
+**Output:**
 
-| Column | Description |
-|---|---|
-| `id` | Stable unique identifier for the payload |
-| `description` | Plain-language description of the attack vector or baseline case |
-| `type` | `malicious` or `clean` |
-| `category` | Grouping (e.g. `css-url-per-property`, `event-handler`, `clean-baseline`) |
-| `cspCategory` | CSP directive most likely to fire if the sanitizer leaks (`none` for clean payloads) |
-| `source` | Provenance: cert report, OWASP, code review, baseline, etc. |
-| `input` | Raw HTML payload exactly as it would arrive from a data field |
-| `sanitizedOutput` | The sanitizer's output for the current rule set |
+```html
+<svg width="180" height="40" viewBox="0 0 180 40"><circle cx="20" cy="20" r="15" fill="steelblue"></circle><rect x="60" y="5" width="30" height="30" fill="orange"></rect><line x1="120" y1="20" x2="170" y2="20" stroke="#333" stroke-width="3"></line></svg>
+```
 
-**To use in Power BI Desktop:**
+#### An SVG that scales to fill its container using viewBox plus 100% width and height with preserveAspectRatio. The standard pattern for responsive maps and dashboards.
 
-1. Open Power BI Desktop and use **Get Data > Text/CSV** to import `test-uat/corpus.csv`.
-2. Add the HTML Content visual to a page and bind it to the `input` or `sanitizedOutput` column.
-3. Use slicers on `type`, `category`, and `cspCategory` to filter to specific test groups.
+**Input:**
 
-Re-run `npm run uat:generate` after any change to the corpus or sanitizer to keep the CSV in sync.
+```html
+<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"><rect x="10" y="10" width="80" height="80" fill="#0078d4"/></svg>
+```
 
----
+**Output:**
 
-## How to report a sanitization bug
+```html
+<svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"><rect x="10" y="10" width="80" height="80" fill="#0078d4"></rect></svg>
+```
 
-If the sanitizer drops content you think should be safe, or fails to drop something you think is dangerous, file an issue with:
+#### A semi-transparent rectangle overlay on top of a solid shape, using fill-opacity. Common pattern for highlighting a region of a chart.
 
-1. The exact input that triggered it.
-2. The output you got.
-3. What you expected.
+**Input:**
 
-The maintainers will add a corresponding entry to the regression corpus so the same case can never silently regress.
+```html
+<svg width="120" height="40" viewBox="0 0 120 40"><rect x="0" y="0" width="120" height="40" fill="steelblue"/><rect x="40" y="0" width="40" height="40" fill="red" fill-opacity="0.4"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="120" height="40" viewBox="0 0 120 40"><rect x="0" y="0" width="120" height="40" fill="steelblue"></rect><rect x="40" y="0" width="40" height="40" fill="red" fill-opacity="0.4"></rect></svg>
+```
+
+#### SVG text with the styling a chart axis or legend typically uses — italic font-style, text-anchor, and rotated tick label via transform.
+
+**Input:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><text x="10" y="20" text-anchor="start" font-style="italic" font-size="14">Axis label</text><text x="80" y="50" text-anchor="middle" transform="rotate(-45 80 50)">Q1 2025</text></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><text x="10" y="20" text-anchor="start" font-style="italic" font-size="14">Axis label</text><text x="80" y="50" text-anchor="middle" transform="rotate(-45 80 50)">Q1 2025</text></svg>
+```
+
+#### A dashed grid line, a rounded line cap, and a polyline sparkline with rounded joins. Exercises stroke-dasharray, stroke-linecap, and stroke-linejoin on the shapes that use them most often.
+
+**Input:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><line x1="0" y1="20" x2="160" y2="20" stroke="#ccc" stroke-dasharray="4,2"/><line x1="10" y1="30" x2="150" y2="30" stroke="#000" stroke-width="3" stroke-linecap="round"/><polyline points="0,35 30,15 60,25 90,8 120,18 150,4" fill="none" stroke="#0078d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><line x1="0" y1="20" x2="160" y2="20" stroke="#ccc" stroke-dasharray="4,2"></line><line x1="10" y1="30" x2="150" y2="30" stroke="#000" stroke-width="3" stroke-linecap="round"></line><polyline points="0,35 30,15 60,25 90,8 120,18 150,4" fill="none" stroke="#0078d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+```
+
+#### A drop shadow applied to a path via the canonical SVG filter chain — feGaussianBlur, feOffset, and feMerge. Exercises filter primitives with their distinctive camelCase attributes.
+
+**Input:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"/><feOffset dx="1" dy="1" result="off"/><feMerge><feMergeNode in="off"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect x="20" y="15" width="120" height="30" fill="#0078d4" filter="url(#shadow)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="60" viewBox="0 0 160 60"><defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"></feGaussianBlur><feOffset dx="1" dy="1" result="off"></feOffset><feMerge><feMergeNode in="off"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter></defs><rect x="20" y="15" width="120" height="30" fill="#0078d4" filter="url(#shadow)"></rect></svg>
+```
+
+#### A rectangle filled with a horizontal linear gradient defined in <defs> and referenced via fill="url(#id)". Tests gradient definitions, gradientUnits, and stop-color.
+
+**Input:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><defs><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0"><stop offset="0%" stop-color="#0078d4"/><stop offset="100%" stop-color="#50e6ff"/></linearGradient></defs><rect x="0" y="0" width="160" height="40" fill="url(#g1)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg width="160" height="40" viewBox="0 0 160 40"><defs><linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0"><stop offset="0%" stop-color="#0078d4"></stop><stop offset="100%" stop-color="#50e6ff"></stop></linearGradient></defs><rect x="0" y="0" width="160" height="40" fill="url(#g1)"></rect></svg>
+```
+
+#### A small inline sparkline showing a trend line with an end-point marker — the kind of chart a report author would embed next to a KPI value.
+
+**Input:**
+
+```html
+<svg width="120" height="30" viewBox="0 0 120 30" xmlns="http://www.w3.org/2000/svg"><g transform="translate(2,2)"><path d="M0,20 L20,10 L40,15 L60,5 L80,12 L100,3" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="100" cy="3" r="2" fill="#0078d4"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg width="120" height="30" viewBox="0 0 120 30" xmlns="http://www.w3.org/2000/svg"><g transform="translate(2,2)"><path d="M0,20 L20,10 L40,15 L60,5 L80,12 L100,3" fill="none" stroke="#0078d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="100" cy="3" r="2" fill="#0078d4"></circle></g></svg>
+```
+
+#### A small bar chart with two bars, an x-axis baseline, a tick line, and a rotated italic tick label. Exercises text-anchor, font-style, transform, and group nesting in a recognizable chart shape.
+
+**Input:**
+
+```html
+<svg width="200" height="120" viewBox="0 0 200 120"><g class="axis" transform="translate(0,100)"><line x1="0" y1="0" x2="200" y2="0" stroke="#333"/><g class="tick" transform="translate(20,0)"><line y2="6" stroke="#333"/><text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text></g></g><g class="bars"><rect x="10" y="40" width="20" height="60" fill="steelblue"/><rect x="40" y="20" width="20" height="80" fill="steelblue"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg width="200" height="120" viewBox="0 0 200 120"><g class="axis" transform="translate(0,100)"><line x1="0" y1="0" x2="200" y2="0" stroke="#333"></line><g class="tick" transform="translate(20,0)"><line y2="6" stroke="#333"></line><text y="9" dy="0.71em" text-anchor="middle" font-style="italic">Jan</text></g></g><g class="bars"><rect x="10" y="40" width="20" height="60" fill="steelblue"></rect><rect x="40" y="20" width="20" height="80" fill="steelblue"></rect></g></svg>
+```
+
+#### A small inline SVG embedded as data:image/svg+xml;utf8 in <img src>. This is the shape DAX measures emit when a report author builds an SVG string and feeds it to HTML Content as an image. Browsers sandbox SVG loaded via <img>, so embedded scripts and external resource references would not execute even if present (issue #143 follow-up).
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
+```
+
+**Output:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
+```
+
+#### SMIL animation targeting opacity (a safe presentation attribute). attributeName="opacity" is not on the denylist, so the animation survives intact and renders the fade-in effect at runtime (issue #145 HomeTetris pattern).
+
+**Input:**
+
+```html
+<svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"/><rect width="10" height="10" fill="red"/></g></svg>
+```
+
+**Output:**
+
+```html
+<svg><g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.5s" begin="0s" fill="freeze"></animate><rect width="10" height="10" fill="red"></rect></g></svg>
+```
+
+#### CSS rule using url(#fragment) to reference an in-document SVG gradient. Same-document fragment refs resolve in-place and never fetch, so the CSS sanitizer admits them as a fast-path before the url() data:image safety check runs (security review).
+
+**Input:**
+
+```html
+<style>.shape { fill: url(#gradient1); }</style><svg><defs><linearGradient id="gradient1"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient></defs><rect class="shape" width="100" height="50"/></svg>
+```
+
+**Output:**
+
+```html
+<style>.shape { fill: url(#gradient1); }</style><svg><defs><linearGradient id="gradient1"><stop offset="0%" stop-color="red"></stop><stop offset="100%" stop-color="blue"></stop></linearGradient></defs><rect class="shape" width="100" height="50"></rect></svg>
+```
+
+#### Inline style filter property pointing at an in-document SVG filter definition via url(#filterId). Common SVG drop-shadow / blur pattern; the fragment-only url() must survive the CSS sanitizer.
+
+**Input:**
+
+```html
+<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"/></filter></defs><rect width="50" height="50" fill="red" style="filter: url(#dropShadow)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><filter id="dropShadow"><feGaussianBlur stdDeviation="2"></feGaussianBlur></filter></defs><rect width="50" height="50" fill="red" style="filter:url(#dropShadow)"></rect></svg>
+```
+
+#### SVG2 <marker> cross-referencing another marker definition via href="#otherMarker". Fragment-only allowedSchemesByTag entry lets it through (security review).
+
+**Input:**
+
+```html
+<svg><defs><marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"/></marker><marker id="derived" href="#base" viewBox="0 0 10 10"/></defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><marker id="base" viewBox="0 0 10 10"><path d="M0,0 L10,5 L0,10"></path></marker><marker id="derived" href="#base" viewBox="0 0 10 10"></marker></defs><line x1="0" y1="0" x2="100" y2="0" stroke="black" marker-end="url(#derived)"></line></svg>
+```
+
+#### SVG2 <symbol> cross-referencing another symbol definition via href="#otherSymbol". Fragment-only allowedSchemesByTag entry lets it through (security review).
+
+**Input:**
+
+```html
+<svg><defs><symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></symbol><symbol id="derived" href="#base" viewBox="0 0 10 10"/></defs></svg>
+```
+
+**Output:**
+
+```html
+<svg><defs><symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></symbol><symbol id="derived" href="#base" viewBox="0 0 10 10"></symbol></defs></svg>
+```
+
+<!-- WORKED_EXAMPLES_END -->

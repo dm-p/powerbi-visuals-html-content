@@ -27,7 +27,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
         }
         // Cross-filtering properties
         if (viewModel.hasGranularity) {
-            this.crossFilter.crossFilterCardMain.useTransparency.visible = this.crossFilter.crossFilterCardMain.enabled.value;
+            this.crossFilter.crossFilterCardMain.useTransparency.visible =
+                this.crossFilter.crossFilterCardMain.enabled.value;
             this.crossFilter.crossFilterCardMain.transparencyPercent.visible =
                 this.crossFilter.crossFilterCardMain.enabled.value &&
                 this.crossFilter.crossFilterCardMain.useTransparency.value;
@@ -43,9 +44,8 @@ export class ContentFormattingSettings extends FormattingSettingsCompositeCard {
     descriptionKey = 'Objects_ContentFormatting_Description';
     contentFormattingCardBehavior = new ContentFormattingCardBehavior(Object());
     contentFormattingCardNoData = new ContentFormattingCardNoData(Object());
-    contentFormattingCardDefaultBodyStyling = new ContentFormattingCardDefaultBodyStyling(
-        Object()
-    );
+    contentFormattingCardDefaultBodyStyling =
+        new ContentFormattingCardDefaultBodyStyling(Object());
     groups: Array<FormattingSettingsGroup> = [
         this.contentFormattingCardBehavior,
         this.contentFormattingCardNoData,
@@ -146,11 +146,24 @@ class ContentFormattingCardDefaultBodyStyling extends FormattingSettingsGroup {
         value: VisualConstants.contentFormatting.align,
         mode: powerbi.visuals.AlignmentGroupMode.Horizonal
     });
+    // Whether the four properties above should override inline `style`
+    // declarations in the bound content. Default OFF — author intent
+    // wins. ON enables the cascade override in style/visual.less for
+    // paste-cleanup mode (issue #144). Has no effect in
+    // custom-stylesheet mode.
+    overrideInlineStyling = new formattingSettings.ToggleSwitch({
+        name: 'overrideInlineStyling',
+        displayNameKey: 'Objects_ContentFormatting_OverrideInlineStyling',
+        descriptionKey:
+            'Objects_ContentFormatting_OverrideInlineStyling_Description',
+        value: VisualConstants.contentFormatting.overrideInlineStyling
+    });
     slices: Array<FormattingSettingsSlice> = [
         this.fontFamily,
         this.fontSize,
         this.fontColour,
-        this.align
+        this.align,
+        this.overrideInlineStyling
     ];
 }
 

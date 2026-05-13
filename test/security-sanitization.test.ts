@@ -280,7 +280,8 @@ describe('Security Sanitization', () => {
                 'image/jpg',
                 'image/gif',
                 'image/webp',
-                'image/bmp'
+                'image/bmp',
+                'image/svg+xml'
             ];
 
             // Verify concept - actual implementation in getSanitizedDataUri
@@ -289,18 +290,23 @@ describe('Security Sanitization', () => {
             });
         });
 
-        it('should not include image/svg+xml as a safe MIME type', () => {
-            // SVG data URIs can embed scripts, so they are blocked entirely
-            // in the certified edition. Only raster image types are allowed.
+        it('should include image/svg+xml as a safe MIME type for image-context loading', () => {
+            // image/svg+xml data URIs are allowed in <img src> / <image href>
+            // / CSS url() because browsers sandbox SVG loaded via image
+            // contexts (no script execution, no external resource fetches).
+            // SMIL animation tags and <use> are still blocked at the tag
+            // allowlist, and inline <svg> in the DOM still goes through the
+            // full DOMPurify pass. Issue #143 follow-up.
             const safeMimeTypes = [
                 'image/png',
                 'image/jpeg',
                 'image/jpg',
                 'image/gif',
                 'image/webp',
-                'image/bmp'
+                'image/bmp',
+                'image/svg+xml'
             ];
-            expect(safeMimeTypes).not.toContain('image/svg+xml');
+            expect(safeMimeTypes).toContain('image/svg+xml');
         });
 
         it('should block data:text/html via scriptingPatterns', () => {

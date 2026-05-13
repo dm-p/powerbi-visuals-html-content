@@ -27,6 +27,7 @@
 
 import postcss, { Root, Declaration } from 'postcss';
 import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
+import { isSafeImageDataUri } from './svg-payload-scan';
 
 // postcss-value-parser is a CommonJS module whose types declare the parser
 // function as the module export. Importing it as `import valueParser from ...`
@@ -35,7 +36,9 @@ import type { Node as ValueNode, FunctionNode } from 'postcss-value-parser';
 // default-import form but pbiviz package's strict ts-loader pass does not.
 // Using require() + a type-only import matches the existing pattern for
 // `pretty` in src/domain-utils.ts and keeps runtime semantics identical.
-const valueParser: (value: string) => { nodes: ValueNode[] } = require('postcss-value-parser');
+const valueParser: (value: string) => {
+    nodes: ValueNode[];
+} = require('postcss-value-parser');
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
@@ -79,7 +82,7 @@ const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
 ];
 
 function finalPassIsClean(serialized: string): boolean {
-    return !DEFENSE_IN_DEPTH_PATTERNS.some(p => p.test(serialized));
+    return !DEFENSE_IN_DEPTH_PATTERNS.some((p) => p.test(serialized));
 }
 
 const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
@@ -112,26 +115,35 @@ function hasDangerousSchemeInValue(value: string): boolean {
     // hasUnsafeUrl — this pre-strip is only a false-positive guard for
     // the scheme regex, not a source of truth for safety.
     const stripped = value.replace(/url\s*\([^)]*\)/gi, '');
-    return DANGEROUS_SCHEME_PATTERNS.some(p => p.test(stripped));
+    return DANGEROUS_SCHEME_PATTERNS.some((p) => p.test(stripped));
 }
 
 function hasDangerousSelector(selector: string): boolean {
     if (/javascript\s*:/i.test(selector)) return true;
+    // Reject control characters in 0x00-0x1F EXCEPT the whitespace
+    // controls that the CSS spec treats as valid: TAB (0x09), LF (0x0A),
+    // FF (0x0C), CR (0x0D). Multi-line comma-separated selectors
+    //
+    //   .a,
+    //   .b { ... }
+    //
+    // are normal real-world formatting and must not be dropped by this
+    // check (issue #143 report — multi-line layout
+    // selectors silently disappeared because of the over-broad range).
     for (let i = 0; i < selector.length; i++) {
         const code = selector.charCodeAt(i);
-        if (code >= 0x00 && code <= 0x1f) return true;
+        if (
+            code <= 0x1f &&
+            code !== 0x09 && // TAB
+            code !== 0x0a && // LF
+            code !== 0x0c && // FF
+            code !== 0x0d // CR
+        ) {
+            return true;
+        }
     }
     return false;
 }
-
-const SAFE_IMAGE_MIME_TYPES = new Set([
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/gif',
-    'image/webp',
-    'image/bmp'
-]);
 
 const DENIED_FUNCTIONS = new Set<string>([
     'expression',
@@ -139,36 +151,34 @@ const DENIED_FUNCTIONS = new Set<string>([
     'attr'
 ]);
 
-const DENIED_PROPERTY_NAMES = new Set<string>([
-    'behavior',
-    '-moz-binding'
-]);
+const DENIED_PROPERTY_NAMES = new Set<string>(['behavior', '-moz-binding']);
 
 function extractUrlArgument(node: FunctionNode): string {
-    const child = node.nodes.find(n => n.type === 'word' || n.type === 'string');
+    const child = node.nodes.find(
+        (n) => n.type === 'word' || n.type === 'string'
+    );
+    // postcss-value-parser narrows `find` result to WordNode | StringNode;
+    // both extend BaseNode with `value: string`. No cast needed.
     if (!child) return '';
-    return String((child as any).value || '').trim();
+    return (child.value || '').trim();
 }
 
-function isSafeImageDataUri(rawUrl: string): boolean {
-    const url = rawUrl.trim().toLowerCase();
-    if (!url) return false;
-    if (!url.startsWith('data:')) return false;
-    const semi = url.indexOf(';');
-    const comma = url.indexOf(',');
-    const end = Math.min(
-        semi === -1 ? url.length : semi,
-        comma === -1 ? url.length : comma
-    );
-    const mime = url.slice(5, end);
-    if (mime === 'image/svg+xml') return false;
-    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
-    // Real binary image data is always base64-encoded. A data:image/*
-    // URI without ;base64, is always smuggling plain-text content (HTML,
-    // SVG, script) behind an image MIME declaration. This mirrors the
-    // same check in getSanitizedDataUri (sanitize-pipeline.ts).
-    if (!/;base64,/i.test(rawUrl)) return false;
-    return true;
+// `isSafeImageDataUri` and `SAFE_IMAGE_MIME_TYPES` live in
+// `./svg-payload-scan` so all three call sites (this CSS url(),
+// the funciri value-scheme check in sanitize-pipeline.ts, and the
+// top-level URL attribute path) share one predicate. See that
+// module's header for the contract.
+
+function isFragmentOnlyUrl(rawUrl: string): boolean {
+    // Same-document fragment references like url(#shadow), url(#g1) are
+    // safe — they resolve within the rendered SVG / document and never
+    // trigger a fetch. Mirrors the funciri scheme check applied to SVG
+    // presentation attributes in sanitize-pipeline.ts where empty
+    // scheme + leading # is allowed. Without this, CSS rules like
+    // `fill: url(#gradient)` or `filter: url(#shadow)` inside <style>
+    // blocks would be silently dropped, even though the equivalent SVG
+    // presentation attribute survives.
+    return rawUrl.trim().startsWith('#');
 }
 
 function hasUnsafeFunction(nodes: ValueNode[]): boolean {
@@ -179,6 +189,9 @@ function hasUnsafeFunction(nodes: ValueNode[]): boolean {
         if (DENIED_FUNCTIONS.has(name)) return true;
         if (name === 'url') {
             const arg = extractUrlArgument(fn);
+            if (isFragmentOnlyUrl(arg)) {
+                continue;
+            }
             if (!isSafeImageDataUri(arg)) {
                 return true;
             }
@@ -223,14 +236,14 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         return '';
     }
 
-    root.walkAtRules(atRule => {
+    root.walkAtRules((atRule) => {
         if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
             atRule.remove();
         }
     });
 
     if (mode === 'stylesheet') {
-        root.walkRules(rule => {
+        root.walkRules((rule) => {
             if (hasDangerousSelector(rule.selector)) {
                 rule.remove();
             }

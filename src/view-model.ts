@@ -95,7 +95,7 @@ export class ViewModelHandler {
     ) {
         if (this.viewModel.isValid) {
             const hasGranularity = dataViews[0].table.columns.some(
-                c => c.roles.sampling
+                (c) => c.roles.sampling
             );
             const hasCrossFiltering =
                 hasGranularity &&
@@ -103,7 +103,7 @@ export class ViewModelHandler {
             const { columns, rows } = dataViews[0].table;
             const initialSelection = this.viewModel.htmlEntries;
             const hasSelection =
-                (initialSelection.some(dp => dp.selected) &&
+                (initialSelection.some((dp) => dp.selected) &&
                     hasCrossFiltering) ||
                 false;
             const htmlEntries: IHtmlEntry[] = rows.map((row, index) => {
@@ -137,7 +137,7 @@ export class ViewModelHandler {
      * @param columns   - Array of metadata columns from the Power BI data view.
      */
     private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
-        return columns.findIndex(c => c.roles.content);
+        return columns.findIndex((c) => c.roles.content);
     }
 
     /**
@@ -179,7 +179,7 @@ export class ViewModelHandler {
         initialSelection: interactivitySelectionService.SelectableDataPoint[],
         selectionId: ISelectionId
     ): boolean {
-        const selectedDataPoint = (initialSelection || []).find(dp =>
+        const selectedDataPoint = (initialSelection || []).find((dp) =>
             selectionId.equals(<ISelectionId>dp.identity)
         );
         return selectedDataPoint ? selectedDataPoint.selected : false;

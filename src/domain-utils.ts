@@ -65,8 +65,12 @@ export const resolveStyling = (
               } { opacity: ${1 - transparencyPercent.value / 100}; }`
             : '';
     // CRITICAL: Sanitize custom stylesheet to prevent CSS-based XSS attacks
-    const rawCustomStyles = useSS && settings.stylesheet.stylesheetCardMain.stylesheet.value || '';
-    const customStyles = rawCustomStyles ? getSanitizedCss(rawCustomStyles) : '';
+    const rawCustomStyles =
+        (useSS && settings.stylesheet.stylesheetCardMain.stylesheet.value) ||
+        '';
+    const customStyles = rawCustomStyles
+        ? getSanitizedCss(rawCustomStyles)
+        : '';
     styleSheetContainer.text(`${crossFilterStyles} ${customStyles}`);
     resolveUserSelect(
         bodyProps.contentFormattingCardBehavior.userSelect.value,
@@ -103,6 +107,23 @@ export const resolveStyling = (
                 bodyProps.contentFormattingCardDefaultBodyStyling.align.value
             )
         );
+    // Default body styling can win against inline `style` declarations
+    // carried in the bound content (typically Outlook/Teams/Word paste
+    // residue with embedded color/font-family/font-size). Gated on:
+    //   1. NOT in custom-stylesheet mode (the user's CSS is sole truth)
+    //   2. The "Override inline styling" toggle is enabled
+    // Default OFF preserves author intent — inline color/font/alignment
+    // render as written. Issue #144 reporters who hit Office paste
+    // residue can opt in via the toggle. The matching cascade rule
+    // lives in style/visual.less.
+    const applyOverride =
+        !useSS &&
+        bodyProps.contentFormattingCardDefaultBodyStyling.overrideInlineStyling
+            .value;
+    bodyContainer.classed(
+        VisualConstants.dom.defaultBodyStylingClass,
+        applyOverride
+    );
 };
 
 /**
@@ -146,7 +167,7 @@ export function resolveHyperlinkHandling(
     container: Selection<any, any, any, any>,
     allowDelegation?: boolean
 ) {
-    container.selectAll('a').on('click', event => {
+    container.selectAll('a').on('click', (event) => {
         event.preventDefault();
         if (allowDelegation) {
             const url = select(event.currentTarget).attr('href') || '';
@@ -168,7 +189,7 @@ export function resolveHtmlGroupElement(
     // Remove any applied elements
     dataElements.selectAll('*').remove();
     // Add the correct element
-    dataElements.append('div').append(function(d) {
+    dataElements.append('div').append(function (d) {
         return this.appendChild(getParsedHtmlAsDom(d.content, format));
     });
 }
@@ -232,13 +253,13 @@ function bindManualTooltips(
         `${manualTooltipDataPrefix}${manualTooltipDataValue}`,
         'g'
     );
-    manualTooltipElements.on('mouseover mousemove', event => {
+    manualTooltipElements.on('mouseover mousemove', (event) => {
         const dataset = event.currentTarget.dataset;
-        const keys = Object.keys(dataset).map(key =>
+        const keys = Object.keys(dataset).map((key) =>
             key.replace(titleExp, '').replace(valueExp, '')
         );
         const uniqueKeys = [...new Set(keys)];
-        const dataItems: VisualTooltipDataItem[] = uniqueKeys.map(key => ({
+        const dataItems: VisualTooltipDataItem[] = uniqueKeys.map((key) => ({
             displayName:
                 dataset[
                     `${manualTooltipDataPrefix}${manualTooltipDataTitle}${key}`
@@ -292,7 +313,7 @@ function bindStandardTooltips(
             tooltipService.show(options);
         }
     });
-    dataElements.on('mouseout', event => {
+    dataElements.on('mouseout', (event) => {
         select(event.currentTarget).classed(
             VisualConstants.dom.hoverClassSelector,
             false
@@ -316,11 +337,11 @@ export function bindVisualDataToDom(
     return container
         .selectAll(`.${entryClassSelector}`)
         .data(data)
-        .join(enter =>
+        .join((enter) =>
             enter
                 .append('div')
                 .classed(entryClassSelector, true)
-                .classed(unselectedClassSelector, d =>
+                .classed(unselectedClassSelector, (d) =>
                     shouldDimPoint(hasSelection, d.selected)
                 )
         );
@@ -347,10 +368,12 @@ const getRawHtml = (
     stylesheet: StylesheetSettings
 ) =>
     pretty(
-        `${((shouldUseStylesheet(stylesheet) &&
-            stylesheet.stylesheetCardMain.stylesheet.value) ||
-            '') &&
-            styleSheetContainer.node().outerHTML} ${container.node().outerHTML}`
+        `${
+            ((shouldUseStylesheet(stylesheet) &&
+                stylesheet.stylesheetCardMain.stylesheet.value) ||
+                '') &&
+            styleSheetContainer.node().outerHTML
+        } ${container.node().outerHTML}`
     );
 
 /**

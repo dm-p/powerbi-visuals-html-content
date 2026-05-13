@@ -1,13 +1,13 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.4.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
   "name": "4aaf66c5ca09dc701cb5",
   "position": {
     "x": 336,
-    "y": 80,
-    "z": 1,
-    "height": 208,
-    "width": 936,
-    "tabOrder": 1
+    "y": 0,
+    "z": 1000,
+    "height": 352,
+    "width": 1584,
+    "tabOrder": 1000
   },
   "visual": {
     "visualType": "pivotTable",
@@ -54,6 +54,26 @@
               "queryRef": "Min(corpus.type)",
               "nativeQueryRef": "Type",
               "displayName": "Type"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "lorem"
+                        }
+                      },
+                      "Property": "description"
+                    }
+                  },
+                  "Function": 3
+                }
+              },
+              "queryRef": "Min(lorem.description)",
+              "nativeQueryRef": "Description",
+              "displayName": "Description"
             },
             {
               "field": {
@@ -133,7 +153,7 @@
             "fontSize": {
               "expr": {
                 "Literal": {
-                  "Value": "8D"
+                  "Value": "12D"
                 }
               }
             },
@@ -153,7 +173,7 @@
             "value": {
               "expr": {
                 "Literal": {
-                  "Value": "813.1707103535649D"
+                  "Value": "1418.9656874763004D"
                 }
               }
             }
@@ -188,6 +208,19 @@
                 }
               }
             },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "columnHeaders": [
+        {
+          "properties": {
             "fontSize": {
               "expr": {
                 "Literal": {
