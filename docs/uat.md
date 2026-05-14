@@ -113,7 +113,7 @@ As you apply each test via the slicer:
 
 2. The middle visuals are the test output with a body font of **Arial**, a color of **#118DFF**, a font size of **18px**, and an alignment of **center**. Again, output for both visual editions should match.
 
-3. The right visuals show the DOM as sent to the approprioate visual using _Show raw HTML_. This should be as expected.
+3. The right visuals show the DOM as sent to the appropriate visual using _Show raw HTML_. This should be as expected.
 
 ## How to report a sanitization bug
 
