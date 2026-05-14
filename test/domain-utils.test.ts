@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     shouldUseStylesheet,
     shouldDimPoint,
-    bindVisualDataToDom
+    bindVisualDataToDom,
+    domSerialize
 } from '../src/domain-utils';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
@@ -218,6 +219,182 @@ describe('Domain Utils - Exported Functions', () => {
             const result = bindVisualDataToDom(container, [], false);
 
             expect(result.size()).toBe(0);
+        });
+    });
+
+    describe('domSerialize', () => {
+        // Parse an HTML fragment and return the first element child of body.
+        const parseFirst = (html: string): Element => {
+            const dom = new JSDOM(
+                `<!DOCTYPE html><html><body>${html}</body></html>`
+            );
+            const el = dom.window.document.body.firstElementChild;
+            if (!el) {
+                throw new Error('parseFirst: no element produced from ' + html);
+            }
+            return el;
+        };
+
+        describe('attribute serialization', () => {
+            it('emits a single attribute with literal value', () => {
+                const node = parseFirst('<p title="hello">x</p>');
+                expect(domSerialize(node)).toBe('<p title="hello">x</p>');
+            });
+
+            it('preserves multiple attributes in source order', () => {
+                const node = parseFirst(
+                    '<a href="/" title="home" id="link">x</a>'
+                );
+                expect(domSerialize(node)).toBe(
+                    '<a href="/" title="home" id="link">x</a>'
+                );
+            });
+
+            it('emits literal & in attribute values (regression for issue #76)', () => {
+                const node = parseFirst(
+                    '<iframe src="https://example.com/?a=1&b=2"></iframe>'
+                );
+                const out = domSerialize(node);
+                expect(out).toContain('src="https://example.com/?a=1&b=2"');
+                expect(out).not.toContain('&amp;');
+            });
+
+            it('emits literal < in attribute values', () => {
+                // jsdom parses "3 < 4" into the title attribute; outerHTML
+                // would encode it as "3 &lt; 4", but our walker emits the
+                // literal characters as they appear in the DOM.
+                const node = parseFirst('<p title="3 < 4">x</p>');
+                const out = domSerialize(node);
+                expect(out).toContain('title="3 < 4"');
+                expect(out).not.toContain('&lt;');
+            });
+
+            it('emits literal > and \' in attribute values', () => {
+                const node = parseFirst(
+                    `<p title="a>b" data-quote="it's">x</p>`
+                );
+                const out = domSerialize(node);
+                expect(out).toContain('title="a>b"');
+                expect(out).toContain(`data-quote="it's"`);
+                expect(out).not.toContain('&gt;');
+                expect(out).not.toContain('&#39;');
+                expect(out).not.toContain('&apos;');
+            });
+
+            it('emits element with no attributes without trailing space', () => {
+                const node = parseFirst('<span>x</span>');
+                expect(domSerialize(node)).toBe('<span>x</span>');
+            });
+
+            it('preserves namespaced attribute names (xlink:href)', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const svg = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'svg'
+                );
+                const use = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'use'
+                );
+                use.setAttribute('xlink:href', '#a');
+                svg.appendChild(use);
+                const out = domSerialize(svg);
+                expect(out).toContain('xlink:href="#a"');
+            });
+        });
+
+        describe('text-node serialization', () => {
+            it('emits text content literally', () => {
+                const node = parseFirst('<p>hello world</p>');
+                expect(domSerialize(node)).toBe('<p>hello world</p>');
+            });
+
+            it('emits literal & < > in text content', () => {
+                // jsdom decodes "&amp;" → "&", "&lt;" → "<", "&gt;" → ">"
+                // at parse time; the walker emits the resulting literal
+                // characters rather than re-encoding them.
+                const node = parseFirst('<p>&amp; &lt; &gt;</p>');
+                expect(domSerialize(node)).toBe('<p>& < ></p>');
+            });
+        });
+
+        describe('void elements', () => {
+            it('emits <br> without closing tag', () => {
+                const node = parseFirst('<br>');
+                expect(domSerialize(node)).toBe('<br>');
+            });
+
+            it('emits <img> with attrs and no closing tag', () => {
+                const node = parseFirst('<img src="x.png" alt="x">');
+                expect(domSerialize(node)).toBe(
+                    '<img src="x.png" alt="x">'
+                );
+            });
+
+            it('emits <hr> without closing tag', () => {
+                const node = parseFirst('<hr>');
+                expect(domSerialize(node)).toBe('<hr>');
+            });
+        });
+
+        describe('nesting and structure', () => {
+            it('serializes nested elements in source order', () => {
+                const node = parseFirst('<div><p>x</p><p>y</p></div>');
+                expect(domSerialize(node)).toBe(
+                    '<div><p>x</p><p>y</p></div>'
+                );
+            });
+
+            it('emits empty element with open and close tags', () => {
+                const node = parseFirst('<div></div>');
+                expect(domSerialize(node)).toBe('<div></div>');
+            });
+
+            it('lowercases tag names', () => {
+                // The HTML parser uppercases tagName for HTML elements
+                // regardless of source case; the walker lowercases on
+                // emit to match dev-tools display.
+                const node = parseFirst('<DIV>x</DIV>');
+                expect(domSerialize(node)).toBe('<div>x</div>');
+            });
+        });
+
+        describe('non-element node types', () => {
+            it('emits comment nodes as <!--text-->', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><!-- hi --></body></html>'
+                );
+                const comment = dom.window.document.body.firstChild;
+                expect(comment).not.toBeNull();
+                expect(domSerialize(comment as Node)).toBe('<!-- hi -->');
+            });
+
+            it('serializes a DocumentFragment by concatenating children', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const fragment = dom.window.document.createDocumentFragment();
+                const p = dom.window.document.createElement('p');
+                p.textContent = 'x';
+                const span = dom.window.document.createElement('span');
+                span.textContent = 'y';
+                fragment.appendChild(p);
+                fragment.appendChild(span);
+                expect(domSerialize(fragment)).toBe('<p>x</p><span>y</span>');
+            });
+
+            it('returns empty string for unsupported node types', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const pi = dom.window.document.createProcessingInstruction(
+                    'xml-stylesheet',
+                    'href="x.css"'
+                );
+                expect(domSerialize(pi as unknown as Node)).toBe('');
+            });
         });
     });
 });

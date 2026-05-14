@@ -127,6 +127,69 @@ export const resolveStyling = (
 };
 
 /**
+ * HTML5 void elements — emitted without a closing tag by domSerialize.
+ */
+const VOID_ELEMENTS = new Set([
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'source',
+    'track',
+    'wbr'
+]);
+
+/**
+ * Serialize a DOM node into a dev-tools-style HTML string with literal
+ * characters in attribute values and text content (no HTML-spec entity
+ * encoding). Used by the "Show Raw HTML" affordance as a debug surface,
+ * standing in for browser dev tools which are unavailable in Power BI
+ * Desktop. The output is not guaranteed to be round-trippable as valid
+ * HTML when attribute values contain literal `&`, `"`, etc. - it
+ * accurately represents what the live DOM contains.
+ */
+export const domSerialize = (node: Node): string => {
+    switch (node.nodeType) {
+        case Node.ELEMENT_NODE: {
+            const el = node as Element;
+            const tagName = el.tagName.toLowerCase();
+            let attrs = '';
+            for (let i = 0; i < el.attributes.length; i++) {
+                const attr = el.attributes[i];
+                attrs += ` ${attr.name}="${attr.value}"`;
+            }
+            if (VOID_ELEMENTS.has(tagName)) {
+                return `<${tagName}${attrs}>`;
+            }
+            let children = '';
+            for (let i = 0; i < el.childNodes.length; i++) {
+                children += domSerialize(el.childNodes[i]);
+            }
+            return `<${tagName}${attrs}>${children}</${tagName}>`;
+        }
+        case Node.TEXT_NODE:
+            return node.nodeValue ?? '';
+        case Node.COMMENT_NODE:
+            return `<!--${node.nodeValue ?? ''}-->`;
+        case Node.DOCUMENT_FRAGMENT_NODE: {
+            let out = '';
+            for (let i = 0; i < node.childNodes.length; i++) {
+                out += domSerialize(node.childNodes[i]);
+            }
+            return out;
+        }
+        default:
+            return '';
+    }
+};
+
+/**
  * For the supplied stylesheet container, settings and body container (could be standard content, or the
  * "no data" message container), ensure that the content is resolved, and the correct element (readonly
  * textarea) is added to the DOM, as well as caretaking any existing elements.
