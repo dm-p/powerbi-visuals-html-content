@@ -6,8 +6,8 @@ import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
-import * as OverlayScrollbars from 'overlayscrollbars';
-const pretty = require('pretty');
+import OverlayScrollbars from 'overlayscrollbars';
+import pretty from 'pretty';
 
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
@@ -77,31 +77,27 @@ export const resolveStyling = (
         bodyContainer
     );
     bodyContainer
-        .style(
-            'font-family',
+        .style('font-family', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.fontFamily
                     .value
             )
         )
-        .style(
-            'font-size',
+        .style('font-size', () =>
             resolveBodyStyle(
                 useSS,
                 `${bodyProps.contentFormattingCardDefaultBodyStyling.fontSize.value}pt`
             )
         )
-        .style(
-            'color',
+        .style('color', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.fontColour
                     .value.value
             )
         )
-        .style(
-            'text-align',
+        .style('text-align', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.align.value
@@ -251,9 +247,9 @@ export function resolveHtmlGroupElement(
 ) {
     // Remove any applied elements
     dataElements.selectAll('*').remove();
-    // Add the correct element
-    dataElements.append('div').append(function (d) {
-        return this.appendChild(getParsedHtmlAsDom(d.content, format));
+    // Add the correct element.
+    dataElements.append('div').each(function (d) {
+        this.appendChild(getParsedHtmlAsDom(d.content, format));
     });
 }
 
