@@ -853,5 +853,79 @@ export const LOREM_PAYLOADS: LoremPayload[] = [
         category: 'lorem',
         cspCategory: 'none',
         source: 'issue #144 follow-up — HTML CoPerf inline-coloured-spans pattern'
+    },
+    {
+        id: 'lorem-anchor-ampersand-in-href',
+        description:
+            'A paragraph with an anchor whose href contains an ampersand (URL ' +
+            'query parameter). Mirrors the canonical issue #76 reproduction. ' +
+            'Visual: the link renders and resolves to a URL with both query ' +
+            'parameters intact (the rendered DOM holds the literal "&"). Show ' +
+            'Raw HTML toggle: the dev-tools-style view shows the literal "&" ' +
+            'in the href — confirming the fix. Pre-fix, the same toggle ' +
+            'rendered "&amp;" and led users to believe the visual had mangled ' +
+            'their URL.',
+        input:
+            '<p>See the <a href="https://example.com/search?q=html+content' +
+            '&num=5">top five results</a>.</p>',
+        expectedSanitized: {
+            // Sanitizer round-trips DOM → outerHTML, so & is re-encoded to
+            // &amp; in the sanitized output. The rendered DOM still holds
+            // the literal &; Show Raw HTML emits that literal &.
+            contains: [
+                '<a href="https://example.com/search?q=html+content&amp;num=5">' +
+                    'top five results</a>'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #76 — anchor href containing ampersand'
+    },
+    {
+        id: 'lorem-attribute-with-special-chars',
+        description:
+            'A paragraph whose title attribute contains "<" and "&" — special ' +
+            'characters that round-trip through DOM serialisation differently. ' +
+            'Visual: hover the paragraph to see the tooltip with the literal ' +
+            'characters. Show Raw HTML toggle: post-fix, the dev-tools-style ' +
+            'view shows title="a < b & c" with the literal "<" and "&", ' +
+            'matching what a browser inspector would show. Pre-fix, "&" ' +
+            'appeared as "&amp;".',
+        input: '<p title="a < b & c">Hover the paragraph for a tooltip.</p>',
+        expectedSanitized: {
+            // The sanitizer keeps "<" literal in attribute values (permitted
+            // by HTML5 attribute parsing) but re-encodes "&" to "&amp;".
+            // Show Raw HTML emits both literally.
+            contains: [
+                'title="a < b &amp; c"',
+                'Hover the paragraph for a tooltip.'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #76 — special characters in attribute values'
+    },
+    {
+        id: 'lorem-text-html-entities',
+        description:
+            'A paragraph whose text content uses HTML entity references ' +
+            '(&amp;, &lt;, &gt;) to embed special characters that would ' +
+            'otherwise have HTML meaning. Visual: the user sees the decoded ' +
+            'glyphs in the rendered text. Show Raw HTML toggle: post-fix, the ' +
+            'dev-tools-style view shows the literal decoded glyphs as they ' +
+            'appear in the DOM ("Tom & Jerry use 3 < 4"), matching browser ' +
+            'dev-tools behavior. Pre-fix, the same view re-encoded them to ' +
+            '"&amp;" and "&lt;".',
+        input: '<p>Tom &amp; Jerry use 3 &lt; 4 to express ordering.</p>',
+        expectedSanitized: {
+            // After DOM round-trip the sanitizer re-encodes & → &amp; and
+            // < → &lt; in the serialised output, but the underlying DOM
+            // text node holds the literal glyphs — which is what Show Raw
+            // HTML emits.
+            contains: ['Tom &amp; Jerry', '3 &lt; 4', 'express ordering']
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #76 — text content with HTML entities'
     }
 ];

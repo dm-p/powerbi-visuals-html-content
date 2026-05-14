@@ -509,5 +509,43 @@ describe('Domain Utils - Exported Functions', () => {
             expect(typeof out).toBe('string');
             expect(out).toContain('<div id="content"></div>');
         });
+
+        it('reproduces issue #76 verbatim — iframe with & in src serialized correctly even though sanitizer strips it today', () => {
+            // Issue #76 originally reported this exact payload:
+            //   <iframe src=https://www.google.com/search?q=url+ampersand&num=5
+            //           style='position: fixed; width: 100%; height: 100%'>
+            //   </iframe>
+            //
+            // The current sanitizer strips <iframe> entirely (verified
+            // separately), so this payload never reaches the dev-tools-
+            // style serializer in production today — the bug is doubly-
+            // protected. This test bypasses the sanitizer and constructs
+            // the iframe directly to confirm the serializer would still
+            // emit the literal "&" in the URL if a future sanitizer rule
+            // change ever allowed iframes through. Defends the fix
+            // against regression on a path the sanitizer happens to
+            // also defend.
+            const { styleSheetContainer, container, dom } =
+                buildContainers('');
+            const iframe = dom.window.document.createElement('iframe');
+            iframe.setAttribute(
+                'src',
+                'https://www.google.com/search?q=url+ampersand&num=5'
+            );
+            iframe.setAttribute(
+                'style',
+                'position: fixed; width: 100%; height: 100%'
+            );
+            (container.node() as Element).appendChild(iframe);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain(
+                'src="https://www.google.com/search?q=url+ampersand&num=5"'
+            );
+            expect(out).not.toContain('&amp;');
+        });
     });
 });
