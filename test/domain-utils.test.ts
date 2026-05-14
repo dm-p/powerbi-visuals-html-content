@@ -6,9 +6,21 @@ import {
     domSerialize,
     getRawHtml
 } from '../src/domain-utils';
+import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
+
+// Mock the `pretty` package so a sub-set of tests can swap in a throwing
+// implementation to exercise getRawHtml's try/catch fallback. Default
+// behaviour is pass-through, so existing tests that rely on real pretty
+// output continue to work. Hoisted by vitest via vi.mock semantics; the
+// default export is a `vi.fn` so individual tests can switch
+// implementations via `vi.mocked(pretty).mockImplementation(...)`.
+vi.mock('pretty', () => ({
+    default: vi.fn((input: string) => input)
+}));
+import pretty from 'pretty';
 
 describe('Domain Utils - Exported Functions', () => {
     describe('shouldUseStylesheet', () => {
@@ -360,6 +372,31 @@ describe('Domain Utils - Exported Functions', () => {
                 const node = parseFirst('<DIV>x</DIV>');
                 expect(domSerialize(node)).toBe('<div>x</div>');
             });
+
+            it('preserves SVG element case (e.g. linearGradient)', () => {
+                // SVG tag names are case-sensitive. The HTML parser
+                // preserves the source case for SVG-namespaced elements
+                // (unlike HTML elements which it uppercases). The walker
+                // must emit them verbatim so users can mentally diff
+                // the dev-tools view against valid SVG source.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const svg = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'svg'
+                );
+                const grad = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'linearGradient'
+                );
+                grad.setAttribute('id', 'g1');
+                svg.appendChild(grad);
+                const out = domSerialize(svg);
+                expect(out).toContain('<linearGradient id="g1">');
+                expect(out).toContain('</linearGradient>');
+                expect(out).not.toContain('lineargradient');
+            });
         });
 
         describe('non-element node types', () => {
@@ -401,13 +438,23 @@ describe('Domain Utils - Exported Functions', () => {
 
     describe('getRawHtml', () => {
         // Build minimal StylesheetSettings; pass non-empty css when the
-        // stylesheet container should be included in the output.
-        const buildStylesheetSettings = (css = '') =>
-            ({
+        // stylesheet container should be included in the output. Uses a
+        // Pick to keep the structural surface narrow to what getRawHtml
+        // actually reads (`stylesheetCardMain.stylesheet.value`), and
+        // casts via `unknown` so the test helper doesn't have to
+        // re-implement the full FormattingSettingsCard hierarchy.
+        type MinimalStylesheetSettings = Pick<
+            StylesheetSettings,
+            'stylesheetCardMain'
+        >;
+        const buildStylesheetSettings = (css = ''): StylesheetSettings => {
+            const minimal: MinimalStylesheetSettings = {
                 stylesheetCardMain: {
                     stylesheet: { value: css }
-                }
-            } as any);
+                } as StylesheetSettings['stylesheetCardMain']
+            };
+            return minimal as unknown as StylesheetSettings;
+        };
 
         // Build a JSDOM with a stylesheet container (initially empty) and
         // a populated content container, return d3 selections for both.
@@ -546,6 +593,37 @@ describe('Domain Utils - Exported Functions', () => {
                 'src="https://www.google.com/search?q=url+ampersand&num=5"'
             );
             expect(out).not.toContain('&amp;');
+        });
+
+        it('falls back to unindented walker output when pretty throws', () => {
+            // Defense-in-depth: if js-beautify (via `pretty`) ever throws
+            // on the walker's dev-tools-style HTML (which is technically
+            // invalid when attribute values contain literal `&`), the
+            // debug toggle must stay functional. Swap pretty's
+            // implementation to a thrower for this test, then restore
+            // the passthrough so subsequent tests are unaffected.
+            const warnSpy = vi
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            vi.mocked(pretty).mockImplementationOnce(() => {
+                throw new Error('pretty boom');
+            });
+            try {
+                const { styleSheetContainer, container } = buildContainers(
+                    '<p title="3 < 4">x</p>'
+                );
+                const out = getRawHtml(
+                    styleSheetContainer,
+                    container,
+                    buildStylesheetSettings()
+                );
+                // Fallback returns the raw walker output, which still
+                // contains the literal-character attribute value.
+                expect(out).toContain('title="3 < 4"');
+                expect(warnSpy).toHaveBeenCalled();
+            } finally {
+                warnSpy.mockRestore();
+            }
         });
     });
 });

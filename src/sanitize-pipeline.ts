@@ -1,16 +1,11 @@
 // External dependencies
 import * as config from '../config/visual.json';
-// Namespace import for compatibility with the project tsconfig
-// (no esModuleInterop). The runtime export is callable for jsdom binding.
-import * as DOMPurifyNs from 'dompurify';
+import DOMPurify from 'dompurify';
 import type {
     DOMPurify as DOMPurifyType,
     Config,
     UponSanitizeAttributeHookEvent
 } from 'dompurify';
-const DOMPurify: DOMPurifyType =
-    (DOMPurifyNs as unknown as { default?: DOMPurifyType }).default ||
-    (DOMPurifyNs as unknown as DOMPurifyType);
 import { marked } from 'marked';
 
 // Internal dependencies

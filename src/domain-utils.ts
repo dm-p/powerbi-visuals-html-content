@@ -149,23 +149,32 @@ const VOID_ELEMENTS = new Set([
  * Desktop. The output is not guaranteed to be round-trippable as valid
  * HTML when attribute values contain literal `&`, `"`, etc. - it
  * accurately represents what the live DOM contains.
+ *
+ * @internal Exported for unit testing — not part of the visual's public API.
  */
 export const domSerialize = (node: Node): string => {
     switch (node.nodeType) {
         case Node.ELEMENT_NODE: {
             const el = node as Element;
-            const tagName = el.tagName.toLowerCase();
+            // SVG element tag names are case-sensitive (e.g. linearGradient,
+            // clipPath, foreignObject). Preserve their source case so the
+            // dev-tools view doesn't misrepresent valid SVG as invalid.
+            // HTML tag names are lowercased to match dev-tools display
+            // regardless of the source-case the parser emitted.
+            const tagName =
+                el.namespaceURI === 'http://www.w3.org/2000/svg'
+                    ? el.tagName
+                    : el.tagName.toLowerCase();
             let attrs = '';
-            for (let i = 0; i < el.attributes.length; i++) {
-                const attr = el.attributes[i];
+            for (const attr of el.attributes) {
                 attrs += ` ${attr.name}="${attr.value}"`;
             }
             if (VOID_ELEMENTS.has(tagName)) {
                 return `<${tagName}${attrs}>`;
             }
             let children = '';
-            for (let i = 0; i < el.childNodes.length; i++) {
-                children += domSerialize(el.childNodes[i]);
+            for (const child of el.childNodes) {
+                children += domSerialize(child);
             }
             return `<${tagName}${attrs}>${children}</${tagName}>`;
         }
@@ -175,8 +184,8 @@ export const domSerialize = (node: Node): string => {
             return `<!--${node.nodeValue ?? ''}-->`;
         case Node.DOCUMENT_FRAGMENT_NODE: {
             let out = '';
-            for (let i = 0; i < node.childNodes.length; i++) {
-                out += domSerialize(node.childNodes[i]);
+            for (const child of node.childNodes) {
+                out += domSerialize(child);
             }
             return out;
         }
@@ -418,21 +427,38 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
 }
 
 /**
- * For the supplied stylesheet container, settings and body container (could be standard content, or the
- * "no data" message container), get raw HTML and pretty print it.
+ * For the supplied stylesheet container, settings and body container (could be standard content,
+ * or the "no data" message container), produce a dev-tools-style HTML string and run it through
+ * `pretty` for readability.
+ *
+ * Contract: attribute values and text content are emitted with literal characters — no
+ * HTML-spec entity encoding (`&`, `<`, `>`, `"`, `'` survive verbatim). See {@link domSerialize}
+ * for the full serialization contract. The output is intentionally not round-trippable as
+ * strict HTML; it mirrors what a browser dev tools Elements panel would show.
  *
  * Exported for unit testing. Internal call site is `resolveForRawHtml` above.
+ *
+ * @internal Exported for unit testing — not part of the visual's public API.
  */
 export const getRawHtml = (
     styleSheetContainer: Selection<any, any, any, any>,
     container: Selection<any, any, any, any>,
     stylesheet: StylesheetSettings
 ) => {
-    const raw = `${
-        ((shouldUseStylesheet(stylesheet) &&
-            stylesheet.stylesheetCardMain.stylesheet.value) ||
-            '') && domSerialize(styleSheetContainer.node())
-    } ${domSerialize(container.node())}`;
+    // d3 Selection.node() returns T | null. Guard both reads so the
+    // walker never receives null. If the content container hasn't
+    // been built yet there's nothing to display.
+    const ssNode = styleSheetContainer.node();
+    const contentNode = container.node();
+    if (!contentNode) {
+        return '';
+    }
+    const includeStylesheet =
+        shouldUseStylesheet(stylesheet) &&
+        !!stylesheet.stylesheetCardMain.stylesheet.value &&
+        ssNode !== null;
+    const ssFragment = includeStylesheet ? domSerialize(ssNode as Node) : '';
+    const raw = `${ssFragment} ${domSerialize(contentNode)}`;
     // pretty is kept for block-level indentation; verified that it
     // preserves literal `&` / `<` in attribute values rather than
     // re-encoding them. The try/catch is defense-in-depth — if
@@ -442,7 +468,11 @@ export const getRawHtml = (
     // toggle stays functional.
     try {
         return pretty(raw);
-    } catch {
+    } catch (e) {
+        console.warn(
+            'getRawHtml: pretty() threw, returning unindented walker output:',
+            e
+        );
         return raw;
     }
 };
