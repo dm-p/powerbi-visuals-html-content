@@ -3,7 +3,8 @@ import {
     shouldUseStylesheet,
     shouldDimPoint,
     bindVisualDataToDom,
-    domSerialize
+    domSerialize,
+    getRawHtml
 } from '../src/domain-utils';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
@@ -395,6 +396,118 @@ describe('Domain Utils - Exported Functions', () => {
                 );
                 expect(domSerialize(pi as unknown as Node)).toBe('');
             });
+        });
+    });
+
+    describe('getRawHtml', () => {
+        // Build minimal StylesheetSettings; pass non-empty css when the
+        // stylesheet container should be included in the output.
+        const buildStylesheetSettings = (css = '') =>
+            ({
+                stylesheetCardMain: {
+                    stylesheet: { value: css }
+                }
+            } as any);
+
+        // Build a JSDOM with a stylesheet container (initially empty) and
+        // a populated content container, return d3 selections for both.
+        const buildContainers = (contentHtml: string) => {
+            const dom = new JSDOM(
+                `<!DOCTYPE html><html><body>` +
+                    `<style id="ss"></style>` +
+                    `<div id="content">${contentHtml}</div>` +
+                    `</body></html>`
+            );
+            const styleSheetContainer = select(dom.window.document).select(
+                '#ss'
+            );
+            const container = select(dom.window.document).select('#content');
+            return { styleSheetContainer, container, dom };
+        };
+
+        it('emits literal & in iframe src (regression for issue #76)', () => {
+            const { styleSheetContainer, container } = buildContainers(
+                '<iframe src="https://example.com/?a=1&b=2"></iframe>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('src="https://example.com/?a=1&b=2"');
+            expect(out).not.toContain('&amp;');
+        });
+
+        it('emits literal < in attribute values', () => {
+            const { styleSheetContainer, container } = buildContainers(
+                '<p title="3 < 4">x</p>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('title="3 < 4"');
+            expect(out).not.toContain('&lt;');
+        });
+
+        it('reflects sanitizer-removed tags as absences in the output', () => {
+            // Simulates the post-sanitization DOM: <script> has been
+            // stripped and only <p>hi</p> survives. The view must show
+            // what is in the DOM (post-sanitize), not the user's input.
+            const { styleSheetContainer, container } = buildContainers(
+                '<p>hi</p>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('<p>hi</p>');
+            expect(out).not.toContain('<script>');
+        });
+
+        it('reflects sanitizer-rewritten style attribute values', () => {
+            // Simulates the post-sanitization DOM where position:fixed was
+            // dropped from a style attribute, leaving color:red.
+            const { styleSheetContainer, container } = buildContainers(
+                '<div style="color: red">x</div>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('style="color: red"');
+            expect(out).not.toContain('position: fixed');
+        });
+
+        it('emits a user-supplied stylesheet body without entity encoding', () => {
+            const css =
+                'body { background: url(https://example.com/?a=1&b=2); }';
+            const { styleSheetContainer, container } =
+                buildContainers('<p>x</p>');
+            // Populate the live <style> DOM as resolveStyling would,
+            // post-sanitization.
+            styleSheetContainer.text(css);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings(css)
+            );
+            expect(out).toContain('a=1&b=2');
+            expect(out).not.toContain('&amp;');
+        });
+
+        it('handles an empty content container without throwing', () => {
+            const { styleSheetContainer, container } = buildContainers('');
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(typeof out).toBe('string');
+            expect(out).toContain('<div id="content"></div>');
         });
     });
 });

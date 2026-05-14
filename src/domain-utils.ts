@@ -424,20 +424,32 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
 /**
  * For the supplied stylesheet container, settings and body container (could be standard content, or the
  * "no data" message container), get raw HTML and pretty print it.
+ *
+ * Exported for unit testing. Internal call site is `resolveForRawHtml` above.
  */
-const getRawHtml = (
+export const getRawHtml = (
     styleSheetContainer: Selection<any, any, any, any>,
     container: Selection<any, any, any, any>,
     stylesheet: StylesheetSettings
-) =>
-    pretty(
-        `${
-            ((shouldUseStylesheet(stylesheet) &&
-                stylesheet.stylesheetCardMain.stylesheet.value) ||
-                '') &&
-            styleSheetContainer.node().outerHTML
-        } ${container.node().outerHTML}`
-    );
+) => {
+    const raw = `${
+        ((shouldUseStylesheet(stylesheet) &&
+            stylesheet.stylesheetCardMain.stylesheet.value) ||
+            '') && domSerialize(styleSheetContainer.node())
+    } ${domSerialize(container.node())}`;
+    // pretty is kept for block-level indentation; verified that it
+    // preserves literal `&` / `<` in attribute values rather than
+    // re-encoding them. The try/catch is defense-in-depth — if
+    // js-beautify ever throws on dev-tools-style HTML (which is not
+    // strict valid HTML when attribute values contain literal `&`),
+    // we fall back to the unindented walker output so the debug
+    // toggle stays functional.
+    try {
+        return pretty(raw);
+    } catch {
+        return raw;
+    }
+};
 
 /**
  * Ensure that inline CSS is set correctly, based on whether user has assigned their own stylesheet,
