@@ -1,16 +1,16 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
-  "name": "afd4c34275c6e60ef9ba",
+  "name": "f3a3c13885cf6a2c99f9",
   "position": {
-    "x": 336,
-    "y": 736.00000000000011,
-    "z": 5000,
+    "x": 1424,
+    "y": 384,
+    "z": 6002,
     "height": 336,
-    "width": 528,
-    "tabOrder": 5000
+    "width": 480.00000000000006,
+    "tabOrder": 6002
   },
   "visual": {
-    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6865",
+    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6855",
     "query": {
       "queryState": {
         "content": {
@@ -36,7 +36,15 @@
     "objects": {
       "contentFormatting": [
         {
-          "properties": {}
+          "properties": {
+            "showRawHtml": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -54,7 +62,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Rendered (Default Body Styling font, color, size)'"
+                  "Value": "'HTML Content - Raw HTML'"
                 }
               }
             }
@@ -76,16 +84,9 @@
                 "color": {
                   "expr": {
                     "Literal": {
-                      "Value": "'#FFBD00'"
+                      "Value": "'#E34D26'"
                     }
                   }
-                }
-              }
-            },
-            "radius": {
-              "expr": {
-                "Literal": {
-                  "Value": "5D"
                 }
               }
             },
@@ -95,17 +96,11 @@
                   "Value": "3D"
                 }
               }
-            }
-          }
-        }
-      ],
-      "dropShadow": [
-        {
-          "properties": {
-            "show": {
+            },
+            "radius": {
               "expr": {
                 "Literal": {
-                  "Value": "false"
+                  "Value": "5D"
                 }
               }
             }

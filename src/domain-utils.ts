@@ -6,8 +6,8 @@ import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
-import * as OverlayScrollbars from 'overlayscrollbars';
-const pretty = require('pretty');
+import OverlayScrollbars from 'overlayscrollbars';
+import pretty from 'pretty';
 
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
@@ -77,31 +77,27 @@ export const resolveStyling = (
         bodyContainer
     );
     bodyContainer
-        .style(
-            'font-family',
+        .style('font-family', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.fontFamily
                     .value
             )
         )
-        .style(
-            'font-size',
+        .style('font-size', () =>
             resolveBodyStyle(
                 useSS,
                 `${bodyProps.contentFormattingCardDefaultBodyStyling.fontSize.value}pt`
             )
         )
-        .style(
-            'color',
+        .style('color', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.fontColour
                     .value.value
             )
         )
-        .style(
-            'text-align',
+        .style('text-align', () =>
             resolveBodyStyle(
                 useSS,
                 bodyProps.contentFormattingCardDefaultBodyStyling.align.value
@@ -124,6 +120,86 @@ export const resolveStyling = (
         VisualConstants.dom.defaultBodyStylingClass,
         applyOverride
     );
+};
+
+/**
+ * HTML5 void elements — emitted without a closing tag by domSerialize.
+ */
+const VOID_ELEMENTS = new Set([
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'source',
+    'track',
+    'wbr'
+]);
+
+/**
+ * Serialize a DOM node into a dev-tools-style HTML string with literal
+ * characters in attribute values and text content (no HTML-spec entity
+ * encoding). Used by the "Show Raw HTML" affordance as a debug surface,
+ * standing in for browser dev tools which are unavailable in Power BI
+ * Desktop. The output is not guaranteed to be round-trippable as valid
+ * HTML when attribute values contain literal `&`, `"`, etc. - it
+ * accurately represents what the live DOM contains.
+ *
+ * @internal Exported for unit testing — not part of the visual's public API.
+ */
+export const domSerialize = (node: Node): string => {
+    switch (node.nodeType) {
+        case Node.ELEMENT_NODE: {
+            const el = node as Element;
+            // SVG element tag names are case-sensitive (e.g. linearGradient,
+            // clipPath, foreignObject). Preserve their source case so the
+            // dev-tools view doesn't misrepresent valid SVG as invalid.
+            // HTML tag names are lowercased to match dev-tools display
+            // regardless of the source-case the parser emitted.
+            const tagName =
+                el.namespaceURI === 'http://www.w3.org/2000/svg'
+                    ? el.tagName
+                    : el.tagName.toLowerCase();
+            let attrs = '';
+            for (const attr of el.attributes) {
+                // Targeted escape: only `"` becomes `&quot;` so the always-
+                // double-quoted attribute delimiter stays balanced. `&` and
+                // `<` deliberately stay literal — that's the dev-tools-style
+                // contract that the textarea sink depends on for issue #76
+                // fidelity. Using replace(/"/g, …) instead of replaceAll
+                // because the project's lib: [es2019] predates ES2021's
+                // String.prototype.replaceAll.
+                const value = attr.value.replace(/"/g, '&quot;');
+                attrs += ` ${attr.name}="${value}"`;
+            }
+            if (VOID_ELEMENTS.has(tagName)) {
+                return `<${tagName}${attrs}>`;
+            }
+            let children = '';
+            for (const child of el.childNodes) {
+                children += domSerialize(child);
+            }
+            return `<${tagName}${attrs}>${children}</${tagName}>`;
+        }
+        case Node.TEXT_NODE:
+            return node.nodeValue ?? '';
+        case Node.COMMENT_NODE:
+            return `<!--${node.nodeValue ?? ''}-->`;
+        case Node.DOCUMENT_FRAGMENT_NODE: {
+            let out = '';
+            for (const child of node.childNodes) {
+                out += domSerialize(child);
+            }
+            return out;
+        }
+        default:
+            return '';
+    }
 };
 
 /**
@@ -188,9 +264,9 @@ export function resolveHtmlGroupElement(
 ) {
     // Remove any applied elements
     dataElements.selectAll('*').remove();
-    // Add the correct element
-    dataElements.append('div').append(function (d) {
-        return this.appendChild(getParsedHtmlAsDom(d.content, format));
+    // Add the correct element.
+    dataElements.append('div').each(function (d) {
+        this.appendChild(getParsedHtmlAsDom(d.content, format));
     });
 }
 
@@ -359,22 +435,59 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
 }
 
 /**
- * For the supplied stylesheet container, settings and body container (could be standard content, or the
- * "no data" message container), get raw HTML and pretty print it.
+ * For the supplied stylesheet container, settings and body container (could be standard content,
+ * or the "no data" message container), produce a dev-tools-style HTML string and run it through
+ * `pretty` for readability.
+ *
+ * Contract: attribute values and text content are emitted with literal characters — no
+ * HTML-spec entity encoding (`&`, `<`, `>`, `"`, `'` survive verbatim). See {@link domSerialize}
+ * for the full serialization contract. The output is intentionally not round-trippable as
+ * strict HTML; it mirrors what a browser dev tools Elements panel would show.
+ *
+ * Exported for unit testing. Internal call site is `resolveForRawHtml` above.
+ *
+ * @internal Exported for unit testing — not part of the visual's public API.
  */
-const getRawHtml = (
+export const getRawHtml = (
     styleSheetContainer: Selection<any, any, any, any>,
     container: Selection<any, any, any, any>,
     stylesheet: StylesheetSettings
-) =>
-    pretty(
-        `${
-            ((shouldUseStylesheet(stylesheet) &&
-                stylesheet.stylesheetCardMain.stylesheet.value) ||
-                '') &&
-            styleSheetContainer.node().outerHTML
-        } ${container.node().outerHTML}`
-    );
+) => {
+    // d3 Selection.node() returns T | null. Guard both reads so the
+    // walker never receives null. If the content container hasn't
+    // been built yet there's nothing to display.
+    const ssNode = styleSheetContainer.node();
+    const contentNode = container.node();
+    if (!contentNode) {
+        return '';
+    }
+    const includeStylesheet =
+        shouldUseStylesheet(stylesheet) &&
+        !!stylesheet.stylesheetCardMain.stylesheet.value &&
+        ssNode !== null;
+    const ssFragment = includeStylesheet ? domSerialize(ssNode as Node) : '';
+    // Conditional separator: when no stylesheet is included, ssFragment is
+    // '' and an unconditional space would leave a stray leading space at
+    // the start of `raw`. pretty() trims it, but the catch fallback returns
+    // raw verbatim — surfacing the artefact in the debug textarea.
+    const raw = `${ssFragment}${ssFragment ? ' ' : ''}${domSerialize(contentNode)}`;
+    // pretty is kept for block-level indentation; verified that it
+    // preserves literal `&` / `<` in attribute values rather than
+    // re-encoding them. The try/catch is defense-in-depth — if
+    // js-beautify ever throws on dev-tools-style HTML (which is not
+    // strict valid HTML when attribute values contain literal `&`),
+    // we fall back to the unindented walker output so the debug
+    // toggle stays functional.
+    try {
+        return pretty(raw);
+    } catch (e) {
+        console.warn(
+            'getRawHtml: pretty() threw, returning unindented walker output:',
+            e
+        );
+        return raw;
+    }
+};
 
 /**
  * Ensure that inline CSS is set correctly, based on whether user has assigned their own stylesheet,

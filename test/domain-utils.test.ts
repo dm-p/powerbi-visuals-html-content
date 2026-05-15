@@ -2,11 +2,25 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     shouldUseStylesheet,
     shouldDimPoint,
-    bindVisualDataToDom
+    bindVisualDataToDom,
+    domSerialize,
+    getRawHtml
 } from '../src/domain-utils';
+import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
+
+// Mock the `pretty` package so a sub-set of tests can swap in a throwing
+// implementation to exercise getRawHtml's try/catch fallback. Default
+// behaviour is pass-through, so existing tests that rely on real pretty
+// output continue to work. Hoisted by vitest via vi.mock semantics; the
+// default export is a `vi.fn` so individual tests can switch
+// implementations via `vi.mocked(pretty).mockImplementation(...)`.
+vi.mock('pretty', () => ({
+    default: vi.fn((input: string) => input)
+}));
+import pretty from 'pretty';
 
 describe('Domain Utils - Exported Functions', () => {
     describe('shouldUseStylesheet', () => {
@@ -218,6 +232,479 @@ describe('Domain Utils - Exported Functions', () => {
             const result = bindVisualDataToDom(container, [], false);
 
             expect(result.size()).toBe(0);
+        });
+    });
+
+    describe('domSerialize', () => {
+        // Parse an HTML fragment and return the first element child of body.
+        const parseFirst = (html: string): Element => {
+            const dom = new JSDOM(
+                `<!DOCTYPE html><html><body>${html}</body></html>`
+            );
+            const el = dom.window.document.body.firstElementChild;
+            if (!el) {
+                throw new Error('parseFirst: no element produced from ' + html);
+            }
+            return el;
+        };
+
+        describe('attribute serialization', () => {
+            it('emits a single attribute with literal value', () => {
+                const node = parseFirst('<p title="hello">x</p>');
+                expect(domSerialize(node)).toBe('<p title="hello">x</p>');
+            });
+
+            it('preserves multiple attributes in source order', () => {
+                const node = parseFirst(
+                    '<a href="/" title="home" id="link">x</a>'
+                );
+                expect(domSerialize(node)).toBe(
+                    '<a href="/" title="home" id="link">x</a>'
+                );
+            });
+
+            it('emits literal & in attribute values (regression for issue #76)', () => {
+                const node = parseFirst(
+                    '<iframe src="https://example.com/?a=1&b=2"></iframe>'
+                );
+                const out = domSerialize(node);
+                expect(out).toContain('src="https://example.com/?a=1&b=2"');
+                expect(out).not.toContain('&amp;');
+            });
+
+            it('emits literal < in attribute values', () => {
+                // jsdom parses "3 < 4" into the title attribute; outerHTML
+                // would encode it as "3 &lt; 4", but our walker emits the
+                // literal characters as they appear in the DOM.
+                const node = parseFirst('<p title="3 < 4">x</p>');
+                const out = domSerialize(node);
+                expect(out).toContain('title="3 < 4"');
+                expect(out).not.toContain('&lt;');
+            });
+
+            it('emits literal > and \' in attribute values', () => {
+                const node = parseFirst(
+                    `<p title="a>b" data-quote="it's">x</p>`
+                );
+                const out = domSerialize(node);
+                expect(out).toContain('title="a>b"');
+                expect(out).toContain(`data-quote="it's"`);
+                expect(out).not.toContain('&gt;');
+                expect(out).not.toContain('&#39;');
+                expect(out).not.toContain('&apos;');
+            });
+
+            it('escapes literal " in attribute values to &quot;', () => {
+                // Attribute values are always double-quote delimited, so a
+                // literal " would close the attribute early and produce
+                // malformed output that trips js-beautify. We escape " →
+                // &quot; specifically; & and < deliberately stay literal
+                // per the dev-tools-style contract.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><p></p></body></html>'
+                );
+                const p = dom.window.document.body
+                    .firstElementChild as Element;
+                p.setAttribute('data-json', '{"k":"v"}');
+                const out = domSerialize(p);
+                expect(out).toContain(
+                    'data-json="{&quot;k&quot;:&quot;v&quot;}"'
+                );
+                expect(out).not.toContain('{"k":"v"}');
+            });
+
+            it('preserves literal & and < in attribute values even when " is escaped', () => {
+                // Regression seal: the " escape must not bleed into a
+                // general entity-encoding pass that would re-introduce
+                // the #76 bug for &.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><p></p></body></html>'
+                );
+                const p = dom.window.document.body
+                    .firstElementChild as Element;
+                p.setAttribute('data-mix', 'a & b < c "quoted"');
+                const out = domSerialize(p);
+                expect(out).toContain('a & b < c &quot;quoted&quot;');
+                expect(out).not.toContain('&amp;');
+                expect(out).not.toContain('&lt;');
+            });
+
+            it('emits element with no attributes without trailing space', () => {
+                const node = parseFirst('<span>x</span>');
+                expect(domSerialize(node)).toBe('<span>x</span>');
+            });
+
+            it('preserves namespaced attribute names (xlink:href)', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const svg = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'svg'
+                );
+                const use = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'use'
+                );
+                use.setAttribute('xlink:href', '#a');
+                svg.appendChild(use);
+                const out = domSerialize(svg);
+                expect(out).toContain('xlink:href="#a"');
+            });
+        });
+
+        describe('text-node serialization', () => {
+            it('emits text content literally', () => {
+                const node = parseFirst('<p>hello world</p>');
+                expect(domSerialize(node)).toBe('<p>hello world</p>');
+            });
+
+            it('emits literal & < > in text content', () => {
+                // jsdom decodes "&amp;" → "&", "&lt;" → "<", "&gt;" → ">"
+                // at parse time; the walker emits the resulting literal
+                // characters rather than re-encoding them.
+                const node = parseFirst('<p>&amp; &lt; &gt;</p>');
+                expect(domSerialize(node)).toBe('<p>& < ></p>');
+            });
+        });
+
+        describe('void elements', () => {
+            it('emits <br> without closing tag', () => {
+                const node = parseFirst('<br>');
+                expect(domSerialize(node)).toBe('<br>');
+            });
+
+            it('emits <img> with attrs and no closing tag', () => {
+                const node = parseFirst('<img src="x.png" alt="x">');
+                expect(domSerialize(node)).toBe(
+                    '<img src="x.png" alt="x">'
+                );
+            });
+
+            it('emits <hr> without closing tag', () => {
+                const node = parseFirst('<hr>');
+                expect(domSerialize(node)).toBe('<hr>');
+            });
+        });
+
+        describe('nesting and structure', () => {
+            it('serializes nested elements in source order', () => {
+                const node = parseFirst('<div><p>x</p><p>y</p></div>');
+                expect(domSerialize(node)).toBe(
+                    '<div><p>x</p><p>y</p></div>'
+                );
+            });
+
+            it('emits empty element with open and close tags', () => {
+                const node = parseFirst('<div></div>');
+                expect(domSerialize(node)).toBe('<div></div>');
+            });
+
+            it('lowercases tag names', () => {
+                // The HTML parser uppercases tagName for HTML elements
+                // regardless of source case; the walker lowercases on
+                // emit to match dev-tools display.
+                const node = parseFirst('<DIV>x</DIV>');
+                expect(domSerialize(node)).toBe('<div>x</div>');
+            });
+
+            it('preserves SVG element case (e.g. linearGradient)', () => {
+                // SVG tag names are case-sensitive. The HTML parser
+                // preserves the source case for SVG-namespaced elements
+                // (unlike HTML elements which it uppercases). The walker
+                // must emit them verbatim so users can mentally diff
+                // the dev-tools view against valid SVG source.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const svg = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'svg'
+                );
+                const grad = dom.window.document.createElementNS(
+                    'http://www.w3.org/2000/svg',
+                    'linearGradient'
+                );
+                grad.setAttribute('id', 'g1');
+                svg.appendChild(grad);
+                const out = domSerialize(svg);
+                expect(out).toContain('<linearGradient id="g1">');
+                expect(out).toContain('</linearGradient>');
+                expect(out).not.toContain('lineargradient');
+            });
+        });
+
+        describe('non-element node types', () => {
+            it('emits comment nodes as <!--text-->', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><!-- hi --></body></html>'
+                );
+                const comment = dom.window.document.body.firstChild;
+                expect(comment).not.toBeNull();
+                expect(domSerialize(comment as Node)).toBe('<!-- hi -->');
+            });
+
+            it('serializes a DocumentFragment by concatenating children', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const fragment = dom.window.document.createDocumentFragment();
+                const p = dom.window.document.createElement('p');
+                p.textContent = 'x';
+                const span = dom.window.document.createElement('span');
+                span.textContent = 'y';
+                fragment.appendChild(p);
+                fragment.appendChild(span);
+                expect(domSerialize(fragment)).toBe('<p>x</p><span>y</span>');
+            });
+
+            it('returns empty string for unsupported node types', () => {
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body></body></html>'
+                );
+                const pi = dom.window.document.createProcessingInstruction(
+                    'xml-stylesheet',
+                    'href="x.css"'
+                );
+                expect(domSerialize(pi as unknown as Node)).toBe('');
+            });
+        });
+    });
+
+    describe('getRawHtml', () => {
+        // Build minimal StylesheetSettings; pass non-empty css when the
+        // stylesheet container should be included in the output. Uses a
+        // Pick to keep the structural surface narrow to what getRawHtml
+        // actually reads (`stylesheetCardMain.stylesheet.value`), and
+        // casts via `unknown` so the test helper doesn't have to
+        // re-implement the full FormattingSettingsCard hierarchy.
+        type MinimalStylesheetSettings = Pick<
+            StylesheetSettings,
+            'stylesheetCardMain'
+        >;
+        const buildStylesheetSettings = (css = ''): StylesheetSettings => {
+            const minimal: MinimalStylesheetSettings = {
+                stylesheetCardMain: {
+                    stylesheet: { value: css }
+                } as StylesheetSettings['stylesheetCardMain']
+            };
+            return minimal as unknown as StylesheetSettings;
+        };
+
+        // Build a JSDOM with a stylesheet container (initially empty) and
+        // a populated content container, return d3 selections for both.
+        const buildContainers = (contentHtml: string) => {
+            const dom = new JSDOM(
+                `<!DOCTYPE html><html><body>` +
+                    `<style id="ss"></style>` +
+                    `<div id="content">${contentHtml}</div>` +
+                    `</body></html>`
+            );
+            const styleSheetContainer = select(dom.window.document).select(
+                '#ss'
+            );
+            const container = select(dom.window.document).select('#content');
+            return { styleSheetContainer, container, dom };
+        };
+
+        it('emits literal & in iframe src (regression for issue #76)', () => {
+            const { styleSheetContainer, container } = buildContainers(
+                '<iframe src="https://example.com/?a=1&b=2"></iframe>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('src="https://example.com/?a=1&b=2"');
+            expect(out).not.toContain('&amp;');
+        });
+
+        it('emits literal < in attribute values', () => {
+            const { styleSheetContainer, container } = buildContainers(
+                '<p title="3 < 4">x</p>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('title="3 < 4"');
+            expect(out).not.toContain('&lt;');
+        });
+
+        it('reflects sanitizer-removed tags as absences in the output', () => {
+            // Simulates the post-sanitization DOM: <script> has been
+            // stripped and only <p>hi</p> survives. The view must show
+            // what is in the DOM (post-sanitize), not the user's input.
+            const { styleSheetContainer, container } = buildContainers(
+                '<p>hi</p>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('<p>hi</p>');
+            expect(out).not.toContain('<script>');
+        });
+
+        it('reflects sanitizer-rewritten style attribute values', () => {
+            // Simulates the post-sanitization DOM where position:fixed was
+            // dropped from a style attribute, leaving color:red.
+            const { styleSheetContainer, container } = buildContainers(
+                '<div style="color: red">x</div>'
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('style="color: red"');
+            expect(out).not.toContain('position: fixed');
+        });
+
+        it('emits a user-supplied stylesheet body without entity encoding', () => {
+            const css =
+                'body { background: url(https://example.com/?a=1&b=2); }';
+            const { styleSheetContainer, container } =
+                buildContainers('<p>x</p>');
+            // Populate the live <style> DOM as resolveStyling would,
+            // post-sanitization.
+            styleSheetContainer.text(css);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings(css)
+            );
+            expect(out).toContain('a=1&b=2');
+            expect(out).not.toContain('&amp;');
+        });
+
+        it('handles an empty content container without throwing', () => {
+            const { styleSheetContainer, container } = buildContainers('');
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(typeof out).toBe('string');
+            expect(out).toContain('<div id="content"></div>');
+        });
+
+        it('reproduces issue #76 verbatim — iframe with & in src serialized correctly even though sanitizer strips it today', () => {
+            // Issue #76 originally reported this exact payload:
+            //   <iframe src=https://www.google.com/search?q=url+ampersand&num=5
+            //           style='position: fixed; width: 100%; height: 100%'>
+            //   </iframe>
+            //
+            // The current sanitizer strips <iframe> entirely (verified
+            // separately), so this payload never reaches the dev-tools-
+            // style serializer in production today — the bug is doubly-
+            // protected. This test bypasses the sanitizer and constructs
+            // the iframe directly to confirm the serializer would still
+            // emit the literal "&" in the URL if a future sanitizer rule
+            // change ever allowed iframes through. Defends the fix
+            // against regression on a path the sanitizer happens to
+            // also defend.
+            const { styleSheetContainer, container, dom } =
+                buildContainers('');
+            const iframe = dom.window.document.createElement('iframe');
+            iframe.setAttribute(
+                'src',
+                'https://www.google.com/search?q=url+ampersand&num=5'
+            );
+            iframe.setAttribute(
+                'style',
+                'position: fixed; width: 100%; height: 100%'
+            );
+            (container.node() as Element).appendChild(iframe);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain(
+                'src="https://www.google.com/search?q=url+ampersand&num=5"'
+            );
+            expect(out).not.toContain('&amp;');
+        });
+
+        it('falls back to unindented walker output when pretty throws', () => {
+            // Defense-in-depth: if js-beautify (via `pretty`) ever throws
+            // on the walker's dev-tools-style HTML (which is technically
+            // invalid when attribute values contain literal `&`), the
+            // debug toggle must stay functional. Swap pretty's
+            // implementation to a thrower for this test, then restore
+            // the passthrough so subsequent tests are unaffected.
+            const warnSpy = vi
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            vi.mocked(pretty).mockImplementationOnce(() => {
+                throw new Error('pretty boom');
+            });
+            try {
+                const { styleSheetContainer, container } = buildContainers(
+                    '<p title="3 < 4">x</p>'
+                );
+                const out = getRawHtml(
+                    styleSheetContainer,
+                    container,
+                    buildStylesheetSettings()
+                );
+                // Fallback returns the raw walker output, which still
+                // contains the literal-character attribute value.
+                expect(out).toContain('title="3 < 4"');
+                expect(warnSpy).toHaveBeenCalled();
+            } finally {
+                warnSpy.mockRestore();
+            }
+        });
+
+        it('does not produce a leading space when no stylesheet is included (fallback path)', () => {
+            // Regression: when ssFragment is '', the template literal
+            // `${ssFragment} ${content}` would emit a stray leading space.
+            // pretty() trims it, but the catch fallback returns the raw
+            // string verbatim, surfacing the artefact in the debug textarea.
+            // Conditional separator in getRawHtml prevents the leading space.
+            const warnSpy = vi
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            vi.mocked(pretty).mockImplementationOnce(() => {
+                throw new Error('pretty boom');
+            });
+            try {
+                const { styleSheetContainer, container } =
+                    buildContainers('<p>x</p>');
+                const out = getRawHtml(
+                    styleSheetContainer,
+                    container,
+                    buildStylesheetSettings()
+                );
+                expect(out.startsWith(' ')).toBe(false);
+                expect(out).toContain('<p>x</p>');
+            } finally {
+                warnSpy.mockRestore();
+            }
+        });
+
+        it('preserves the separator space when a stylesheet IS included', () => {
+            // Sanity check: the conditional separator must still emit the
+            // gap between stylesheet and content fragments when both are
+            // present.
+            const css = 'body { color: red; }';
+            const { styleSheetContainer, container } =
+                buildContainers('<p>x</p>');
+            styleSheetContainer.text(css);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings(css)
+            );
+            expect(out).toContain(
+                '<style id="ss">body { color: red; }</style>'
+            );
+            expect(out).toContain('<div id="content">');
         });
     });
 });

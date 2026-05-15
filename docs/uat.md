@@ -105,13 +105,15 @@ There is a mix of clean and adversarial scenarios:
 
 This tab is used to ensure that neither the regular edition nor the sanitizer has any side effects on content passed in, and to expect the user to [apply simpler styling via properties](https://html-content.com/docs/properties-content-formatting#default-body-styling).
 
-This page has two **HTML Content** visuals on the left (red border) and two **HTML Content (lite)** visuals on the right (yellow border). 
+This page has three **HTML Content** visuals along the top row (red border) and three **HTML Content (lite)** visuals along the bottom row (yellow border). 
 
 As you apply each test via the slicer:
 
-1. The top rows are the test output with no property styling and should be identical.
+1. The left visuals rows are the test output with no property styling and should be identical.
 
-2. The bottom rows are the test output with a body font of **Arial**, a color of **#118DFF**, a font size of **18px**, and an alignment of **center**. Again, output for both visual editions should match.
+2. The middle visuals are the test output with a body font of **Arial**, a color of **#118DFF**, a font size of **18px**, and an alignment of **center**. Again, output for both visual editions should match.
+
+3. The right visuals show the DOM as sent to the appropriate visual using _Show raw HTML_. This should be as expected.
 
 ## How to report a sanitization bug
 
