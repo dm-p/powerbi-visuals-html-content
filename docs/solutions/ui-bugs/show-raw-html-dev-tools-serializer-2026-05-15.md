@@ -51,7 +51,7 @@ Tracked as GitHub issue [#76](https://github.com/dm-p/powerbi-visuals-html-conte
 - **Always show the user's input string** (skip serializing the rendered DOM): rejected. Loses fidelity to what the sanitizer actually produced — the author can no longer see that `<script>` tags were stripped, or that CSS was rewritten. The debug surface must reflect post-sanitizer reality.
 - **Keep `.outerHTML` and post-process to decode entities**: rejected. String-level entity decoding is fragile: the same `&amp;` sequence needs different handling in attribute-value context versus text-node context (e.g., `<` is legal in a text node but not in an attribute value), and the post-processor would re-introduce every parser corner case the browser already solved internally.
 - **Add a "what was removed" diff diagnostic** alongside the raw view: out of scope. Deferred to a separate brainstorm — it raises defense-in-depth concerns about disclosing sanitizer rules as an oracle.
-- **Drop the `pretty` dependency now that the walker took over**: evaluated and explicitly rejected. `pretty` still earns its keep by providing block-level indentation that would otherwise need reimplementation, and empirical verification confirmed it preserves the literal characters our walker emits. Defense-in-depth `try/catch` was added around the call instead. (Auto memory [claude] cross-reference: `feedback-question-incidental-deps.md` — when a rewrite obviates a third-party helper, evaluate dropping it; don't carry on autopilot.)
+- **Drop the `pretty` dependency now that the walker took over**: evaluated and explicitly rejected. When a structural rewrite obviates a third-party helper, the right move is to evaluate dropping it consciously rather than carry it on autopilot — but in this case `pretty` still earns its keep by providing block-level indentation that would otherwise need reimplementation, and empirical verification confirmed it preserves the literal characters our walker emits. Defense-in-depth `try/catch` was added around the call instead.
 
 ## Solution
 
@@ -207,15 +207,15 @@ it('reproduces issue #76 verbatim — iframe with & in src serialized correctly 
 - **For any debug surface showing "what the system produced," prefer a custom walker over `.outerHTML`** when the goal is dev-tools fidelity rather than HTML round-trippability. They are different contracts and conflating them will mislead users.
 - **Distinguish "what re-parses" from "what reads."** HTML serialization (`.outerHTML`, `XMLSerializer`) optimizes for the former; debug surfaces want the latter. Pick deliberately.
 - **For attribute escaping, prefer the minimal targeted escape needed for delimiter balance** (only `"` when wrapping in `"..."`) rather than blanket entity encoding. Authors should see what they typed.
-- **When carrying a third-party utility through a structural rewrite, explicitly evaluate whether it's still earning its keep** (auto memory [claude]: `feedback-question-incidental-deps.md`). Don't drop it on reflex either — keep it if it still provides value, but make the decision consciously and add defense-in-depth (try/catch) when its inputs change shape.
+- **When carrying a third-party utility through a structural rewrite, explicitly evaluate whether it's still earning its keep.** Don't drop it on reflex either — keep it if it still provides value, but make the decision consciously and add defense-in-depth (try/catch) when its inputs change shape.
 - **Seal regressions against their adjacent moving parts.** The issue-#76 reproduction test bypasses the sanitizer so it remains valid if sanitizer rules later allow or strip iframes — the test isolates the serializer behavior from unrelated changes.
 - **Surface invariants in tests at the boundary the user observes** — for a debug textarea, that's the final string; not the DOM, not the intermediate fragments.
 
 ## Related Issues
 
 - [GitHub issue #76](https://github.com/dm-p/powerbi-visuals-html-content/issues/76) — origin bug report (iframe URL with `&` showing as `&amp;` in raw HTML view).
-- [docs/brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md](../brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md) — the brainstorm that established the dev-tools-style contract (status: implemented; currently untracked).
-- [docs/plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md](../plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md) — the implementation plan (status: completed; currently untracked).
+- [docs/brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md](../brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md) — the brainstorm that established the dev-tools-style contract (status: implemented).
+- [docs/plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md](../plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md) — the implementation plan (status: completed).
 
 ### Relevant files
 
