@@ -167,7 +167,15 @@ export const domSerialize = (node: Node): string => {
                     : el.tagName.toLowerCase();
             let attrs = '';
             for (const attr of el.attributes) {
-                attrs += ` ${attr.name}="${attr.value}"`;
+                // Targeted escape: only `"` becomes `&quot;` so the always-
+                // double-quoted attribute delimiter stays balanced. `&` and
+                // `<` deliberately stay literal — that's the dev-tools-style
+                // contract that the textarea sink depends on for issue #76
+                // fidelity. Using replace(/"/g, …) instead of replaceAll
+                // because the project's lib: [es2019] predates ES2021's
+                // String.prototype.replaceAll.
+                const value = attr.value.replace(/"/g, '&quot;');
+                attrs += ` ${attr.name}="${value}"`;
             }
             if (VOID_ELEMENTS.has(tagName)) {
                 return `<${tagName}${attrs}>`;
@@ -458,7 +466,11 @@ export const getRawHtml = (
         !!stylesheet.stylesheetCardMain.stylesheet.value &&
         ssNode !== null;
     const ssFragment = includeStylesheet ? domSerialize(ssNode as Node) : '';
-    const raw = `${ssFragment} ${domSerialize(contentNode)}`;
+    // Conditional separator: when no stylesheet is included, ssFragment is
+    // '' and an unconditional space would leave a stray leading space at
+    // the start of `raw`. pretty() trims it, but the catch fallback returns
+    // raw verbatim — surfacing the artefact in the debug textarea.
+    const raw = `${ssFragment}${ssFragment ? ' ' : ''}${domSerialize(contentNode)}`;
     // pretty is kept for block-level indentation; verified that it
     // preserves literal `&` / `<` in attribute values rather than
     // re-encoding them. The try/catch is defense-in-depth — if

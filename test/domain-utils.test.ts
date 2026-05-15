@@ -294,6 +294,41 @@ describe('Domain Utils - Exported Functions', () => {
                 expect(out).not.toContain('&apos;');
             });
 
+            it('escapes literal " in attribute values to &quot;', () => {
+                // Attribute values are always double-quote delimited, so a
+                // literal " would close the attribute early and produce
+                // malformed output that trips js-beautify. We escape " →
+                // &quot; specifically; & and < deliberately stay literal
+                // per the dev-tools-style contract.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><p></p></body></html>'
+                );
+                const p = dom.window.document.body
+                    .firstElementChild as Element;
+                p.setAttribute('data-json', '{"k":"v"}');
+                const out = domSerialize(p);
+                expect(out).toContain(
+                    'data-json="{&quot;k&quot;:&quot;v&quot;}"'
+                );
+                expect(out).not.toContain('{"k":"v"}');
+            });
+
+            it('preserves literal & and < in attribute values even when " is escaped', () => {
+                // Regression seal: the " escape must not bleed into a
+                // general entity-encoding pass that would re-introduce
+                // the #76 bug for &.
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><p></p></body></html>'
+                );
+                const p = dom.window.document.body
+                    .firstElementChild as Element;
+                p.setAttribute('data-mix', 'a & b < c "quoted"');
+                const out = domSerialize(p);
+                expect(out).toContain('a & b < c &quot;quoted&quot;');
+                expect(out).not.toContain('&amp;');
+                expect(out).not.toContain('&lt;');
+            });
+
             it('emits element with no attributes without trailing space', () => {
                 const node = parseFirst('<span>x</span>');
                 expect(domSerialize(node)).toBe('<span>x</span>');
@@ -624,6 +659,52 @@ describe('Domain Utils - Exported Functions', () => {
             } finally {
                 warnSpy.mockRestore();
             }
+        });
+
+        it('does not produce a leading space when no stylesheet is included (fallback path)', () => {
+            // Regression: when ssFragment is '', the template literal
+            // `${ssFragment} ${content}` would emit a stray leading space.
+            // pretty() trims it, but the catch fallback returns the raw
+            // string verbatim, surfacing the artefact in the debug textarea.
+            // Conditional separator in getRawHtml prevents the leading space.
+            const warnSpy = vi
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            vi.mocked(pretty).mockImplementationOnce(() => {
+                throw new Error('pretty boom');
+            });
+            try {
+                const { styleSheetContainer, container } =
+                    buildContainers('<p>x</p>');
+                const out = getRawHtml(
+                    styleSheetContainer,
+                    container,
+                    buildStylesheetSettings()
+                );
+                expect(out.startsWith(' ')).toBe(false);
+                expect(out).toContain('<p>x</p>');
+            } finally {
+                warnSpy.mockRestore();
+            }
+        });
+
+        it('preserves the separator space when a stylesheet IS included', () => {
+            // Sanity check: the conditional separator must still emit the
+            // gap between stylesheet and content fragments when both are
+            // present.
+            const css = 'body { color: red; }';
+            const { styleSheetContainer, container } =
+                buildContainers('<p>x</p>');
+            styleSheetContainer.text(css);
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings(css)
+            );
+            expect(out).toContain(
+                '<style id="ss">body { color: red; }</style>'
+            );
+            expect(out).toContain('<div id="content">');
         });
     });
 });

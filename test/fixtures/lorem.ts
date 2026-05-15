@@ -927,5 +927,34 @@ export const LOREM_PAYLOADS: LoremPayload[] = [
         category: 'lorem',
         cspCategory: 'none',
         source: 'issue #76 — text content with HTML entities'
+    },
+    {
+        id: 'lorem-attribute-with-double-quotes',
+        description:
+            'A paragraph whose title attribute contains literal double-quote ' +
+            'characters around a quoted phrase. Visual: hover the paragraph ' +
+            'to see the tooltip with the embedded quotes rendered normally. ' +
+            'Show Raw HTML toggle: the dev-tools-style view shows ' +
+            'title="He said &quot;hello&quot;…" — the double-quotes are ' +
+            'escaped specifically so the always-double-quoted attribute ' +
+            'delimiter stays balanced. Pre-fix, the same view emitted ' +
+            'malformed title="He said "hello"…" which could trip the ' +
+            'pretty-printer into its unindented fallback.',
+        input:
+            `<p title='He said "hello" and meant it.'>` +
+            'Hover the paragraph for a tooltip with embedded quotes.' +
+            '</p>',
+        expectedSanitized: {
+            // Sanitizer round-trips DOM via outerHTML, which encodes " as
+            // &quot;. The Show Raw HTML view (domSerialize) also emits
+            // &quot; for " — matching the sanitized output here.
+            contains: [
+                'title="He said &quot;hello&quot; and meant it."',
+                'Hover the paragraph for a tooltip with embedded quotes.'
+            ]
+        },
+        category: 'lorem',
+        cspCategory: 'none',
+        source: 'issue #76 follow-up — literal " in attribute values'
     }
 ];
