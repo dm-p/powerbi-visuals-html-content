@@ -128,7 +128,7 @@ class ContentFormattingCardDefaultBodyStyling extends FormattingSettingsGroup {
         options: {
             minValue: { value: 8, type: powerbi.visuals.ValidatorType.Min },
             maxValue: { value: 32, type: powerbi.visuals.ValidatorType.Max },
-            unitSymbol: 'px'
+            unitSymbol: 'pt'
         }
     });
     // Default font color; used if no explicity styling in HTML body
