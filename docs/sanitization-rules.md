@@ -1466,6 +1466,62 @@ Payloads that only work inside SVG contexts.
 <svg><rect width="10" height="10"></rect></svg>
 ```
 
+#### href on an SVG <circle> — only SVG <a> (and a small set of internal-reference tags like pattern/gradient/marker/symbol/textpath/image/feimage/animate) may carry href / xlink:href. Shape elements default-deny URL attributes via the SVG allowedSchemesByTag gate. Holds regardless of the format-pane hyperlinks toggle — that toggle is scoped to <a>; non-<a> SVG elements are governed by the per-tag scheme allowlist.
+
+**Input:**
+
+```html
+<svg><circle cx="5" cy="5" r="5" href="https://attacker.example"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><circle cx="5" cy="5" r="5"></circle></svg>
+```
+
+#### Legacy SVG 1.1 xlink:href form on an SVG <rect>. Same gate as svg-href-on-non-anchor-circle — default-deny because <rect> is not in allowedSchemesByTag. Toggle-state independent.
+
+**Input:**
+
+```html
+<svg><rect width="10" height="10" xlink:href="https://attacker.example"/></svg>
+```
+
+**Output:**
+
+```html
+<svg><rect width="10" height="10"></rect></svg>
+```
+
+#### href on an SVG <text>. Same default-deny path as <circle>/<rect>. Toggle-state independent.
+
+**Input:**
+
+```html
+<svg><text x="5" y="5" href="https://attacker.example">marker</text></svg>
+```
+
+**Output:**
+
+```html
+<svg><text x="5" y="5">marker</text></svg>
+```
+
+#### javascript: scheme href on SVG <a> with hyperlinks toggle enabled — must still drop. Same per-tag scheme allowlist as the HTML <a> case.
+
+**Input:**
+
+```html
+<svg><a href="javascript:alert(1)"><text>x</text></a></svg>
+```
+
+**Output:**
+
+```html
+<svg><a><text>x</text></a></svg>
+```
+
 ### Disallowed HTML elements
 
 HTML elements blocked at the tag level.
@@ -1639,7 +1695,7 @@ go
 **Output:**
 
 ```html
-<a href="https://example.com">x</a>
+<a>x</a>
 ```
 
 #### background attribute on body (legacy).
@@ -1670,6 +1726,62 @@ go
 <img src="data:image/png;base64,iVBORw0KGgo=">
 ```
 
+#### href on a <div> — only <a> carries href in HTML. The per-tag allowlist drops the attribute regardless of the format-pane hyperlinks toggle (the toggle is scoped to <a>; every other tag is governed by its own attribute allowlist).
+
+**Input:**
+
+```html
+<div href="https://attacker.example">marker</div>
+```
+
+**Output:**
+
+```html
+<div>marker</div>
+```
+
+#### href on a <span>. Same per-tag-allowlist gate as <div>. Toggle-state independent.
+
+**Input:**
+
+```html
+<span href="https://attacker.example">marker</span>
+```
+
+**Output:**
+
+```html
+<span>marker</span>
+```
+
+#### href on an <img>. <img> has its own per-tag allowlist (src/alt/width/height/loading/decoding); href is not in it so the attribute is dropped. The data: src is preserved as the legitimate image surface. Toggle-state independent.
+
+**Input:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo=" href="https://attacker.example" alt="marker">
+```
+
+**Output:**
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo=" alt="marker">
+```
+
+#### href on a <td>. Common author mistake (treating cells as links via href instead of nesting an <a>). Per-tag allowlist drops it; toggle-state independent.
+
+**Input:**
+
+```html
+<table><tbody><tr><td href="https://attacker.example">marker</td></tr></tbody></table>
+```
+
+**Output:**
+
+```html
+<table><tbody><tr><td>marker</td></tr></tbody></table>
+```
+
 #### Image element with an external HTTPS URL. The Power BI sandbox does not allow visuals to load external resources; only data: URIs are permitted for img src.
 
 **Input:**
@@ -1682,6 +1794,20 @@ go
 
 ```html
 <img alt="x">
+```
+
+#### javascript: scheme href on <a> with hyperlinks toggle enabled — must still drop. The toggle governs whether href is allowed to populate; the per-tag scheme allowlist (http/https only) governs which schemes survive. Both gates fire even when the toggle is on.
+
+**Input:**
+
+```html
+<a href="javascript:alert(1)">x</a>
+```
+
+**Output:**
+
+```html
+<a>x</a>
 ```
 
 ### Encoding and obfuscation
@@ -2203,6 +2329,20 @@ Legitimate content that must continue to render unchanged.
 
 ```html
 <svg><defs><symbol id="base" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></symbol><symbol id="derived" href="#base" viewBox="0 0 10 10"></symbol></defs></svg>
+```
+
+#### A standard https:// hyperlink with the `hyperlinks` toggle enabled. The href attribute survives sanitization (rendered as <a href="https://example.com">) and the resulting DOM renders without CSP violations — clicks delegate to host.launchUrl rather than the browser, so no navigation happens at render time.
+
+**Input:**
+
+```html
+<a href="https://example.com">visit example</a>
+```
+
+**Output:**
+
+```html
+<a href="https://example.com">visit example</a>
 ```
 
 <!-- WORKED_EXAMPLES_END -->

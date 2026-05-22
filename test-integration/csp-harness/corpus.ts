@@ -33,6 +33,12 @@
  *   fails CI immediately rather than silently shadowing.
  */
 
+// Type-only import — keeps corpus.ts free of runtime deps that
+// sanitize-pipeline pulls in (d3, postcss, jsdom). Re-exported via the
+// optional `sanitizeOptions` field on `Payload` so the harness can opt
+// individual payloads into toggle-on sanitization.
+import type { SanitizeOptions } from '../../src/sanitize-pipeline';
+
 export type CspCategory =
     | 'img-src'
     | 'style-src'
@@ -127,6 +133,20 @@ export interface Payload {
     cspCategory: CspCategory;
     /** Provenance: cert report, OWASP, GitHub issue, "baseline", etc. */
     source: string;
+    /**
+     * Optional sanitizer options for this payload. Omitted = fail-closed
+     * default (`{ allowHyperlinks: false }`), which mirrors the
+     * production `hyperlinks` toggle default in `src/visual-constants.ts`
+     * and matches what an AppSource reviewer running the visual in
+     * default state will see.
+     *
+     * Set explicitly when a payload needs to exercise the toggle-on
+     * path (e.g. asserting an `<a href="https://...">` survives sanitize
+     * AND renders CSP-clean when hyperlinks are enabled). Without this
+     * field, the harness has no way to exercise the toggle-on branch
+     * end-to-end through the CSP sandbox.
+     */
+    sanitizeOptions?: SanitizeOptions;
 }
 
 /**
@@ -1137,6 +1157,53 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         cspCategory: 'img-src',
         source: 'code review P1 finding — funciri value scheme not enforced'
     },
+    {
+        id: 'svg-href-on-non-anchor-circle',
+        description:
+            'href on an SVG <circle> — only SVG <a> (and a small set of ' +
+            'internal-reference tags like pattern/gradient/marker/symbol/' +
+            'textpath/image/feimage/animate) may carry href / xlink:href. ' +
+            'Shape elements default-deny URL attributes via the SVG ' +
+            'allowedSchemesByTag gate. Holds regardless of the format-pane ' +
+            'hyperlinks toggle — that toggle is scoped to <a>; non-<a> ' +
+            'SVG elements are governed by the per-tag scheme allowlist.',
+        input: '<svg><circle cx="5" cy="5" r="5" href="https://attacker.example"/></svg>',
+        expectedSanitized: {
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'svg',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
+    {
+        id: 'svg-xlink-href-on-non-anchor-rect',
+        description:
+            'Legacy SVG 1.1 xlink:href form on an SVG <rect>. Same gate ' +
+            'as svg-href-on-non-anchor-circle — default-deny because ' +
+            '<rect> is not in allowedSchemesByTag. Toggle-state ' +
+            'independent.',
+        input: '<svg><rect width="10" height="10" xlink:href="https://attacker.example"/></svg>',
+        expectedSanitized: {
+            notContains: ['xlink:href', 'attacker.example']
+        },
+        category: 'svg',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
+    {
+        id: 'svg-href-on-non-anchor-text',
+        description:
+            'href on an SVG <text>. Same default-deny path as ' +
+            '<circle>/<rect>. Toggle-state independent.',
+        input: '<svg><text x="5" y="5" href="https://attacker.example">marker</text></svg>',
+        expectedSanitized: {
+            contains: ['marker'],
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'svg',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
     // ─────────────────────────────────────────────────────────────────
     // Category 8: HTML-level disallowed elements
     // ─────────────────────────────────────────────────────────────────
@@ -1268,6 +1335,67 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         category: 'html-attribute',
         cspCategory: 'img-src',
         source: 'category-9 attribute'
+    },
+    {
+        id: 'attr-href-on-div',
+        description:
+            'href on a <div> — only <a> carries href in HTML. The per-tag ' +
+            'allowlist drops the attribute regardless of the format-pane ' +
+            'hyperlinks toggle (the toggle is scoped to <a>; every other ' +
+            'tag is governed by its own attribute allowlist).',
+        input: '<div href="https://attacker.example">marker</div>',
+        expectedSanitized: {
+            contains: ['marker'],
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'html-attribute',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
+    {
+        id: 'attr-href-on-span',
+        description:
+            'href on a <span>. Same per-tag-allowlist gate as <div>. ' +
+            'Toggle-state independent.',
+        input: '<span href="https://attacker.example">marker</span>',
+        expectedSanitized: {
+            contains: ['marker'],
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'html-attribute',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
+    {
+        id: 'attr-href-on-img',
+        description:
+            'href on an <img>. <img> has its own per-tag allowlist ' +
+            '(src/alt/width/height/loading/decoding); href is not in it ' +
+            'so the attribute is dropped. The data: src is preserved as ' +
+            'the legitimate image surface. Toggle-state independent.',
+        input: '<img src="data:image/png;base64,iVBORw0KGgo=" href="https://attacker.example" alt="marker">',
+        expectedSanitized: {
+            contains: ['marker', 'data:image/png'],
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'html-attribute',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
+    },
+    {
+        id: 'attr-href-on-table-td',
+        description:
+            'href on a <td>. Common author mistake (treating cells as ' +
+            'links via href instead of nesting an <a>). Per-tag allowlist ' +
+            'drops it; toggle-state independent.',
+        input: '<table><tbody><tr><td href="https://attacker.example">marker</td></tr></tbody></table>',
+        expectedSanitized: {
+            contains: ['marker'],
+            notContains: ['href=', 'attacker.example']
+        },
+        category: 'html-attribute',
+        cspCategory: 'connect-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (defense-in-depth coverage)'
     },
     // ─────────────────────────────────────────────────────────────────
     // Category 10: Encoding / obfuscation
@@ -1501,6 +1629,45 @@ export const MALICIOUS_PAYLOADS: Payload[] = [
         category: 'partial-survival',
         cspCategory: 'img-src',
         source: 'category-12 partial survival'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Toggle-on coverage: prove the malicious-href schemes are still
+    // rejected when the format-pane `hyperlinks` toggle is ON. These
+    // entries opt in to `allowHyperlinks: true` so the harness exercises
+    // the toggle-on branch end-to-end through the CSP sandbox —
+    // complementing the unit-test coverage in
+    // test/sanitize-pipeline.test.ts. Without these, the entire
+    // regression suite ran toggle-off and a future scheme-allowlist
+    // regression in the toggle-on path would be invisible to CI.
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'attr-href-javascript-toggle-on',
+        description:
+            'javascript: scheme href on <a> with hyperlinks toggle enabled — must still drop. ' +
+            'The toggle governs whether href is allowed to populate; the per-tag scheme allowlist ' +
+            '(http/https only) governs which schemes survive. Both gates fire even when the toggle is on.',
+        input: '<a href="javascript:alert(1)">x</a>',
+        expectedSanitized: {
+            notContains: ['javascript:', 'alert(1)']
+        },
+        category: 'html-attribute',
+        cspCategory: 'script-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (toggle-on coverage)',
+        sanitizeOptions: { allowHyperlinks: true }
+    },
+    {
+        id: 'svg-href-javascript-toggle-on',
+        description:
+            'javascript: scheme href on SVG <a> with hyperlinks toggle enabled — must still drop. ' +
+            'Same per-tag scheme allowlist as the HTML <a> case.',
+        input: '<svg><a href="javascript:alert(1)"><text>x</text></a></svg>',
+        expectedSanitized: {
+            notContains: ['javascript:', 'alert(1)']
+        },
+        category: 'svg',
+        cspCategory: 'script-src',
+        source: 'MS cert report 2026-05 — href on non-anchor (toggle-on coverage)',
+        sanitizeOptions: { allowHyperlinks: true }
     }
 ];
 
@@ -1898,5 +2065,30 @@ export const CLEAN_PAYLOADS: Payload[] = [
         category: 'clean-baseline',
         cspCategory: 'none',
         source: 'Security review — symbol fragment-only allowedSchemesByTag'
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Toggle-on clean baseline: prove http(s) href DOES survive on <a>
+    // when the format-pane `hyperlinks` toggle is enabled, and that the
+    // resulting DOM renders CSP-clean (no violations, no outbound
+    // network requests at render time — the link only navigates when
+    // clicked, which the Power BI host gates separately via launchUrl).
+    // Without this entry, the harness has no coverage of the legitimate
+    // toggle-on path through the CSP sandbox.
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'clean-anchor-href-toggle-on',
+        description:
+            'A standard https:// hyperlink with the `hyperlinks` toggle enabled. ' +
+            'The href attribute survives sanitization (rendered as <a href="https://example.com">) ' +
+            'and the resulting DOM renders without CSP violations — clicks delegate to host.launchUrl ' +
+            'rather than the browser, so no navigation happens at render time.',
+        input: '<a href="https://example.com">visit example</a>',
+        expectedSanitized: {
+            contains: ['href="https://example.com"', 'visit example']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'MS cert report 2026-05 — hyperlinks toggle on (positive path)',
+        sanitizeOptions: { allowHyperlinks: true }
     }
 ];

@@ -70,7 +70,14 @@ describe('lorem fixtures — sanitized output', () => {
     it.each(LOREM_PAYLOADS.map((p): [string, LoremPayload] => [p.id, p]))(
         '%s preserves expected substrings',
         (_id, payload) => {
-            const out = getSanitizedHtmlForTesting(payload.input, 'html');
+            // Lorem fixtures document sanitizer output for the
+            // hyperlinks-enabled case (toggle ON). With the toggle
+            // OFF — the new fail-closed default — <a href> is stripped,
+            // which would invalidate every `<a href="...">` substring
+            // assertion in the corpus. Opt in explicitly here.
+            const out = getSanitizedHtmlForTesting(payload.input, 'html', {
+                allowHyperlinks: true
+            });
             for (const needle of payload.expectedSanitized.contains ?? []) {
                 expect(out).toContain(needle);
             }

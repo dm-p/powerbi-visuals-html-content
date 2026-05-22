@@ -244,10 +244,33 @@ export function resolveHyperlinkHandling(
     allowDelegation?: boolean
 ) {
     container.selectAll('a').on('click', (event) => {
+        // preventDefault unconditionally - when delegation is off, the
+        // click must be a no-op (no navigation, no host.launchUrl call).
         event.preventDefault();
-        if (allowDelegation) {
-            const url = select(event.currentTarget).attr('href') || '';
+        if (!allowDelegation) return;
+        // SVG <a> may carry only `xlink:href` (SVG 1.1 form). The
+        // sanitizer validates both `href` and `xlink:href` to the same
+        // http/https allowlist, but `select(...).attr('href')` reads
+        // only the unprefixed form, so fall back to xlink:href.
+        const sel = select(event.currentTarget as Element);
+        const url = (sel.attr('href') || sel.attr('xlink:href') || '').trim();
+        // Defense-in-depth: even though the sanitizer already restricts
+        // <a href> / <a xlink:href> to http/https, re-check at the call
+        // boundary before handing the URL to host.launchUrl(). Power BI's
+        // launchUrl contract requires http(s); any other scheme reaching
+        // here is a sanitizer bypass and must be rejected — silently, so
+        // the user sees no action and no error.
+        if (!/^https?:\/\//i.test(url)) return;
+        // Fail-soft envelope around the host boundary. host.launchUrl is
+        // owned by Power BI and may throw in embedded / restricted-host
+        // scenarios; an uncaught throw would propagate through d3's
+        // event dispatch and break later click handlers. Log and
+        // swallow — the user sees no action and no error, consistent
+        // with the silent-reject posture for non-http(s) URLs above.
+        try {
             host.launchUrl(url);
+        } catch (err) {
+            console.warn('host.launchUrl failed:', err);
         }
     });
 }
@@ -260,13 +283,22 @@ export function resolveHyperlinkHandling(
  */
 export function resolveHtmlGroupElement(
     dataElements: Selection<any, IHtmlEntry, any, any>,
-    format: RenderFormat
+    format: RenderFormat,
+    // Optional with a fail-closed default so the contract matches the
+    // effective behavior in getSanitizedContent (`options?.allowHyperlinks
+    // ?? false`). The tsconfig does not currently enforce strict mode,
+    // so a caller that omits this arg compiles silently — the default
+    // here keeps the omission safe rather than relying on `undefined`
+    // arriving at the sanitizer.
+    allowHyperlinks: boolean = false
 ) {
     // Remove any applied elements
     dataElements.selectAll('*').remove();
     // Add the correct element.
     dataElements.append('div').each(function (d) {
-        this.appendChild(getParsedHtmlAsDom(d.content, format));
+        this.appendChild(
+            getParsedHtmlAsDom(d.content, format, { allowHyperlinks })
+        );
     });
 }
 
