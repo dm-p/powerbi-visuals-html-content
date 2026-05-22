@@ -248,10 +248,15 @@ export function resolveHyperlinkHandling(
         // click must be a no-op (no navigation, no host.launchUrl call).
         event.preventDefault();
         if (!allowDelegation) return;
-        // SVG <a> may carry only `xlink:href` (SVG 1.1 form). The
-        // sanitizer validates both `href` and `xlink:href` to the same
-        // http/https allowlist, but `select(...).attr('href')` reads
-        // only the unprefixed form, so fall back to xlink:href.
+        // `select(...).attr('href')` reads only the unprefixed form,
+        // so fall back to `xlink:href` for SVG 1.1 authored anchors.
+        // In the normal sanitized path this fallback never matches:
+        // `<a>` takes the HTML branch in the sanitizer and
+        // `xlink:href` is not in `ALLOWED_ATTRIBUTES['a']`, so it is
+        // dropped by the per-tag allowlist before the URL scheme check
+        // runs (see fixture `hyperlinks-reject-svg-xlink-href-legacy`).
+        // Retained as defense-in-depth for any unsanitized content
+        // that reaches this handler, and exercised by the bypass test.
         const sel = select(event.currentTarget as Element);
         const url = (sel.attr('href') || sel.attr('xlink:href') || '').trim();
         // Defense-in-depth: even though the sanitizer already restricts
