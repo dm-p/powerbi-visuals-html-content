@@ -64,7 +64,15 @@ const CATEGORY_ORDER: Array<[PayloadCategory, string, string]> = [
 ];
 
 function renderPayload(payload: Payload): string {
-    const sanitized = getSanitizedHtmlForTesting(payload.input, 'html');
+    // Honor per-payload sanitizeOptions so worked examples reflect the
+    // exact sanitizer state each payload exercises. Toggle-on entries
+    // render their `<a href>` preserved; toggle-off entries (default)
+    // render the fail-closed shape.
+    const sanitized = getSanitizedHtmlForTesting(
+        payload.input,
+        'html',
+        payload.sanitizeOptions
+    );
     const lines: string[] = [];
     lines.push(`#### ${payload.description}`);
     lines.push('');

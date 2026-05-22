@@ -2,7 +2,7 @@
 /**
  * Generates the UAT CSV outputs from the typed payload sources.
  *
- * Three CSVs are produced in test-uat/:
+ * Four CSVs are produced in test-uat/:
  *
  *   - corpus.csv     — sanitization regression. Driven by
  *                      MALICIOUS_PAYLOADS and CLEAN_PAYLOADS in
@@ -10,7 +10,9 @@
  *                      is an attack vector or clean baseline whose
  *                      sanitized output is the expected result. Tests
  *                      sanitization surfaces 1 (inline style) and 2
- *                      (<style> tag in data).
+ *                      (<style> tag in data). Rendered with the visual's
+ *                      Hyperlinks toggle in its production-default
+ *                      (OFF) state.
  *
  *   - lorem.csv      — rich-text rendering fidelity. Driven by
  *                      LOREM_PAYLOADS in test/fixtures/lorem.ts. Each
@@ -19,6 +21,19 @@
  *                      etc.) the visual must render unchanged.
  *                      Foundation for body-styling and rich-text
  *                      regression in the UAT report.
+ *
+ *   - hyperlinks.csv — hyperlinks-enabled rendering and rejection.
+ *                      Driven by HYPERLINKS_PAYLOADS in
+ *                      test/fixtures/hyperlinks.ts. Each entry opts in
+ *                      to `sanitizeOptions: { allowHyperlinks: true }`,
+ *                      so the generated `sanitizedOutput` reflects the
+ *                      toggle-on path: legitimate http(s) hrefs survive,
+ *                      dangerous schemes (javascript:, data:) are still
+ *                      rejected, and unsupported schemes (mailto:,
+ *                      tel:, fragment-only #anchor) are dropped
+ *                      because Power BI's host.launchUrl only handles
+ *                      http(s). Bind in a Power BI UAT report page
+ *                      with the visual's Hyperlinks setting enabled.
  *
  *   - stylesheet.csv — custom-stylesheet UAT. Driven by
  *                      STYLESHEET_PAYLOADS in
@@ -30,10 +45,10 @@
  *                      doesn't share a DOM injection point with surfaces
  *                      1 and 2.
  *
- * corpus.csv and lorem.csv share the same column shape (a single
- * binding pattern handles both). stylesheet.csv has its own column
- * shape (`html_input` + `css_input` + `css_sanitized`) because the CSS
- * is operator-pasted, not bound.
+ * corpus.csv, lorem.csv, and hyperlinks.csv share the same column shape
+ * (a single binding pattern handles all three). stylesheet.csv has its
+ * own column shape (`html_input` + `css_input` + `css_sanitized`)
+ * because the CSS is operator-pasted, not bound.
  *
  * Each row includes the raw input, the sanitized output (via the
  * production sanitizer), and all metadata. The CSVs are intended for
@@ -60,10 +75,12 @@ import {
     CLEAN_PAYLOADS
 } from '../test-integration/csp-harness/corpus';
 import type {
+    HyperlinksPayload,
     LoremPayload,
     Payload
 } from '../test-integration/csp-harness/corpus';
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
+import { HYPERLINKS_PAYLOADS } from '../test/fixtures/hyperlinks';
 import { STYLESHEET_PAYLOADS } from '../test/fixtures/stylesheet-scenarios';
 import {
     getSanitizedHtmlForTesting,
@@ -76,6 +93,7 @@ const __dirname = path.dirname(__filename);
 const OUT_DIR = path.resolve(__dirname, '..', 'test-uat');
 const CORPUS_PATH = path.join(OUT_DIR, 'corpus.csv');
 const LOREM_PATH = path.join(OUT_DIR, 'lorem.csv');
+const HYPERLINKS_PATH = path.join(OUT_DIR, 'hyperlinks.csv');
 const STYLESHEET_PATH = path.join(OUT_DIR, 'stylesheet.csv');
 
 const HEADER = ['id', 'description', 'type', 'category', 'cspCategory', 'source', 'input', 'sanitizedOutput'];
@@ -99,8 +117,8 @@ function csvField(value: string): string {
 }
 
 function rowFor(
-    payload: Payload | LoremPayload,
-    type: 'malicious' | 'clean' | 'lorem'
+    payload: Payload | LoremPayload | HyperlinksPayload,
+    type: 'malicious' | 'clean' | 'lorem' | 'hyperlinks'
 ): string[] {
     return [
         payload.id,
@@ -110,7 +128,26 @@ function rowFor(
         payload.cspCategory,
         payload.source,
         payload.input,
-        getSanitizedHtmlForTesting(payload.input, 'html')
+        // Honor per-payload sanitizeOptions. For most corpus/lorem
+        // entries this is a no-op (the field is absent and the
+        // sanitizer falls back to its fail-closed default). The
+        // exceptions are documented:
+        //   - A small number of MALICIOUS/CLEAN entries opt in to
+        //     `{ allowHyperlinks: true }` so the harness exercises the
+        //     toggle-on path through the CSP sandbox (see corpus.ts
+        //     under "Toggle-on coverage").
+        //   - Every HYPERLINKS_PAYLOADS entry sets
+        //     `{ allowHyperlinks: true }` by contract — the whole
+        //     hyperlinks.csv exists to document toggle-on output.
+        // Net effect: corpus.csv / lorem.csv mostly document
+        // default-state output an AppSource reviewer sees, with a few
+        // explicit toggle-on rows; hyperlinks.csv is entirely
+        // toggle-on by design.
+        getSanitizedHtmlForTesting(
+            payload.input,
+            'html',
+            payload.sanitizeOptions
+        )
     ];
 }
 
@@ -134,6 +171,12 @@ console.log(`Wrote ${corpusRows.length} rows to ${CORPUS_PATH}`);
 const loremRows: string[][] = LOREM_PAYLOADS.map(p => rowFor(p, 'lorem'));
 writeCsv(LOREM_PATH, loremRows);
 console.log(`Wrote ${loremRows.length} rows to ${LOREM_PATH}`);
+
+const hyperlinksRows: string[][] = HYPERLINKS_PAYLOADS.map(p =>
+    rowFor(p, 'hyperlinks')
+);
+writeCsv(HYPERLINKS_PATH, hyperlinksRows);
+console.log(`Wrote ${hyperlinksRows.length} rows to ${HYPERLINKS_PATH}`);
 
 /** stylesheet.csv has its own column shape — see STYLESHEET_HEADER. */
 function writeStylesheetCsv(): void {

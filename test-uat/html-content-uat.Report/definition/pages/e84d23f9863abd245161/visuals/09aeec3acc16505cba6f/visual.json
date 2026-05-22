@@ -1,13 +1,13 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
-  "name": "20da3a27c0ee2e10028e",
+  "name": "09aeec3acc16505cba6f",
   "position": {
-    "x": 1104,
-    "y": 384,
-    "z": 3000,
-    "height": 688,
-    "width": 800,
-    "tabOrder": 3000
+    "x": 880,
+    "y": 736.00000000000011,
+    "z": 6000,
+    "height": 336,
+    "width": 608,
+    "tabOrder": 6000
   },
   "visual": {
     "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6865",
@@ -20,13 +20,13 @@
                 "Column": {
                   "Expression": {
                     "SourceRef": {
-                      "Entity": "corpus"
+                      "Entity": "hyperlinks"
                     }
                   },
                   "Property": "input"
                 }
               },
-              "queryRef": "corpus.input",
+              "queryRef": "hyperlinks.input",
               "nativeQueryRef": "input"
             }
           ]
@@ -47,7 +47,7 @@
             "hyperlinks": {
               "expr": {
                 "Literal": {
-                  "Value": "false"
+                  "Value": "true"
                 }
               }
             }
@@ -69,7 +69,58 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content - Raw'"
+                  "Value": "'HTML Content (lite) - Raw HTML'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#FFBD00'"
+                    }
+                  }
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "5D"
+                }
+              }
+            },
+            "width": {
+              "expr": {
+                "Literal": {
+                  "Value": "3D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "dropShadow": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
                 }
               }
             }

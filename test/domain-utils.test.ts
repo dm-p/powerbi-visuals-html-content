@@ -4,7 +4,9 @@ import {
     shouldDimPoint,
     bindVisualDataToDom,
     domSerialize,
-    getRawHtml
+    getRawHtml,
+    resolveHyperlinkHandling,
+    resolveHtmlGroupElement
 } from '../src/domain-utils';
 import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
@@ -232,6 +234,82 @@ describe('Domain Utils - Exported Functions', () => {
             const result = bindVisualDataToDom(container, [], false);
 
             expect(result.size()).toBe(0);
+        });
+    });
+
+    // resolveHtmlGroupElement is the visual's data → DOM bridge for
+    // rendered HTML mode. It binds each IHtmlEntry's `content` through
+    // getParsedHtmlAsDom and appends the sanitized fragment. The
+    // `allowHyperlinks` parameter is the toggle for the format-pane
+    // `hyperlinks` setting and must be honored end-to-end through this
+    // path — the unit tests in test/sanitize-pipeline.test.ts cover the
+    // sanitizer directly; these cover the function that wires the
+    // toggle through.
+    describe('resolveHtmlGroupElement', () => {
+        const buildDataElements = (
+            content: string
+        ): { container: any; entries: any } => {
+            const dom = new JSDOM(
+                '<!DOCTYPE html><html><body><div id="container"></div></body></html>'
+            );
+            const container = select(dom.window.document).select('#container');
+            const data = [
+                {
+                    content,
+                    identity: {},
+                    selected: false,
+                    tooltips: []
+                }
+            ] as any[];
+            const entries = bindVisualDataToDom(container, data, false);
+            return { container, entries };
+        };
+
+        it('strips href from <a> when allowHyperlinks is false', () => {
+            const { container, entries } = buildDataElements(
+                '<a href="https://example.com">link</a>'
+            );
+            resolveHtmlGroupElement(entries, 'html', false);
+            const html = container.node()!.innerHTML;
+            expect(html).not.toContain('href=');
+            expect(html).not.toContain('example.com');
+            expect(html).toContain('link');
+        });
+
+        it('preserves http(s) href when allowHyperlinks is true', () => {
+            const { container, entries } = buildDataElements(
+                '<a href="https://example.com">link</a>'
+            );
+            resolveHtmlGroupElement(entries, 'html', true);
+            const html = container.node()!.innerHTML;
+            expect(html).toContain('href="https://example.com"');
+            expect(html).toContain('link');
+        });
+
+        it('defaults to fail-closed (strips href) when the toggle arg is omitted', () => {
+            // Defense for the contract drift case: caller forgets the 3rd
+            // arg, default value at the function boundary takes over and
+            // matches the sanitizer's fail-closed default.
+            const { container, entries } = buildDataElements(
+                '<a href="https://example.com">link</a>'
+            );
+            (resolveHtmlGroupElement as any)(entries, 'html');
+            const html = container.node()!.innerHTML;
+            expect(html).not.toContain('href=');
+            expect(html).toContain('link');
+        });
+
+        it('still drops javascript: href even with toggle on', () => {
+            // The toggle controls attribute survival when populated; it
+            // does NOT relax the scheme allowlist. Dangerous schemes
+            // remain rejected regardless of toggle state.
+            const { container, entries } = buildDataElements(
+                '<a href="javascript:alert(1)">x</a>'
+            );
+            resolveHtmlGroupElement(entries, 'html', true);
+            const html = container.node()!.innerHTML;
+            expect(html).not.toContain('javascript:');
+            expect(html).not.toContain('alert(1)');
         });
     });
 
@@ -705,6 +783,177 @@ describe('Domain Utils - Exported Functions', () => {
                 '<style id="ss">body { color: red; }</style>'
             );
             expect(out).toContain('<div id="content">');
+        });
+    });
+
+    // Pairs with the format-pane `hyperlinks` toggle. The sanitizer
+    // already restricts <a href> / <a xlink:href> to http/https and
+    // drops the attribute entirely when the toggle is off, so most of
+    // this is defense-in-depth — but the click handler is the last
+    // line before host.launchUrl, and must independently reject any
+    // non-http(s) URL that somehow reached the DOM, fall back to
+    // xlink:href for legacy SVG <a>, and be a strict no-op when the
+    // toggle is off.
+    describe('resolveHyperlinkHandling', () => {
+        // Helper: build a JSDOM container, wire a mock host with a
+        // vi.fn() launchUrl, attach `resolveHyperlinkHandling`, and
+        // return primitives the assertions can interrogate.
+        const buildHarness = (
+            innerHtml: string,
+            allowDelegation: boolean
+        ) => {
+            const dom = new JSDOM(
+                `<!DOCTYPE html><html><body><div id="container">${innerHtml}</div></body></html>`
+            );
+            const window = dom.window;
+            const document = window.document;
+            const container = select(document).select<HTMLDivElement>(
+                '#container'
+            );
+            const launchUrl = vi.fn();
+            const host = { launchUrl } as any;
+            resolveHyperlinkHandling(host, container, allowDelegation);
+            const fireClick = (selector: string) => {
+                const el = document.querySelector(selector);
+                if (!el) {
+                    throw new Error(`fireClick: no element matched ${selector}`);
+                }
+                const ev = new window.MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true
+                });
+                el.dispatchEvent(ev);
+                return ev;
+            };
+            return { fireClick, launchUrl };
+        };
+
+        describe('delegation OFF (allowDelegation=false)', () => {
+            it('preventDefault on click and does NOT call launchUrl', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="https://example.com">x</a>',
+                    false
+                );
+                const ev = fireClick('a');
+                expect(ev.defaultPrevented).toBe(true);
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('delegation ON (allowDelegation=true)', () => {
+            it('calls launchUrl with the href value for https://', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="https://example.com">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).toHaveBeenCalledTimes(1);
+                expect(launchUrl).toHaveBeenCalledWith('https://example.com');
+            });
+
+            it('calls launchUrl for http:// scheme', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="http://example.com">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).toHaveBeenCalledWith('http://example.com');
+            });
+
+            it('rejects javascript: scheme (defense-in-depth)', () => {
+                // Construct the link via innerHTML directly so the
+                // sanitizer is bypassed — this scenario models a
+                // sanitizer regression. The click handler must still
+                // refuse to call launchUrl.
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="javascript:alert(1)">x</a>',
+                    true
+                );
+                const ev = fireClick('a');
+                expect(ev.defaultPrevented).toBe(true);
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+
+            it('rejects data: scheme', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="data:text/html,<script>1</script>">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+
+            it('rejects mailto: scheme (launchUrl only accepts http(s))', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="mailto:test@example.com">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+
+            it('rejects empty / missing href silently', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a>x</a>',
+                    true
+                );
+                const ev = fireClick('a');
+                expect(ev.defaultPrevented).toBe(true);
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+
+            it('rejects fragment-only href (#anchor)', () => {
+                // Fragment-only refs reach the click handler if the
+                // user authored them on an HTML <a>. launchUrl does
+                // not handle them; silent no-op is correct.
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="#section">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
+
+            it('trims surrounding whitespace before scheme check', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="  https://example.com  ">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).toHaveBeenCalledWith('https://example.com');
+            });
+
+            it('falls back to xlink:href on SVG <a> without unprefixed href', () => {
+                // SVG 1.1 form: legacy authored content uses xlink:href
+                // without the SVG2 unprefixed href. The handler must
+                // still launch it.
+                const { fireClick, launchUrl } = buildHarness(
+                    '<svg><a xlink:href="https://example.com"><text>x</text></a></svg>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).toHaveBeenCalledWith('https://example.com');
+            });
+
+            it('prefers href over xlink:href when both present', () => {
+                // SVG2 unprefixed `href` takes precedence in renderers
+                // when both are declared. The handler mirrors that.
+                const { fireClick, launchUrl } = buildHarness(
+                    '<svg><a href="https://primary.example" xlink:href="https://fallback.example"><text>x</text></a></svg>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).toHaveBeenCalledWith('https://primary.example');
+            });
+
+            it('blocks JavaScript: with mixed case (defense-in-depth)', () => {
+                const { fireClick, launchUrl } = buildHarness(
+                    '<a href="JavaScript:alert(1)">x</a>',
+                    true
+                );
+                fireClick('a');
+                expect(launchUrl).not.toHaveBeenCalled();
+            });
         });
     });
 });

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
   "name": "bac6b8e94a7363641472",
   "position": {
     "x": 0,
@@ -150,7 +150,7 @@
                             },
                             {
                               "Literal": {
-                                "Value": "'clean-basic-formatting'"
+                                "Value": "'clean-anchor-href-toggle-on'"
                               }
                             }
                           ]
@@ -197,7 +197,7 @@
                                 "1": [
                                   {
                                     "Literal": {
-                                      "Value": "'clean-basic-formatting'"
+                                      "Value": "'clean-anchor-href-toggle-on'"
                                     }
                                   }
                                 ]
@@ -234,7 +234,7 @@
                         "valueMap": [
                           {
                             "0": "clean",
-                            "1": "clean-basic-formatting"
+                            "1": "clean-anchor-href-toggle-on"
                           }
                         ]
                       }

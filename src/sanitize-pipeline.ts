@@ -215,24 +215,51 @@ function getPurify(): DOMPurifyType {
 }
 
 /**
+ * Caller-controlled toggles that influence sanitizer policy. Currently
+ * only `allowHyperlinks` (off by default - fail-closed so unaware
+ * callers do not leak href into the DOM).
+ *
+ * When `allowHyperlinks` is false, the sanitizer drops `href` and
+ * `xlink:href` from every `<a>` element (HTML and SVG) so the rendered
+ * DOM contains no clickable URL surface at all. This pairs with the
+ * `hyperlinks` format-pane toggle: when the author disables hyperlink
+ * delegation, the href attribute should not be present in the output
+ * either (issue: MS AppSource certification scanner flags any
+ * surviving href attribute in user content).
+ */
+export type SanitizeOptions = {
+    allowHyperlinks?: boolean;
+};
+
+/**
  * Parse the supplied HTML string and then return as a DOM fragment that we can
  * use in the visual for our data. If we're specifying in the configuration that
  * we should sanitize, do this also.
  */
-export const getParsedHtmlAsDom = (content: string, format: RenderFormat) => {
+export const getParsedHtmlAsDom = (
+    content: string,
+    format: RenderFormat,
+    options?: SanitizeOptions
+) => {
     const parse = Range.prototype.createContextualFragment.bind(
         document.createRange()
     );
     const converted =
         format === 'markdown' ? marked.parse(content).toString() : content;
-    const dom = config.sanitize ? getSanitizedContent(converted) : converted;
+    const dom = config.sanitize
+        ? getSanitizedContent(converted, options)
+        : converted;
     return parse(dom);
 };
 
 /**
  * Sanitize the supplied HTML string using DOMPurify.
  */
-export const getSanitizedContent = (content: string): string => {
+export const getSanitizedContent = (
+    content: string,
+    options?: SanitizeOptions
+): string => {
+    const allowHyperlinks = options?.allowHyperlinks ?? false;
     const preprocessed = preprocessStyleTags(content);
     const purify = getPurify();
 
@@ -321,6 +348,33 @@ export const getSanitizedContent = (content: string): string => {
                             .normalize('NFKC')
                             .replace(/[\x00-\x1F\x7F\uFFFD]/g, '');
                         hookEvent.attrValue = value;
+                    }
+
+                    // Hyperlink toggle enforcement. When the format-pane
+                    // `hyperlinks` toggle is OFF, the visual must not expose
+                    // any clickable URL surface - strip `href` / `xlink:href`
+                    // from every `<a>` (HTML and SVG) so the rendered DOM
+                    // contains no surviving href attribute. The click handler
+                    // already suppresses navigation via preventDefault(); this
+                    // closes the residual attribute exposure that the MS
+                    // AppSource scanner flags. Other tag-name+href
+                    // combinations (SVG paint servers, <image>, SMIL) are
+                    // governed by their own scheme allowlists and are not
+                    // affected.
+                    //
+                    // GATE ORDERING: this check intentionally precedes the
+                    // per-tag allowlist below so the toggle is authoritative
+                    // for href on <a> regardless of what ALLOWED_ATTRIBUTES['a']
+                    // permits. Do not reorder without auditing
+                    // ALLOWED_ATTRIBUTES['a'] — a future allowlist edit that
+                    // adds or removes href must not invert this precedence.
+                    if (
+                        !allowHyperlinks &&
+                        tagName === 'a' &&
+                        (attrName === 'href' || attrName === 'xlink:href')
+                    ) {
+                        hookEvent.keepAttr = false;
+                        return;
                     }
 
                     // Keep strict per-tag allowlist behavior for HTML tags. For SVG
@@ -585,7 +639,7 @@ export const getSanitizedContent = (content: string): string => {
         //    this hook catches the fallthrough. DOMPurify's ADD_TAGS:['style']
         //    preserves the element — without this hook, an unsanitized body
         //    would reach the DOM.
-        purify.addHook('uponSanitizeElement', (currentNode: Element) => {
+        purify.addHook('uponSanitizeElement', (currentNode: Node) => {
             // Fail-closed envelope. If the element-hook body throws,
             // remove the element rather than leak it through to the
             // sanitized output. Style-tag textContent re-sanitization
@@ -609,12 +663,17 @@ export const getSanitizedContent = (content: string): string => {
                     return;
                 }
 
-                if (!currentNode.attributes) return;
-                for (let i = 0; i < currentNode.attributes.length; i++) {
-                    const attr = currentNode.attributes[i];
+                // The on*-handler check is Element-only (`.attributes`).
+                // Non-element nodes (text/comment) can never carry
+                // event handler attributes, so early-out is safe.
+                if (currentNode.nodeType !== 1 /* ELEMENT_NODE */) return;
+                const element = currentNode as Element;
+                if (!element.attributes) return;
+                for (let i = 0; i < element.attributes.length; i++) {
+                    const attr = element.attributes[i];
                     if (/^on[a-z]+$/i.test(attr.name)) {
-                        if (currentNode.parentNode) {
-                            currentNode.parentNode.removeChild(currentNode);
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
                         }
                         return;
                     }
@@ -759,9 +818,10 @@ export const getSanitizedDataUri = (dataUri: string): string => {
  */
 export const getSanitizedHtmlForTesting = (
     content: string,
-    format: RenderFormat
+    format: RenderFormat,
+    options?: SanitizeOptions
 ): string => {
-    const fragment = getParsedHtmlAsDom(content, format);
+    const fragment = getParsedHtmlAsDom(content, format, options);
     const container = document.createElement('div');
     container.appendChild(fragment);
     return container.innerHTML;

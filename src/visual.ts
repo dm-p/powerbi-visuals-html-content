@@ -191,7 +191,9 @@ export class Visual implements IVisual {
                     dataElements,
                     this.formattingSettings.contentFormatting
                         .contentFormattingCardBehavior.format
-                        .value as RenderFormat
+                        .value as RenderFormat,
+                    this.formattingSettings.contentFormatting
+                        .contentFormattingCardBehavior.hyperlinks.value
                 );
                 resolveForRawHtml(
                     this.styleSheetContainer,

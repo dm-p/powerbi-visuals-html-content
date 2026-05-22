@@ -1,16 +1,16 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
-  "name": "20da3a27c0ee2e10028e",
+  "name": "6a8696108bce0324854b",
   "position": {
-    "x": 1104,
+    "x": 336,
     "y": 384,
     "z": 3000,
-    "height": 688,
-    "width": 800,
+    "height": 336,
+    "width": 528,
     "tabOrder": 3000
   },
   "visual": {
-    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6865",
+    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6855",
     "query": {
       "queryState": {
         "content": {
@@ -20,13 +20,13 @@
                 "Column": {
                   "Expression": {
                     "SourceRef": {
-                      "Entity": "corpus"
+                      "Entity": "hyperlinks"
                     }
                   },
                   "Property": "input"
                 }
               },
-              "queryRef": "corpus.input",
+              "queryRef": "hyperlinks.input",
               "nativeQueryRef": "input"
             }
           ]
@@ -37,17 +37,10 @@
       "contentFormatting": [
         {
           "properties": {
-            "showRawHtml": {
-              "expr": {
-                "Literal": {
-                  "Value": "true"
-                }
-              }
-            },
             "hyperlinks": {
               "expr": {
                 "Literal": {
-                  "Value": "false"
+                  "Value": "true"
                 }
               }
             }
@@ -69,7 +62,45 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content - Raw'"
+                  "Value": "'HTML Content - Rendered (Default Body Styling font, color, size)'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#E34D26'"
+                    }
+                  }
+                }
+              }
+            },
+            "width": {
+              "expr": {
+                "Literal": {
+                  "Value": "3D"
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "5D"
                 }
               }
             }

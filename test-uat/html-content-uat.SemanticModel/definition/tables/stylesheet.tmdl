@@ -61,7 +61,7 @@ table stylesheet
 		mode: import
 		source =
 				let
-				    Source = Csv.Document(File.Contents("C:\Repos\powerbi-visuals-html-content\test-uat\stylesheet.csv"),[Delimiter=",", Columns=7, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Source = Csv.Document(File.Contents(RepoRoot & "\stylesheet.csv"),[Delimiter=",", Columns=7, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
 				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
 				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"id", type text}, {"description", type text}, {"expected_outcome", type text}, {"html_input", type text}, {"html_sanitized", type text}, {"css_input", type text}, {"css_sanitized", type text}})
 				in

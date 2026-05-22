@@ -34,7 +34,16 @@ Node 20+ is assumed (see `@types/node` ^20). No other one-time setup is required
 | Regenerate sanitization rules doc | `npm run docs:generate` (CI uses `docs:check`) |
 | Regenerate UAT corpus | `npm run uat:generate` |
 
-Default to `npm test` for fast feedback during edits. Run `npm run test:all` before declaring sanitization work complete — `docs:check` will fail CI if `docs/sanitization-rules.md` drifts from the source-of-truth lists.
+Default to `npm test` for fast feedback during edits.
+
+### Definition of done — sanitizer changes
+
+Before declaring any change to `sanitize-pipeline.ts`, `css-sanitizer.ts`, `svg-payload-scan.ts`, `visual-constants.ts`, or `domain-utils.ts` (the click-handler / URL-delegation boundary that depends on sanitizer output) complete:
+
+1. **Run `npm run test:all`** (unit + integration + `docs:check`). If `docs:check` fails, run `npm run docs:generate` and commit the regenerated `docs/sanitization-rules.md` alongside the source change.
+2. **Run `npm run uat:generate` if the sanitizer's output for any existing input could have shifted.** This applies whenever you change what the sanitizer emits — not just what it accepts. Examples that trigger this: new options that change default emitted output (e.g. `allowHyperlinks`), tighter allowlists, scheme rule edits, attribute-hook reordering. The `test-uat/*.csv` files contain a `sanitizedOutput` column derived from running each input through the production sanitizer at script time; **there is no CI drift check for these CSVs**, so this step is on you. Stage the regenerated CSVs (`test-uat/corpus.csv`, `test-uat/lorem.csv`, `test-uat/stylesheet.csv`) in the same commit as the source change.
+3. **Add both positive AND negative test cases** for security-adjacent changes. The corpus in `test-integration/csp-harness/corpus.ts` is the model for malicious-payload regression coverage.
+4. **Diff the regenerated `test-uat/*.csv` files** and confirm any flips from clean to blocked (or vice versa) match your intent. A surprise flip means a fixture you didn't expect to touch is now affected.
 
 ## Repo layout
 
@@ -73,7 +82,6 @@ Read these before starting work in their domain — they carry institutional con
 
 - TypeScript strict mode (see [tsconfig.json](tsconfig.json)). Prefer narrow types over `any`; the sanitizer in particular relies on type discrimination at API boundaries.
 - Tests mirror source filenames (`src/foo.ts` → `test/foo.test.ts`). New source files should ship with at least one corresponding test file.
-- Security-adjacent changes (anything in `sanitize-pipeline.ts`, `css-sanitizer.ts`, `svg-payload-scan.ts`, `visual-constants.ts`) must add both positive and negative test cases — the corpus in `test-integration/csp-harness/corpus.ts` is the model.
-- When tightening a sanitizer rule, also grep `test-uat/corpus.csv`, `test-uat/lorem.csv`, and `test-uat/stylesheet.csv` for fixtures that may have drifted from clean to blocked (or vice versa).
+- Sanitizer changes follow the dedicated "Definition of done — sanitizer changes" checklist above (run `npm run test:all`, regenerate UAT corpus when emission shifts, add positive+negative tests).
 - Potential commits should first be presented for the developer to review/approve.
 - Commit messages follow conventional-commit prefixes (`fix:`, `feat:`, `docs:`, `tests:`, `chore:`, `refactor:`).
