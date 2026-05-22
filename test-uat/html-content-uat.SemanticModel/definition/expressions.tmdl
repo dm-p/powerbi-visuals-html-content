@@ -1,5 +1,5 @@
 /// Root location for repo, as Power Query doesn't have the ability to get local folder, and relative locations cannot be loaded
-expression RepoRoot = "C:\Repos\powerbi-visuals-html-content\test-uat" meta [IsParameterQuery=true, Type="Any", IsParameterQueryRequired=true]
+expression RepoRoot = "[add current path here]\test-uat" meta [IsParameterQuery=true, Type="Any", IsParameterQueryRequired=true]
 	lineageTag: ef1e821b-a10c-41a9-ae23-186603f85557
 
 	annotation PBI_NavigationStepName = Navigation

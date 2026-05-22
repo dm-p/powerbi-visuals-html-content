@@ -68,7 +68,7 @@ export type PayloadCategory =
     | 'owasp'                  // 11. OWASP XSS Filter Evasion Cheat Sheet
     | 'partial-survival'       // 12. mixed safe/unsafe declarations
     | 'clean-baseline'         //     legitimate content that must keep rendering
-    | 'lorem';                 //     rich-text rendering fixtures (paragraphs,
+    | 'lorem'                  //     rich-text rendering fixtures (paragraphs,
                                //     headings, lists, nesting). Kept in a
                                //     separate array (test/fixtures/lorem.ts);
                                //     the sanitization doc generator never
@@ -76,6 +76,16 @@ export type PayloadCategory =
                                //     PayloadCategory union lets the UAT CSV
                                //     generator emit the same column shape
                                //     without forking the Payload interface.
+    | 'hyperlinks';            //     hyperlinks-enabled UAT fixtures
+                               //     (test/fixtures/hyperlinks.ts). Every
+                               //     entry carries `sanitizeOptions:
+                               //     { allowHyperlinks: true }` so the UAT
+                               //     reviewer can visually verify the
+                               //     toggle-on behavior — both that legitimate
+                               //     http(s) hrefs survive AND that
+                               //     scheme-allowlist rejection (javascript:,
+                               //     mailto:, fragment, etc.) still fires
+                               //     even when the toggle is enabled.
 
 /**
  * Substring assertions for sanitized output. Shared between `Payload`
@@ -158,6 +168,28 @@ export interface Payload {
  */
 export interface LoremPayload extends Omit<Payload, 'category'> {
     category: 'lorem';
+}
+
+/**
+ * Hyperlinks-enabled UAT fixture — same shape as `Payload` but with two
+ * narrowings:
+ *   - `category` narrowed to literal `'hyperlinks'` so a hyperlinks
+ *     entry cannot accidentally land in another array (compile-time
+ *     cross-array guard, same pattern as `LoremPayload`).
+ *   - `sanitizeOptions` narrowed from optional to REQUIRED literal
+ *     `{ allowHyperlinks: true }`. The whole point of this fixture set
+ *     is to document the toggle-on rendering path; an entry that omits
+ *     the field (or sets `allowHyperlinks: false`) is silently wrong and
+ *     would emit toggle-off output into `hyperlinks.csv`. Narrowing at
+ *     the interface catches this at compile time rather than letting it
+ *     reach the runtime guard in test/hyperlinks-rendering.test.ts.
+ *
+ * Source: test/fixtures/hyperlinks.ts.
+ */
+export interface HyperlinksPayload
+    extends Omit<Payload, 'category' | 'sanitizeOptions'> {
+    category: 'hyperlinks';
+    sanitizeOptions: { allowHyperlinks: true };
 }
 
 /**

@@ -1,16 +1,16 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
-  "name": "34fc77d954630a056dd9",
+  "name": "3704ae0f5e4d8af4cbb8",
   "position": {
-    "x": 880,
-    "y": 384,
-    "z": 2000,
+    "x": 336,
+    "y": 736.00000000000011,
+    "z": 4000,
     "height": 336,
     "width": 528,
-    "tabOrder": 2000
+    "tabOrder": 4000
   },
   "visual": {
-    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6855",
+    "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6865",
     "query": {
       "queryState": {
         "content": {
@@ -20,13 +20,13 @@
                 "Column": {
                   "Expression": {
                     "SourceRef": {
-                      "Entity": "lorem"
+                      "Entity": "hyperlinks"
                     }
                   },
                   "Property": "input"
                 }
               },
-              "queryRef": "lorem.input",
+              "queryRef": "hyperlinks.input",
               "nativeQueryRef": "input"
             }
           ]
@@ -37,43 +37,10 @@
       "contentFormatting": [
         {
           "properties": {
-            "fontColour": {
-              "solid": {
-                "color": {
-                  "expr": {
-                    "ThemeDataColor": {
-                      "ColorId": 2,
-                      "Percent": 0
-                    }
-                  }
-                }
-              }
-            },
-            "fontSize": {
-              "expr": {
-                "Literal": {
-                  "Value": "18D"
-                }
-              }
-            },
-            "fontFamily": {
-              "expr": {
-                "Literal": {
-                  "Value": "'Arial'"
-                }
-              }
-            },
-            "align": {
-              "expr": {
-                "Literal": {
-                  "Value": "'center'"
-                }
-              }
-            },
             "hyperlinks": {
               "expr": {
                 "Literal": {
-                  "Value": "false"
+                  "Value": "true"
                 }
               }
             }
@@ -95,7 +62,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content - Rendered (Overridden Body Styling font, color, size, center align)'"
+                  "Value": "'HTML Content (lite) - Rendered (Default Body Styling font, color, size)'"
                 }
               }
             }
@@ -117,9 +84,16 @@
                 "color": {
                   "expr": {
                     "Literal": {
-                      "Value": "'#E34D26'"
+                      "Value": "'#FFBD00'"
                     }
                   }
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "5D"
                 }
               }
             },
@@ -129,11 +103,17 @@
                   "Value": "3D"
                 }
               }
-            },
-            "radius": {
+            }
+          }
+        }
+      ],
+      "dropShadow": [
+        {
+          "properties": {
+            "show": {
               "expr": {
                 "Literal": {
-                  "Value": "5D"
+                  "Value": "false"
                 }
               }
             }

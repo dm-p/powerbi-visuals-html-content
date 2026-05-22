@@ -10,11 +10,12 @@ annotation __PBI_TimeIntelligenceEnabled = 0
 
 annotation PBI_ProTooling = ["DevMode"]
 
-annotation PBI_QueryOrder = ["corpus","RepoRoot","lorem","stylesheet"]
+annotation PBI_QueryOrder = ["RepoRoot","corpus","lorem","stylesheet","hyperlinks"]
 
 ref table corpus
 ref table lorem
 ref table stylesheet
+ref table hyperlinks
 
 ref cultureInfo en-US
 

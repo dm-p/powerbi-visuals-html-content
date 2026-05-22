@@ -11,6 +11,7 @@ import {
     STYLESHEET_PAYLOADS,
     StylesheetScenario
 } from './fixtures/stylesheet-scenarios';
+import { parseCsvRecords } from './helpers/parse-csv-records';
 
 /**
  * Regression suite for the custom-stylesheet UAT fixtures.
@@ -46,41 +47,6 @@ const STYLESHEET_CSV_PATH = path.resolve(
     'test-uat',
     'stylesheet.csv'
 );
-
-function parseCsvRecords(csv: string): string[] {
-    const records: string[] = [];
-    let buf = '';
-    let inQuotes = false;
-    for (let i = 0; i < csv.length; i++) {
-        const ch = csv[i];
-        if (inQuotes) {
-            if (ch === '"' && csv[i + 1] === '"') {
-                buf += '""';
-                i++;
-                continue;
-            }
-            if (ch === '"') {
-                inQuotes = false;
-            }
-            buf += ch;
-            continue;
-        }
-        if (ch === '"') {
-            inQuotes = true;
-            buf += ch;
-            continue;
-        }
-        if (ch === '\n') {
-            if (buf.length > 0) records.push(buf);
-            buf = '';
-            continue;
-        }
-        if (ch === '\r') continue;
-        buf += ch;
-    }
-    if (buf.length > 0) records.push(buf);
-    return records;
-}
 
 describe('stylesheet UAT fixtures — sanitization', () => {
     it.each(

@@ -1,27 +1,29 @@
 # UAT testing with the corpora
 
-Three CSV exports are available for manual UAT in Power BI Desktop. The first two share the same column shape (a single binding pattern handles both); the third has its own shape because the CSS payload is operator-pasted into the format pane rather than bound to the visual.
+Four CSV exports are available for manual UAT in Power BI Desktop. The first three share the same column shape (a single binding pattern handles all); the fourth has its own shape because the CSS payload is operator-pasted into the format pane rather than bound to the visual.
 
-| File | Sanitization surface | Purpose |
-|---|---|---|
-| `test-uat/corpus.csv` | 1 (inline `style`) + 2 (`<style>` in data) | **Sanitization regression.** Every malicious and clean payload from the security corpus alongside the sanitized output produced by the current sanitizer. Use this to verify attack-vector handling. |
-| `test-uat/lorem.csv` | 1 + 2 | **Rich-text rendering fidelity.** Body-styling-shaped fixtures — paragraphs, headings, ordered/unordered/nested lists, blockquotes, tables, article structure — that the visual must render unchanged. Use this to exercise default body styling and rich-text content. |
-| `test-uat/stylesheet.csv` | 3 (Custom stylesheet setting) | **Custom-stylesheet sanitization.** Pairs of (HTML payload, CSS payload) where the operator binds the HTML and pastes the CSS into the format pane. Tests the third sanitization surface (per `docs/sanitization-rules.md`) — surfaces 2 and 3 share `sanitizeCss(..., 'stylesheet')` but reach the DOM via different injection points, and the body-styling cascade override (issue #144) is gated on whether surface 3 is supplied. |
+| File | Sanitization surface | Hyperlinks toggle | Purpose |
+|---|---|---|---|
+| `test-uat/corpus.csv` | 1 (inline `style`) + 2 (`<style>` in data) | OFF (production default) | **Sanitization regression.** Every malicious and clean payload from the security corpus alongside the sanitized output produced by the current sanitizer. Use this to verify attack-vector handling. |
+| `test-uat/lorem.csv` | 1 + 2 | OFF (production default) | **Rich-text rendering fidelity.** Body-styling-shaped fixtures — paragraphs, headings, ordered/unordered/nested lists, blockquotes, tables, article structure — that the visual must render unchanged. Use this to exercise default body styling and rich-text content. |
+| `test-uat/hyperlinks.csv` | 1 + 2 | ON | **Hyperlinks-enabled rendering and rejection.** Positive cases (`<a href="https://...">` and SVG `<a>` with both `href` and `xlink:href` forms must survive and render as clickable links delegating to `host.launchUrl`) and negative cases (`javascript:`, `data:`, `mailto:`, `tel:`, fragment-only, and relative hrefs must still be dropped even with the toggle ON, because the format-pane toggle controls whether `href` may populate; the per-tag scheme allowlist independently controls which schemes survive). Bind in a Power BI report page with the visual's **Allow opening URLs** setting enabled. |
+| `test-uat/stylesheet.csv` | 3 (Custom stylesheet setting) | OFF (production default) | **Custom-stylesheet sanitization.** Pairs of (HTML payload, CSS payload) where the operator binds the HTML and pastes the CSS into the format pane. Tests the third sanitization surface (per `docs/sanitization-rules.md`) — surfaces 2 and 3 share `sanitizeCss(..., 'stylesheet')` but reach the DOM via different injection points, and the body-styling cascade override (issue #144) is gated on whether surface 3 is supplied. |
 
 ## Regenerating the CSVs
 
-Re-run `npm run uat:generate` after any change to the source corpora or the sanitizer. Two vitest suites assert that the CSVs stay in lockstep with their fixture sources — a stale CSV fails CI:
+Re-run `npm run uat:generate` after any change to the source corpora or the sanitizer. Three vitest suites assert that the CSVs stay in lockstep with their fixture sources — a stale CSV fails CI:
 
 - `test/lorem-rendering.test.ts` covers `lorem.csv` ↔ `LOREM_PAYLOADS`
+- `test/hyperlinks-rendering.test.ts` covers `hyperlinks.csv` ↔ `HYPERLINKS_PAYLOADS`
 - `test/stylesheet-rendering.test.ts` covers `stylesheet.csv` ↔ `STYLESHEET_PAYLOADS`
 
-The basic corpus and 'lorem' tests use these columns:
+The basic corpus, 'lorem', and 'hyperlinks' tests use these columns:
 
 | Column | Description |
 |---|---|
 | `id` | Stable unique identifier for the row |
 | `description` | Plain-language description of the case |
-| `type` | `malicious`, `clean`, or `lorem` |
+| `type` | `malicious`, `clean`, `lorem`, or `hyperlinks` |
 | `category` | Grouping (e.g. `css-url-per-property`, `event-handler`, `clean-baseline`, `lorem`) |
 | `cspCategory` | CSP directive most likely to fire if the sanitizer leaks (`none` for clean and lorem rows) |
 | `source` | Provenance: cert report, OWASP, code review, baseline, etc. |
@@ -114,6 +116,27 @@ As you apply each test via the slicer:
 2. The middle visuals are the test output with a body font of **Arial**, a color of **#118DFF**, a font size of **18px**, and an alignment of **center**. Again, output for both visual editions should match.
 
 3. The right visuals show the DOM as sent to the appropriate visual using _Show raw HTML_. This should be as expected.
+
+### Hyperlinks Enabled
+
+This tab is bound to `test-uat/hyperlinks.csv` and exercises the format-pane **Behavior** > **Allow opening URLs** toggle in its ON state. The default sanitizer state (toggle OFF) strips `href` from every `<a>` so the visual emits no clickable URL surface at all; this tab is the only place where the toggle-on rendering path is verified end-to-end against a live visual.
+
+This page has two **HTML Content** visuals along the top row (red border) and two **HTML Content (lite)** visuals along the bottom row (yellow border).
+
+For each row, navigate via the slicer and visually confirm for the **HTML Content (lite)** visuals:
+
+1. **Positive rows** (`hyperlinks-clean-*`) - the rendered link is visible and styled as a link (anchor tags pick up browser-default underline/cursor unless the body styling overrides them). 
+
+    - Click the link and confirm Power BI shows its native "open URL" prompt the first time, then opens the URL in a new tab.
+    - Verify both HTML `<a href>` and SVG `<a>` with `xlink:href` / `href` forms behave the same way.
+
+2. **Negative rows** (`hyperlinks-reject-*`) — the link text is still visible (the `<a>` element survives so styling and content don't get dropped) but the click does nothing. This is intentional - the per-tag scheme allowlist rejects:
+
+    - `javascript:` and `data:` schemes (dangerous; rejected on security grounds even when the toggle is on)
+    - `mailto:` and `tel:` schemes (Power BI's `host.launchUrl` only supports http(s), so they would no-op anyway — the sanitizer drops them so the rendered DOM never advertises a link that won't work)
+    - Fragment-only (`#anchor`) and relative (`/path`) hrefs (no scheme means they fall outside the allowlist; in-page navigation isn't a meaningful concept inside a Power BI visual)
+
+The raw-output companion visual shows the post-sanitization DOM directly, which is the most reliable confirmation that the rejection cases actually have no `href` attribute (independent of how the link styling presents).
 
 ## How to report a sanitization bug
 

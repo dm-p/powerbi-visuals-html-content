@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 import { LOREM_PAYLOADS } from './fixtures/lorem';
 import type { LoremPayload } from '../test-integration/csp-harness/corpus';
+import { parseCsvRecords } from './helpers/parse-csv-records';
 
 /**
  * Regression suite for the lorem rich-text fixtures.
@@ -21,48 +22,6 @@ import type { LoremPayload } from '../test-integration/csp-harness/corpus';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOREM_CSV_PATH = path.resolve(__dirname, '..', 'test-uat', 'lorem.csv');
-
-/**
- * Minimal RFC 4180 CSV record splitter. Returns one string per record
- * (header + data rows), correctly handling fields wrapped in double
- * quotes that contain embedded commas, double-quoted escapes (`""`), or
- * newlines. We don't need per-field parsing here — only to count rows
- * and extract the first comma-separated id from each record.
- */
-function parseCsvRecords(csv: string): string[] {
-    const records: string[] = [];
-    let buf = '';
-    let inQuotes = false;
-    for (let i = 0; i < csv.length; i++) {
-        const ch = csv[i];
-        if (inQuotes) {
-            if (ch === '"' && csv[i + 1] === '"') {
-                buf += '""';
-                i++;
-                continue;
-            }
-            if (ch === '"') {
-                inQuotes = false;
-            }
-            buf += ch;
-            continue;
-        }
-        if (ch === '"') {
-            inQuotes = true;
-            buf += ch;
-            continue;
-        }
-        if (ch === '\n') {
-            if (buf.length > 0) records.push(buf);
-            buf = '';
-            continue;
-        }
-        if (ch === '\r') continue;
-        buf += ch;
-    }
-    if (buf.length > 0) records.push(buf);
-    return records;
-}
 
 describe('lorem fixtures — sanitized output', () => {
     // Annotated tuple type so `payload` is narrowed to LoremPayload
