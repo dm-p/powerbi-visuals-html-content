@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { createHarness, formatFailure, RenderResult } from './csp-harness/runner';
 import { MALICIOUS_PAYLOADS, CLEAN_PAYLOADS } from './csp-harness/corpus';
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
+import { HYPERLINKS_PAYLOADS } from '../test/fixtures/hyperlinks';
 import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 
 // Sanity: assert ids are unique across all corpus arrays (sanitization
@@ -13,7 +14,8 @@ import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
 const allIds = [
     ...MALICIOUS_PAYLOADS,
     ...CLEAN_PAYLOADS,
-    ...LOREM_PAYLOADS
+    ...LOREM_PAYLOADS,
+    ...HYPERLINKS_PAYLOADS,
 ].map(p => p.id);
 const dupes = allIds.filter((id, i) => allIds.indexOf(id) !== i);
 if (dupes.length > 0) {
