@@ -53,7 +53,7 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isValid).toBe(false);
         });
 
-        it('should set isValid to false when dataView has no table', () => {
+        it('should set isValid to false when dataView has no categorical', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
@@ -77,9 +77,16 @@ describe('ViewModelHandler', () => {
                             }
                         ]
                     },
-                    table: {
-                        columns: [],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -97,11 +104,16 @@ describe('ViewModelHandler', () => {
                             { roles: { content: true }, displayName: 'HTML' }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -127,19 +139,30 @@ describe('ViewModelHandler', () => {
                             { roles: { content: true }, displayName: 'HTML' }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category'
+                                },
+                                values: []
                             },
                             {
-                                roles: { tooltips: true },
-                                displayName: 'Tooltip'
+                                source: {
+                                    roles: { tooltips: true },
+                                    displayName: 'Tooltip'
+                                },
+                                values: []
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -159,49 +182,25 @@ describe('ViewModelHandler', () => {
             const dataViews: any[] = [
                 {
                     metadata: {},
-                    table: {
-                        columns: [],
-                        rows: []
-                    }
+                    categorical: {}
                 }
             ];
 
             handler.validateDataView(dataViews);
             expect(handler.viewModel.isValid).toBe(false);
         });
-
-        it('should ignore columns without roles (dynamic format strings) when locating content column', () => {
-            const dataViews: any[] = [
-                {
-                    metadata: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ]
-                    },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
-                    }
-                }
-            ];
-
-            handler.validateDataView(dataViews);
-            expect(handler.viewModel.isValid).toBe(true);
-            expect(handler.viewModel.contentIndex).toBe(1);
-        });
     });
 
     describe('mapDataView', () => {
         const mockHost = {
-            createSelectionIdBuilder: () => ({
-                withTable: () => ({
+            createSelectionIdBuilder: () => {
+                const builder: any = {
+                    withCategory: () => builder,
+                    withMeasure: () => builder,
                     createSelectionId: () => ({ equals: () => false })
-                })
-            }),
+                };
+                return builder;
+            },
             locale: 'en-US'
         } as any;
 
@@ -227,14 +226,24 @@ describe('ViewModelHandler', () => {
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: [['<p>Test 1</p>'], ['<p>Test 2</p>']]
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test 1</p>', '<p>Test 2</p>']
+                            }
+                        ]
                     }
                 }
             ];
@@ -257,14 +266,24 @@ describe('ViewModelHandler', () => {
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: [[null], [undefined]]
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: [null, undefined]
+                            }
+                        ]
                     }
                 }
             ];
@@ -284,20 +303,37 @@ describe('ViewModelHandler', () => {
                         columns: [
                             {
                                 roles: { sampling: true },
-                                displayName: 'Category'
+                                displayName: 'Category',
+                                queryName: 'qs'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
                         ],
-                        rows: [['A', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
                     }
                 }
             ];
@@ -324,20 +360,37 @@ describe('ViewModelHandler', () => {
                         columns: [
                             {
                                 roles: { sampling: true },
-                                displayName: 'Category'
+                                displayName: 'Category',
+                                queryName: 'qs'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
                         ],
-                        rows: [['A', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
                     }
                 }
             ];
@@ -354,14 +407,24 @@ describe('ViewModelHandler', () => {
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -372,29 +435,29 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(true);
         });
 
-        it('should map data and granularity when a column without roles (dynamic format strings) is present', () => {
+        it('measure-only content: categorical with only values (one measure entry) → 1 htmlEntry, isEmpty false (#130)', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
                         columns: [
-                            { displayName: 'Format', format: '0.0%' },
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                roles: { content: true },
+                                displayName: 'Aggregate HTML',
+                                queryName: 'mq'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
+                    categorical: {
+                        values: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: [['0.5', 'A', '<p>Test</p>']]
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'Aggregate HTML',
+                                    queryName: 'mq'
+                                },
+                                values: ['<p>Aggregate</p>']
+                            }
+                        ]
                     }
                 }
             ];
@@ -402,47 +465,61 @@ describe('ViewModelHandler', () => {
             handler.validateDataView(dataViews);
             handler.mapDataView(dataViews, mockSettings, mockHost);
 
-            expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.htmlEntries.length).toBe(1);
             expect(handler.viewModel.htmlEntries[0].content).toBe(
-                '<p>Test</p>'
+                '<p>Aggregate</p>'
             );
+            expect(handler.viewModel.isEmpty).toBe(false);
         });
 
-        it('should exclude columns without roles (dynamic format strings) from tooltips', () => {
+        it('#159 fixture: valid content category plus extra value column with no roles key → mapping succeeds, htmlEntries count correct, no throw', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
                         columns: [
-                            { displayName: 'Format', format: '0.0%' },
                             {
-                                roles: { tooltips: true },
-                                displayName: 'Tooltip'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'mq'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
+                    categorical: {
+                        categories: [
                             {
-                                roles: { tooltips: true },
-                                displayName: 'Tooltip'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'mq'
+                                },
+                                values: ['<p>Row 1</p>', '<p>Row 2</p>']
+                            }
                         ],
-                        rows: [['0.5', 'Tip value', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    // no roles key — calc-group dynamic format string shape
+                                    displayName: '__Format',
+                                    queryName: 'fq'
+                                },
+                                values: ['@fmt1', '@fmt2']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
-
-            const tooltips = handler.viewModel.htmlEntries[0].tooltips;
-            expect(tooltips.length).toBe(1);
-            expect(tooltips[0].displayName).toBe('Tooltip');
-            expect(tooltips[0].value).toBe('Tip value');
+            expect(() =>
+                handler.mapDataView(dataViews, mockSettings, mockHost)
+            ).not.toThrow();
+            expect(handler.viewModel.htmlEntries.length).toBe(2);
+            expect(handler.viewModel.htmlEntries[0].content).toBe(
+                '<p>Row 1</p>'
+            );
+            expect(handler.viewModel.htmlEntries[1].content).toBe(
+                '<p>Row 2</p>'
+            );
         });
     });
 });

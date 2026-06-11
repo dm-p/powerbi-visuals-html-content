@@ -15,6 +15,7 @@ import {
     ContentFormattingSettings,
     VisualFormattingSettingsModel
 } from './visual-settings';
+import { mapCategoricalToTable } from './categorical-table';
 
 /**
  * View model structure
@@ -70,7 +71,7 @@ export class ViewModelHandler {
         const hasBasicDataView =
             (dataViews &&
                 dataViews[0] &&
-                dataViews[0].table &&
+                dataViews[0].categorical &&
                 dataViews[0].metadata &&
                 dataViews[0].metadata.columns &&
                 true) ||
@@ -94,40 +95,55 @@ export class ViewModelHandler {
         host: IVisualHost
     ) {
         if (this.viewModel.isValid) {
-            const hasGranularity = dataViews[0].table.columns.some(
-                (c) => c.roles?.sampling
+            const { columns, rows, identities } = mapCategoricalToTable(
+                dataViews[0].categorical,
+                host
             );
+            this.viewModel.contentIndex = this.getContentMetadataIndex(columns);
+            const contentIndex = this.viewModel.contentIndex;
+            const hasGranularity = columns.some((c) => c.roles?.sampling);
             const hasCrossFiltering =
                 hasGranularity &&
                 settings.crossFilter.crossFilterCardMain.enabled.value;
-            const { columns, rows } = dataViews[0].table;
             const initialSelection = this.viewModel.htmlEntries;
             const hasSelection =
                 (initialSelection.some((dp) => dp.selected) &&
                     hasCrossFiltering) ||
                 false;
-            const htmlEntries: IHtmlEntry[] = rows.map((row, index) => {
-                const value = row[this.viewModel.contentIndex];
-                const selectionIdBuilder = host.createSelectionIdBuilder();
-                const identity = selectionIdBuilder
-                    .withTable(dataViews[0].table, index)
-                    .createSelectionId();
-                return {
-                    content: value ? value.toString() : '',
-                    identity,
-                    selected: this.isSelected(initialSelection, identity),
-                    tooltips: [
-                        ...this.getTooltipData('sampling', columns, row, host),
-                        ...this.getTooltipData('tooltips', columns, row, host)
-                    ]
-                };
-            });
+            const htmlEntries: IHtmlEntry[] =
+                contentIndex > -1
+                    ? rows.map((row, index) => {
+                          const value = row[contentIndex];
+                          return {
+                              content: value ? value.toString() : '',
+                              identity: identities[index],
+                              selected: this.isSelected(
+                                  initialSelection,
+                                  identities[index]
+                              ),
+                              tooltips: [
+                                  ...this.getTooltipData(
+                                      'sampling',
+                                      columns,
+                                      row,
+                                      host
+                                  ),
+                                  ...this.getTooltipData(
+                                      'tooltips',
+                                      columns,
+                                      row,
+                                      host
+                                  )
+                              ]
+                          };
+                      })
+                    : [];
             this.viewModel.hasCrossFiltering = hasCrossFiltering;
             this.viewModel.hasGranularity = hasGranularity;
             this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
             this.viewModel.htmlEntries = htmlEntries;
-            this.viewModel.isEmpty = rows.length === 0;
+            this.viewModel.isEmpty = htmlEntries.length === 0;
         }
     }
 
