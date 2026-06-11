@@ -137,7 +137,7 @@ export class ViewModelHandler {
      * @param columns   - Array of metadata columns from the Power BI data view.
      */
     private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
-        return columns.findIndex((c) => c.roles.content);
+        return columns.findIndex((c) => c.roles?.content);
     }
 
     /**
