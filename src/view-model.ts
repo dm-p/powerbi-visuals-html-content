@@ -99,8 +99,11 @@ export class ViewModelHandler {
                 dataViews[0].categorical,
                 host
             );
-            this.viewModel.contentIndex = this.getContentMetadataIndex(columns);
-            const contentIndex = this.viewModel.contentIndex;
+            // validateDataView sets a provisional contentIndex from metadata.columns.
+            // This recompute moves it into simulated-table column space
+            // (categories-then-values), which is the index space `rows` uses.
+            const contentIndex = this.getContentMetadataIndex(columns);
+            this.viewModel.contentIndex = contentIndex;
             const hasGranularity = columns.some((c) => c.roles?.sampling);
             const hasCrossFiltering =
                 hasGranularity &&

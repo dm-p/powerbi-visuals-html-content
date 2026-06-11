@@ -435,7 +435,7 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(true);
         });
 
-        it('measure-only content: categorical with only values (one measure entry) → 1 htmlEntry, isEmpty false (#130)', () => {
+        it('should map measure-only content to a single entry (#130)', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
@@ -472,11 +472,16 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(false);
         });
 
-        it('#159 fixture: valid content category plus extra value column with no roles key → mapping succeeds, htmlEntries count correct, no throw', () => {
+        it('should ignore roles-less metadata columns without throwing (#159)', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
                         columns: [
+                            {
+                                // no roles key — calc-group dynamic format string shape
+                                displayName: '__Format',
+                                queryName: 'fq'
+                            },
                             {
                                 roles: { content: true },
                                 displayName: 'HTML',
@@ -498,7 +503,6 @@ describe('ViewModelHandler', () => {
                         values: [
                             {
                                 source: {
-                                    // no roles key — calc-group dynamic format string shape
                                     displayName: '__Format',
                                     queryName: 'fq'
                                 },
@@ -510,6 +514,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
+            expect(handler.viewModel.isValid).toBe(true);
             expect(() =>
                 handler.mapDataView(dataViews, mockSettings, mockHost)
             ).not.toThrow();
