@@ -95,7 +95,7 @@ export class ViewModelHandler {
     ) {
         if (this.viewModel.isValid) {
             const hasGranularity = dataViews[0].table.columns.some(
-                (c) => c.roles.sampling
+                (c) => c.roles?.sampling
             );
             const hasCrossFiltering =
                 hasGranularity &&
@@ -137,7 +137,7 @@ export class ViewModelHandler {
      * @param columns   - Array of metadata columns from the Power BI data view.
      */
     private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
-        return columns.findIndex((c) => c.roles.content);
+        return columns.findIndex((c) => c.roles?.content);
     }
 
     /**
@@ -159,7 +159,7 @@ export class ViewModelHandler {
                 cultureSelector: host.locale,
                 format: c.format
             });
-            if (c.roles[role]) {
+            if (c.roles?.[role]) {
                 tooltipValues.push({
                     displayName: c.displayName,
                     value: formatter.format(row[i])

@@ -80,7 +80,7 @@ Read these before starting work in their domain — they carry institutional con
 
 ## Conventions
 
-- TypeScript strict mode (see [tsconfig.json](tsconfig.json)). Prefer narrow types over `any`; the sanitizer in particular relies on type discrimination at API boundaries.
+- [tsconfig.json](tsconfig.json) does **not** enable `strict`/`strictNullChecks` (only `alwaysStrict`, which is unrelated JS strict mode), so the compiler will not catch unguarded access to optional Power BI API surfaces (`roles`, `table`, `rows`, …) — guard them explicitly (see [docs/solutions/runtime-errors/dynamic-format-string-columns-missing-roles-2026-06-12.md](docs/solutions/runtime-errors/dynamic-format-string-columns-missing-roles-2026-06-12.md)). Prefer narrow types over `any`; the sanitizer in particular relies on type discrimination at API boundaries.
 - Tests mirror source filenames (`src/foo.ts` → `test/foo.test.ts`). New source files should ship with at least one corresponding test file.
 - Sanitizer changes follow the dedicated "Definition of done — sanitizer changes" checklist above (run `npm run test:all`, regenerate UAT corpus when emission shifts, add positive+negative tests).
 - Potential commits should first be presented for the developer to review/approve.
