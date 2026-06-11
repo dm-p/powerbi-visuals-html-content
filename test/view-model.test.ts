@@ -169,6 +169,30 @@ describe('ViewModelHandler', () => {
             handler.validateDataView(dataViews);
             expect(handler.viewModel.isValid).toBe(false);
         });
+
+        it('should ignore columns without roles (dynamic format strings) when locating content column', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ]
+                    },
+                    table: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ],
+                        rows: []
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            expect(handler.viewModel.isValid).toBe(true);
+            expect(handler.viewModel.contentIndex).toBe(1);
+        });
     });
 
     describe('mapDataView', () => {
@@ -346,6 +370,79 @@ describe('ViewModelHandler', () => {
             handler.mapDataView(dataViews, mockSettings, mockHost);
 
             expect(handler.viewModel.isEmpty).toBe(true);
+        });
+
+        it('should map data and granularity when a column without roles (dynamic format strings) is present', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category'
+                            },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ]
+                    },
+                    table: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category'
+                            },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ],
+                        rows: [['0.5', 'A', '<p>Test</p>']]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost);
+
+            expect(handler.viewModel.hasGranularity).toBe(true);
+            expect(handler.viewModel.htmlEntries.length).toBe(1);
+            expect(handler.viewModel.htmlEntries[0].content).toBe(
+                '<p>Test</p>'
+            );
+        });
+
+        it('should exclude columns without roles (dynamic format strings) from tooltips', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { tooltips: true },
+                                displayName: 'Tooltip'
+                            },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ]
+                    },
+                    table: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { tooltips: true },
+                                displayName: 'Tooltip'
+                            },
+                            { roles: { content: true }, displayName: 'HTML' }
+                        ],
+                        rows: [['0.5', 'Tip value', '<p>Test</p>']]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost);
+
+            const tooltips = handler.viewModel.htmlEntries[0].tooltips;
+            expect(tooltips.length).toBe(1);
+            expect(tooltips[0].displayName).toBe('Tooltip');
+            expect(tooltips[0].value).toBe('Tip value');
         });
     });
 });
