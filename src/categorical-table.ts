@@ -18,16 +18,16 @@ export interface ISimulatedTable {
 }
 
 /**
- * Returns true only when the column source has a roles object with at least one key.
+ * Returns true when the column source has a roles object with at least one key.
  * Columns injected by calc groups for dynamic format strings have no roles property,
  * and must be excluded to avoid downstream crashes (issue #159).
  */
-const hasRecognisedRole = (source: DataViewMetadataColumn | undefined) =>
+const hasAnyRole = (source: DataViewMetadataColumn | undefined) =>
     !!source?.roles && Object.keys(source.roles).length > 0;
 
 /**
  * Safe index-based lookup into a nullable values array. Returns null when the
- * array is absent or when the requested index is out of range (issue: length mismatch).
+ * array is absent or when the requested index is out of range.
  */
 const valueAt = (values: PrimitiveValue[] | undefined, index: number) =>
     values && index < values.length ? values[index] : null;
@@ -46,11 +46,14 @@ export function mapCategoricalToTable(
     host: IVisualHost
 ): ISimulatedTable {
     const categories = (categorical?.categories ?? []).filter((c) =>
-        hasRecognisedRole(c.source)
+        hasAnyRole(c.source)
     );
     const values = Array.from(categorical?.values ?? []).filter((v) =>
-        hasRecognisedRole(v.source)
+        hasAnyRole(v.source)
     );
+    // Power BI guarantees all category value arrays are the same length, so the
+    // first category is authoritative. The `1` encodes the measure-only
+    // single-aggregate-row rule (issue #130).
     const rowCount =
         categories[0]?.values?.length ?? (values.length > 0 ? 1 : 0);
     const columns = [

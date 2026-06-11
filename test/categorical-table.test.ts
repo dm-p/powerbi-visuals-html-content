@@ -17,14 +17,13 @@ const createRecordingBuilder = () => {
             calls.push({ method: 'withMeasure', args });
             return builder;
         },
-        createSelectionId: () => ({ calls, equals: () => false })
+        createSelectionId: () => ({ calls })
     };
     return builder;
 };
 
 const mockHost = {
-    createSelectionIdBuilder: () => createRecordingBuilder(),
-    locale: 'en-US'
+    createSelectionIdBuilder: () => createRecordingBuilder()
 } as any;
 
 const categoryCol = (
@@ -37,12 +36,11 @@ const categoryCol = (
 describe('mapCategoricalToTable', () => {
     describe('happy path', () => {
         it('one sampling category (3 values) + one content measure → 3 rows, correct columns, correct identity chain', () => {
-            const catCol = categoryCol(
-                { sampling: true },
-                'Category',
-                'cq',
-                ['A', 'B', 'C']
-            );
+            const catCol = categoryCol({ sampling: true }, 'Category', 'cq', [
+                'A',
+                'B',
+                'C'
+            ]);
             const valSource = {
                 roles: { content: true },
                 displayName: 'HTML',
@@ -50,7 +48,12 @@ describe('mapCategoricalToTable', () => {
             };
             const categorical: any = {
                 categories: [catCol],
-                values: [{ source: valSource, values: ['<p>1</p>', '<p>2</p>', '<p>3</p>'] }]
+                values: [
+                    {
+                        source: valSource,
+                        values: ['<p>1</p>', '<p>2</p>', '<p>3</p>']
+                    }
+                ]
             };
 
             const result = mapCategoricalToTable(categorical, mockHost);
@@ -65,13 +68,15 @@ describe('mapCategoricalToTable', () => {
             expect(result.identities).toHaveLength(3);
 
             // verify identity chain for row 0: withCategory(catColObject, 0) then withMeasure('mq')
-            const calls0 = (result.identities[0] as any).calls as IRecordedCall[];
+            const calls0 = (result.identities[0] as any)
+                .calls as IRecordedCall[];
             expect(calls0).toEqual([
                 { method: 'withCategory', args: [catCol, 0] },
                 { method: 'withMeasure', args: ['mq'] }
             ]);
             // row 1
-            const calls1 = (result.identities[1] as any).calls as IRecordedCall[];
+            const calls1 = (result.identities[1] as any)
+                .calls as IRecordedCall[];
             expect(calls1).toEqual([
                 { method: 'withCategory', args: [catCol, 1] },
                 { method: 'withMeasure', args: ['mq'] }
@@ -98,17 +103,16 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows[0]).toEqual(['<p>agg</p>']);
             expect(result.identities).toHaveLength(1);
 
-            const calls = (result.identities[0] as any).calls as IRecordedCall[];
+            const calls = (result.identities[0] as any)
+                .calls as IRecordedCall[];
             expect(calls).toEqual([{ method: 'withMeasure', args: ['mq'] }]);
         });
 
         it('column-only (content as grouping column, no measures) → one row per category entry; pure withCategory identities', () => {
-            const catCol = categoryCol(
-                { content: true },
-                'HTML Col',
-                'cq',
-                ['<p>X</p>', '<p>Y</p>']
-            );
+            const catCol = categoryCol({ content: true }, 'HTML Col', 'cq', [
+                '<p>X</p>',
+                '<p>Y</p>'
+            ]);
             const categorical: any = {
                 categories: [catCol],
                 values: []
@@ -123,15 +127,27 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows[1]).toEqual(['<p>Y</p>']);
             expect(result.identities).toHaveLength(2);
 
-            const calls0 = (result.identities[0] as any).calls as IRecordedCall[];
-            expect(calls0).toEqual([{ method: 'withCategory', args: [catCol, 0] }]);
-            const calls1 = (result.identities[1] as any).calls as IRecordedCall[];
-            expect(calls1).toEqual([{ method: 'withCategory', args: [catCol, 1] }]);
+            const calls0 = (result.identities[0] as any)
+                .calls as IRecordedCall[];
+            expect(calls0).toEqual([
+                { method: 'withCategory', args: [catCol, 0] }
+            ]);
+            const calls1 = (result.identities[1] as any)
+                .calls as IRecordedCall[];
+            expect(calls1).toEqual([
+                { method: 'withCategory', args: [catCol, 1] }
+            ]);
         });
 
         it('multiple sampling columns + content measure + tooltip measure → row zip is categories-then-values; identity chains every category then every measure', () => {
-            const catCol1 = categoryCol({ sampling: true }, 'Region', 'rq', ['East', 'West']);
-            const catCol2 = categoryCol({ sampling: true }, 'Product', 'pq', ['Foo', 'Bar']);
+            const catCol1 = categoryCol({ sampling: true }, 'Region', 'rq', [
+                'East',
+                'West'
+            ]);
+            const catCol2 = categoryCol({ sampling: true }, 'Product', 'pq', [
+                'Foo',
+                'Bar'
+            ]);
             const contentSource = {
                 roles: { content: true },
                 displayName: 'HTML',
@@ -161,7 +177,8 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows[0]).toEqual(['East', 'Foo', '<p>A</p>', 100]);
             expect(result.rows[1]).toEqual(['West', 'Bar', '<p>B</p>', 200]);
 
-            const calls0 = (result.identities[0] as any).calls as IRecordedCall[];
+            const calls0 = (result.identities[0] as any)
+                .calls as IRecordedCall[];
             expect(calls0).toEqual([
                 { method: 'withCategory', args: [catCol1, 0] },
                 { method: 'withCategory', args: [catCol2, 0] },
@@ -200,7 +217,8 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows[0]).toHaveLength(1);
             expect(result.rows[0][0]).toBe('<p>ok</p>');
 
-            const calls = (result.identities[0] as any).calls as IRecordedCall[];
+            const calls = (result.identities[0] as any)
+                .calls as IRecordedCall[];
             expect(calls).toEqual([{ method: 'withMeasure', args: ['mq'] }]);
         });
 
@@ -249,7 +267,95 @@ describe('mapCategoricalToTable', () => {
         });
 
         it('edge: length mismatch (category 3 values, measure 2) → 3 rows; missing measure cell is null; no throw', () => {
-            const catCol = categoryCol(
+            const catCol = categoryCol({ sampling: true }, 'Category', 'cq', [
+                'A',
+                'B',
+                'C'
+            ]);
+            const valSource = {
+                roles: { content: true },
+                displayName: 'HTML',
+                queryName: 'mq'
+            };
+            const categorical: any = {
+                categories: [catCol],
+                values: [
+                    { source: valSource, values: ['<p>1</p>', '<p>2</p>'] }
+                ]
+            };
+
+            const result = mapCategoricalToTable(categorical, mockHost);
+
+            expect(result.rows).toHaveLength(3);
+            expect(result.rows[0]).toEqual(['A', '<p>1</p>']);
+            expect(result.rows[1]).toEqual(['B', '<p>2</p>']);
+            expect(result.rows[2]).toEqual(['C', null]);
+        });
+
+        it('edge (#159): category column with no roles key is excluded from columns, rows, and identity chains', () => {
+            // calc-group-injected category columns arrive with no roles property; they must
+            // be silently dropped so downstream logic never sees them
+            const realCatCol = categoryCol(
+                { sampling: true },
+                'Category',
+                'cq',
+                ['A', 'B', 'C']
+            );
+            const roleslessCatCol = {
+                source: {
+                    // no roles key at all
+                    displayName: '__CalcGroupCat',
+                    queryName: 'cgq'
+                } as any,
+                values: ['x', 'y', 'z']
+            };
+            const valSource = {
+                roles: { content: true },
+                displayName: 'HTML',
+                queryName: 'mq'
+            };
+            const categorical: any = {
+                categories: [realCatCol, roleslessCatCol],
+                values: [
+                    {
+                        source: valSource,
+                        values: ['<p>1</p>', '<p>2</p>', '<p>3</p>']
+                    }
+                ]
+            };
+
+            const result = mapCategoricalToTable(categorical, mockHost);
+
+            // only the real category and the measure should appear
+            expect(result.columns).toHaveLength(2);
+            expect(result.columns[0]).toBe(realCatCol.source);
+            expect(result.columns[1]).toBe(valSource);
+            expect(result.rows).toHaveLength(3);
+            expect(result.rows[0]).toEqual(['A', '<p>1</p>']);
+            expect(result.rows[1]).toEqual(['B', '<p>2</p>']);
+            expect(result.rows[2]).toEqual(['C', '<p>3</p>']);
+
+            // identity chains must not include a withCategory call for the roles-less column
+            const calls0 = (result.identities[0] as any)
+                .calls as IRecordedCall[];
+            expect(calls0).toEqual([
+                { method: 'withCategory', args: [realCatCol, 0] },
+                { method: 'withMeasure', args: ['mq'] }
+            ]);
+        });
+
+        it('edge (#159): roles-less category in FIRST position → rowCount derives from the post-filter first category', () => {
+            // when the roles-less column is first, rowCount must still come from the
+            // first *valid* category (realCatCol with 3 values), not from the excluded one
+            const roleslessCatCol = {
+                source: {
+                    // no roles key
+                    displayName: '__CalcGroupCat',
+                    queryName: 'cgq'
+                } as any,
+                values: ['x', 'y', 'z']
+            };
+            const realCatCol = categoryCol(
                 { sampling: true },
                 'Category',
                 'cq',
@@ -261,8 +367,13 @@ describe('mapCategoricalToTable', () => {
                 queryName: 'mq'
             };
             const categorical: any = {
-                categories: [catCol],
-                values: [{ source: valSource, values: ['<p>1</p>', '<p>2</p>'] }]
+                categories: [roleslessCatCol, realCatCol],
+                values: [
+                    {
+                        source: valSource,
+                        values: ['<p>1</p>', '<p>2</p>', '<p>3</p>']
+                    }
+                ]
             };
 
             const result = mapCategoricalToTable(categorical, mockHost);
@@ -270,7 +381,7 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows).toHaveLength(3);
             expect(result.rows[0]).toEqual(['A', '<p>1</p>']);
             expect(result.rows[1]).toEqual(['B', '<p>2</p>']);
-            expect(result.rows[2]).toEqual(['C', null]);
+            expect(result.rows[2]).toEqual(['C', '<p>3</p>']);
         });
 
         it('edge: value column without queryName contributes cell values but adds no withMeasure call', () => {
@@ -289,7 +400,8 @@ describe('mapCategoricalToTable', () => {
             expect(result.rows).toHaveLength(1);
             expect(result.rows[0]).toEqual(['<p>no-qn</p>']);
 
-            const calls = (result.identities[0] as any).calls as IRecordedCall[];
+            const calls = (result.identities[0] as any)
+                .calls as IRecordedCall[];
             expect(calls).toHaveLength(0);
         });
     });
