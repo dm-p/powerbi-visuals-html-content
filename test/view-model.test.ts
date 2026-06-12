@@ -526,5 +526,124 @@ describe('ViewModelHandler', () => {
                 '<p>Row 2</p>'
             );
         });
+
+        it('should map data and granularity when a roles-less column is present (#159)', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category',
+                                queryName: 'sq'
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'cq'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'sq'
+                                },
+                                values: ['A']
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'cq'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ],
+                        values: [
+                            {
+                                source: {
+                                    displayName: 'Format',
+                                    format: '0.0%'
+                                },
+                                values: ['0.5']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost);
+
+            expect(handler.viewModel.hasGranularity).toBe(true);
+            expect(handler.viewModel.htmlEntries.length).toBe(1);
+            expect(handler.viewModel.htmlEntries[0].content).toBe(
+                '<p>Test</p>'
+            );
+        });
+
+        it('should exclude roles-less columns from tooltips (#159)', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            { displayName: 'Format', format: '0.0%' },
+                            {
+                                roles: { tooltips: true },
+                                displayName: 'Tooltip',
+                                queryName: 'tq'
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'cq'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'cq'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ],
+                        values: [
+                            {
+                                source: {
+                                    roles: { tooltips: true },
+                                    displayName: 'Tooltip',
+                                    queryName: 'tq'
+                                },
+                                values: ['Tip value']
+                            },
+                            {
+                                source: {
+                                    displayName: 'Format',
+                                    format: '0.0%'
+                                },
+                                values: ['0.5']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost);
+
+            const tooltips = handler.viewModel.htmlEntries[0].tooltips;
+            expect(tooltips.length).toBe(1);
+            expect(tooltips[0].displayName).toBe('Tooltip');
+            expect(tooltips[0].value).toBe('Tip value');
+        });
     });
 });
