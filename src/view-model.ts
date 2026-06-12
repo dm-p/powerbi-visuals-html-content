@@ -37,6 +37,17 @@ export interface IHtmlEntry extends SelectableDataPoint {
 }
 
 /**
+ * A metadata column assigned to a tooltip-bearing role, paired with its row
+ * index and a pre-built formatter, so per-row mapping can extract values
+ * without repeating formatter creation.
+ */
+interface ITooltipColumn {
+    column: DataViewMetadataColumn;
+    index: number;
+    formatter: valueFormatter.IValueFormatter;
+}
+
+/**
  * Visual view model and necessary logic to manage its state.
  */
 export class ViewModelHandler {
@@ -113,6 +124,12 @@ export class ViewModelHandler {
                 (initialSelection.some((dp) => dp.selected) &&
                     hasCrossFiltering) ||
                 false;
+            // Resolve tooltip columns and their formatters once per update;
+            // formatter creation is too expensive to repeat for every row.
+            const tooltipColumns = [
+                ...this.getTooltipColumns('sampling', columns, host),
+                ...this.getTooltipColumns('tooltips', columns, host)
+            ];
             const htmlEntries: IHtmlEntry[] =
                 contentIndex > -1
                     ? rows.map((row, index) => {
@@ -124,20 +141,10 @@ export class ViewModelHandler {
                                   initialSelection,
                                   identities[index]
                               ),
-                              tooltips: [
-                                  ...this.getTooltipData(
-                                      'sampling',
-                                      columns,
-                                      row,
-                                      host
-                                  ),
-                                  ...this.getTooltipData(
-                                      'tooltips',
-                                      columns,
-                                      row,
-                                      host
-                                  )
-                              ]
+                              tooltips: this.getTooltipValues(
+                                  tooltipColumns,
+                                  row
+                              )
                           };
                       })
                     : [];
@@ -160,32 +167,47 @@ export class ViewModelHandler {
     }
 
     /**
-     * For a data row, extract the columns that have been assigned to the
-     * tooltips role and return their corresponding values.
+     * Resolve the columns assigned to the supplied role, paired with their
+     * row index and a value formatter. Intended to run once per update so
+     * that per-row mapping does not repeat formatter creation.
      *
+     * @param role      - Data role to match columns against.
      * @param columns   - Array of metadata columns from the Power BI data view.
-     * @param row       - Current table row from the data view.
+     * @param host      - Visual host services (for locale).
      */
-    private getTooltipData(
+    private getTooltipColumns(
         role: string,
         columns: DataViewMetadataColumn[],
-        row: DataViewTableRow,
         host: IVisualHost
-    ) {
-        const tooltipValues: VisualTooltipDataItem[] = [];
-        columns.forEach((c, i) => {
-            const formatter = valueFormatter.create({
-                cultureSelector: host.locale,
-                format: c.format
-            });
-            if (c.roles?.[role]) {
-                tooltipValues.push({
-                    displayName: c.displayName,
-                    value: formatter.format(row[i])
-                });
-            }
-        });
-        return tooltipValues;
+    ): ITooltipColumn[] {
+        return columns
+            .map((column, index) => ({ column, index }))
+            .filter(({ column }) => column.roles?.[role])
+            .map(({ column, index }) => ({
+                column,
+                index,
+                formatter: valueFormatter.create({
+                    cultureSelector: host.locale,
+                    format: column.format
+                })
+            }));
+    }
+
+    /**
+     * For a data row, extract the values for the pre-resolved tooltip
+     * columns.
+     *
+     * @param tooltipColumns    - Tooltip columns resolved by getTooltipColumns.
+     * @param row               - Current table row from the data view.
+     */
+    private getTooltipValues(
+        tooltipColumns: ITooltipColumn[],
+        row: DataViewTableRow
+    ): VisualTooltipDataItem[] {
+        return tooltipColumns.map(({ column, index, formatter }) => ({
+            displayName: column.displayName,
+            value: formatter.format(row[index])
+        }));
     }
 
     /**
