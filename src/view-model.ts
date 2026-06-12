@@ -5,7 +5,7 @@ import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
-import DataViewTableRow = powerbi.DataViewTableRow;
+import PrimitiveValue = powerbi.PrimitiveValue;
 import { valueFormatter } from 'powerbi-visuals-utils-formattingutils';
 import { interactivitySelectionService } from 'powerbi-visuals-utils-interactivityutils';
 import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
@@ -202,11 +202,11 @@ export class ViewModelHandler {
      * columns.
      *
      * @param tooltipColumns    - Tooltip columns resolved by getTooltipColumns.
-     * @param row               - Current table row from the data view.
+     * @param row               - Current simulated-table row.
      */
     private getTooltipValues(
         tooltipColumns: ITooltipColumn[],
-        row: DataViewTableRow
+        row: PrimitiveValue[]
     ): VisualTooltipDataItem[] {
         return tooltipColumns.map(({ column, index, formatter }) => ({
             displayName: column.displayName,
