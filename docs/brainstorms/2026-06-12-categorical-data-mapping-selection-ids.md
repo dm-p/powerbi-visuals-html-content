@@ -133,3 +133,15 @@ export function mapCategoricalToTable(
 - **WP-C:** templating paradigm (#127, #138). If #124's use case is ever revisited, it would land here via an additive data role rather than a mapping change.
 
 Highlight support (#153 receive-side) is deliberately **not** on this list: no near-term intent. This work merely keeps it possible.
+
+## Addendum: UAT findings on #130 (2026-06-12)
+
+UAT confirmed regression parity on existing reports, but revealed that the categorical migration fixes only one of **three** gates on the #130 scenario (report page tooltip for a measure-only visual). Recording all three for compound-learning purposes:
+
+1. **Identity (fixed by WP-A).** Pre-migration, a measure-only dataview had no usable identity to pass to `tooltipService.show()`. The `.withMeasure()` chain closes this — necessary but not sufficient.
+2. **Report-page matching is scoped by `tooltips.roles` in capabilities.** Our block declares `"roles": ["tooltips"]`, which per the SDK docs "instructs what data roles are bound to the selected tooltip option in the fields well" — so only fields in the Tooltips bucket participate in report-page tooltip matching. UAT validated that removing the `roles` property lets fields in other roles (e.g. sampling) match the configured tooltip page. Deneb omits `roles` entirely (with its own issues, being addressed separately). **Decision pending further testing:** the removal is not yet committed.
+3. **Hover binding is opt-in by design.** `bindStandardTooltips` ([src/domain-utils.ts](../../src/domain-utils.ts)) only calls `tooltipService.show()` when `hasGranularity || d.tooltips.length > 0`. A content-only visual never fires `show()`, so no tooltip of any kind can appear. Hard-coding the gate open works for #130 but means hover always produces a tooltip — and the host provides **no API to detect whether a report page tooltip is configured**, so an unconditional `show()` risks rendering a blank default tooltip. **Decision: keep the gate unchanged.** Report-page tooltips on measure-only visuals are enabled by adding a field to the granularity or tooltips role; this falls back to the default tooltip exactly as production does.
+
+A possible follow-up (parked, pending the owner's testing): rename the localised display name of the `sampling` role from "Granularity" to "Context", since the role now provides grouping, cross-filter identity, *and* tooltip context. Display-name-only change (`Roles_Sampling` in stringResources + capabilities fallback); the internal role name `sampling` is contract and never changes.
+
+Version framing: this release ships as **2.0.0.0** (identity format change + mapping migration warrant the major bump).
