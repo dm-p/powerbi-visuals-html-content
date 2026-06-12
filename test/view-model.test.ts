@@ -194,10 +194,17 @@ describe('ViewModelHandler', () => {
     describe('mapDataView', () => {
         const mockHost = {
             createSelectionIdBuilder: () => {
+                const categoryIndices: number[] = [];
                 const builder: any = {
-                    withCategory: () => builder,
+                    withCategory: (_category: unknown, index: number) => {
+                        categoryIndices.push(index);
+                        return builder;
+                    },
                     withMeasure: () => builder,
-                    createSelectionId: () => ({ equals: () => false })
+                    createSelectionId: () => ({
+                        getKey: () => `cat:${categoryIndices.join('|')}`,
+                        equals: () => false
+                    })
                 };
                 return builder;
             },
@@ -400,6 +407,75 @@ describe('ViewModelHandler', () => {
 
             expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(true);
+        });
+
+        it('should preserve previously selected entries across updates via identity keys', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category',
+                                queryName: 'qs'
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A', 'B']
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>1</p>', '<p>2</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            // Simulate the previous update having selected the first entry.
+            // The mock builder keys row 0 as 'cat:0|0' (sampling + content
+            // category indices).
+            handler.viewModel.htmlEntries = [
+                {
+                    content: '<p>1</p>',
+                    identity: { getKey: () => 'cat:0|0' } as any,
+                    selected: true,
+                    tooltips: []
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, settingsWithCrossFilter, mockHost);
+
+            expect(handler.viewModel.hasSelection).toBe(true);
+            expect(handler.viewModel.htmlEntries[0].selected).toBe(true);
+            expect(handler.viewModel.htmlEntries[1].selected).toBe(false);
         });
 
         it('should set isEmpty to true when no rows exist', () => {

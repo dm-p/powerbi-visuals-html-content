@@ -119,11 +119,16 @@ export class ViewModelHandler {
             const hasCrossFiltering =
                 hasGranularity &&
                 settings.crossFilter.crossFilterCardMain.enabled.value;
-            const initialSelection = this.viewModel.htmlEntries;
+            // Reconciling selection via per-row equals() scans of the previous
+            // entries is quadratic across updates at the row cap; a key lookup
+            // of previously-selected identities keeps it O(1) per row.
+            const selectedKeys = new Set(
+                this.viewModel.htmlEntries
+                    .filter((dp) => dp.selected)
+                    .map((dp) => (<ISelectionId>dp.identity).getKey())
+            );
             const hasSelection =
-                (initialSelection.some((dp) => dp.selected) &&
-                    hasCrossFiltering) ||
-                false;
+                (selectedKeys.size > 0 && hasCrossFiltering) || false;
             // Resolve tooltip columns and their formatters once per update;
             // formatter creation is too expensive to repeat for every row.
             const tooltipColumns = [
@@ -137,10 +142,9 @@ export class ViewModelHandler {
                           return {
                               content: value ? value.toString() : '',
                               identity: identities[index],
-                              selected: this.isSelected(
-                                  initialSelection,
-                                  identities[index]
-                              ),
+                              selected:
+                                  selectedKeys.size > 0 &&
+                                  selectedKeys.has(identities[index].getKey()),
                               tooltips: this.getTooltipValues(
                                   tooltipColumns,
                                   row
@@ -208,21 +212,5 @@ export class ViewModelHandler {
             displayName: column.displayName,
             value: formatter.format(row[index])
         }));
-    }
-
-    /**
-     * For an array of selectable data points, determine if the specificed selectionId is currently selected or not.
-     *
-     * @param initialSelection  - all selectable data points to inspect
-     * @param selectionId       - selectionId to search for
-     */
-    private isSelected(
-        initialSelection: interactivitySelectionService.SelectableDataPoint[],
-        selectionId: ISelectionId
-    ): boolean {
-        const selectedDataPoint = (initialSelection || []).find((dp) =>
-            selectionId.equals(<ISelectionId>dp.identity)
-        );
-        return selectedDataPoint ? selectedDataPoint.selected : false;
     }
 }
