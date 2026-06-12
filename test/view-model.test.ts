@@ -515,6 +515,10 @@ describe('ViewModelHandler', () => {
 
             handler.validateDataView(dataViews);
             expect(handler.viewModel.isValid).toBe(true);
+            // Roles-less column sits at metadata index 0, so the provisional
+            // (metadata-space) contentIndex must skip it (parity with the
+            // pre-categorical #159 fix assertions).
+            expect(handler.viewModel.contentIndex).toBe(1);
             expect(() =>
                 handler.mapDataView(dataViews, mockSettings, mockHost)
             ).not.toThrow();
