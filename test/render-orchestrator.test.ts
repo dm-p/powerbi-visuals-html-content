@@ -5,10 +5,10 @@ import {
 } from '../src/render-orchestrator';
 
 /**
- * VisualUpdateType is a const enum in powerbi-visuals-api.  esbuild (used by
- * vitest) does not inline const enums from external declaration files, so we
- * mirror the literal values here.  Values: Data=2, Resize=4, ViewMode=8,
- * Style=16, ResizeEnd=32, All=2|4|8|16|32|64|128|256=510.
+ * VisualUpdateType is a const enum in powerbi-visuals-api; esbuild/vitest
+ * cannot inline const enums from external declaration files, so we mirror the
+ * literal values here.  Only the bits used by the tests are defined:
+ * Data=2, Resize=4, ViewMode=8, Style=16, ResizeEnd=32.
  */
 const VUT = {
     Data: 1 << 1, // 2
@@ -55,6 +55,15 @@ describe('computeRenderFingerprint', () => {
             computeRenderFingerprint(settings({ renderMode: 'reconcile' }))
         ).not.toBe(computeRenderFingerprint(settings()));
     });
+    it('changes when the stylesheet text changes', () => {
+        const base = settings();
+        const withCss = settings();
+        withCss.stylesheet.stylesheetCardMain.stylesheet.value =
+            '.x{color:red}';
+        expect(computeRenderFingerprint(withCss)).not.toBe(
+            computeRenderFingerprint(base)
+        );
+    });
 });
 
 describe('isEntryAffectingUpdate', () => {
@@ -76,8 +85,11 @@ describe('isEntryAffectingUpdate', () => {
         expect(isEntryAffectingUpdate(VUT.ResizeEnd, false, false)).toBe(false);
     });
     it('treats undocumented high-bit types (126, 254) as entry-affecting via the Data bit (#422)', () => {
-        // 126 = All | 64, 254 = All | 128; both contain Data (2). Equality
-        // checks would miss these — only bitwise AND is correct.
+        // 126 (0b1111110) and 254 (0b11111110) are undocumented composite update
+        // types the host has emitted in the wild (#422). Both include the Data bit
+        // (2), so the bitwise-AND classifier catches them; an `=== Data` check would
+        // not. The exact high bits (64/128/256 = sub-selection / format-mode /
+        // filter-options changes) are irrelevant — only the Data bit matters here.
         expect(isEntryAffectingUpdate(126, false, false)).toBe(true);
         expect(isEntryAffectingUpdate(254, false, false)).toBe(true);
     });

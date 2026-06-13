@@ -1,3 +1,9 @@
+/**
+ * Pure render-lifecycle decision functions: the settings fingerprint and the
+ * update classifier. Consumed by the RenderOrchestrator (added in a later
+ * unit) to choose between rebuild, reconcile, and viewport-only render paths.
+ */
+
 import { VisualFormattingSettingsModel } from './visual-settings';
 
 /**
