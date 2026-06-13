@@ -51,6 +51,7 @@ Before declaring any change to `sanitize-pipeline.ts`, `css-sanitizer.ts`, `svg-
 src/                   # TypeScript source
   visual.ts            # IVisual entry point
   view-model.ts        # data → render-model transform
+  categorical-table.ts # categorical dataview → simulated table + selection identities
   behavior.ts          # DOM behaviors (selection, scroll, links)
   sanitize-pipeline.ts # core HTML/CSS sanitization (DOMPurify wrapper + hooks)
   css-sanitizer.ts     # CSS parsing/sanitization (postcss)

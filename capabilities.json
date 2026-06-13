@@ -138,35 +138,21 @@
     },
     "dataViewMappings": [
         {
-            "conditions": [
-                {
-                    "content": {
-                        "max": 1
-                    }
-                }
-            ],
-            "table": {
-                "rows": {
+            "conditions": [{ "content": { "max": 1 } }],
+            "categorical": {
+                "categories": {
                     "select": [
-                        {
-                            "for": {
-                                "in": "sampling"
-                            }
-                        },
-                        {
-                            "for": {
-                                "in": "content"
-                            }
-                        },
-                        {
-                            "for": {
-                                "in": "tooltips"
-                            }
-                        }
+                        { "for": { "in": "sampling" } },
+                        { "for": { "in": "content" } }
                     ],
-                    "dataReductionAlgorithm": {
-                        "top": {}
-                    }
+                    "dataReductionAlgorithm": { "top": { "count": 30000 } }
+                },
+                "values": {
+                    "select": [
+                        { "for": { "in": "content" } },
+                        { "for": { "in": "sampling" } },
+                        { "for": { "in": "tooltips" } }
+                    ]
                 }
             }
         }
