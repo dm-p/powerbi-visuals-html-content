@@ -24,7 +24,7 @@ import { select, Selection } from 'd3-selection';
 // Internal Dependencies
 import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
-import { ViewModelHandler, IHtmlEntry } from './view-model';
+import { ViewModelHandler, IHtmlEntry, IViewModel } from './view-model';
 import {
     bindVisualDataToDom,
     getParsedHtmlAsDom,
@@ -193,20 +193,15 @@ export class Visual implements IVisual {
      */
     private buildRenderSteps(): RenderSteps {
         return {
-            // Runs every update: container-level styling, hyperlink delegation,
-            // and scroll (reusing the cached OverlayScrollbars instance so a
-            // reconcile preserves scroll position).
+            // Runs every update: container-level styling and scroll (reusing
+            // the cached OverlayScrollbars instance so a reconcile preserves
+            // scroll position). Hyperlink binding is content-dependent and
+            // runs after each render step instead.
             resolveContainer: (settings) => {
                 resolveStyling(
                     this.styleSheetContainer,
                     this.container,
                     settings
-                );
-                resolveHyperlinkHandling(
-                    this.host,
-                    this.container,
-                    settings.contentFormatting.contentFormattingCardBehavior
-                        .hyperlinks.value
                 );
                 this.scrollbars = resolveScrollableContent(
                     this.container.node() as HTMLDivElement,
@@ -243,6 +238,11 @@ export class Visual implements IVisual {
                         settings
                     );
                 }
+                resolveHyperlinkHandling(
+                    this.host,
+                    this.container,
+                    behavior.hyperlinks.value
+                );
             },
             // Full rebuild: wipe, bind all, render all, stamp baseline.
             rebuild: (viewModel, settings) => {
@@ -261,13 +261,7 @@ export class Visual implements IVisual {
                     behavior.hyperlinks.value
                 );
                 stampRenderedContent(merged);
-                resolveForRawHtml(
-                    this.styleSheetContainer,
-                    this.contentContainer,
-                    settings
-                );
-                this.dataElements = merged;
-                resolveHover(merged, this.host, viewModel.hasGranularity);
+                this.finalizePopulatedRender(merged, viewModel, settings);
             },
             // Reconcile: keep unchanged nodes, render ONLY the changed/entered subset.
             reconcile: (viewModel, settings) => {
@@ -285,13 +279,7 @@ export class Visual implements IVisual {
                     behavior.format.value as RenderFormat,
                     behavior.hyperlinks.value
                 );
-                resolveForRawHtml(
-                    this.styleSheetContainer,
-                    this.contentContainer,
-                    settings
-                );
-                this.dataElements = merged;
-                resolveHover(merged, this.host, viewModel.hasGranularity);
+                this.finalizePopulatedRender(merged, viewModel, settings);
             },
             bindInteractivity: (viewModel) => {
                 if (this.host.hostCapabilities.allowInteractions) {
@@ -307,6 +295,34 @@ export class Visual implements IVisual {
                 }
             }
         };
+    }
+
+    /**
+     * Shared finalisation for the populated render paths (rebuild + reconcile):
+     * apply the raw-HTML view if enabled, capture the rendered selection for
+     * interactivity binding, wire hover/tooltips, and (re)bind hyperlink click
+     * delegation onto the freshly rendered anchors. Hyperlink binding MUST run
+     * after content render — resolveHyperlinkHandling selects existing <a>
+     * elements, so newly appended anchors only get their click guard here.
+     */
+    private finalizePopulatedRender(
+        merged: Selection<HTMLDivElement, IHtmlEntry, any, any>,
+        viewModel: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ): void {
+        resolveForRawHtml(
+            this.styleSheetContainer,
+            this.contentContainer,
+            settings
+        );
+        this.dataElements = merged;
+        resolveHover(merged, this.host, viewModel.hasGranularity);
+        resolveHyperlinkHandling(
+            this.host,
+            this.container,
+            settings.contentFormatting.contentFormattingCardBehavior.hyperlinks
+                .value
+        );
     }
 
     /**
