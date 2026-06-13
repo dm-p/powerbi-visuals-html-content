@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { VisualFormattingSettingsModel } from '../src/visual-settings';
 import { IViewModel } from '../src/view-model';
+import { VisualConstants } from '../src/visual-constants';
 
 describe('VisualFormattingSettingsModel', () => {
     let settings: VisualFormattingSettingsModel;
@@ -202,6 +203,17 @@ describe('VisualFormattingSettingsModel', () => {
             expect(
                 settings.contentFormatting.contentFormattingCardBehavior.format
             ).toBeDefined();
+        });
+
+        it('exposes renderMode defaulting to rebuild', () => {
+            const behavior =
+                settings.contentFormatting.contentFormattingCardBehavior;
+            expect(behavior.renderMode).toBeDefined();
+            expect(behavior.renderMode.value).toBe('rebuild');
+            expect(behavior.renderMode.value).toBe(
+                VisualConstants.contentFormatting.renderMode
+            );
+            expect(behavior.slices).toContain(behavior.renderMode);
         });
 
         it('should have showRawHtml setting', () => {

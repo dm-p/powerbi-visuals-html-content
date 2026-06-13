@@ -1,7 +1,7 @@
 // Internal dependencies
 import { visual } from '../pbiviz.json';
 
-import { RenderFormat } from './types';
+import { RenderFormat, RenderMode } from './types';
 
 // HTML element names the visual permits in sanitized output. Lowercase
 // to match DOMPurify's normalization. Anything not in this list (or
@@ -184,6 +184,7 @@ export const VisualConstants = {
     visual: visual,
     contentFormatting: {
         format: <RenderFormat>'html',
+        renderMode: <RenderMode>'rebuild',
         showRawHtml: false,
         font: {
             family: "'Segoe UI', wf_segoe-ui_normal, helvetica, arial, sans-serif",
