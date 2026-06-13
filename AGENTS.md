@@ -52,6 +52,7 @@ src/                   # TypeScript source
   visual.ts            # IVisual entry point
   view-model.ts        # data → render-model transform
   categorical-table.ts # categorical dataview → simulated table + selection identities
+  render-orchestrator.ts # update classification + rebuild/reconcile render dispatch
   behavior.ts          # DOM behaviors (selection, scroll, links)
   sanitize-pipeline.ts # core HTML/CSS sanitization (DOMPurify wrapper + hooks)
   css-sanitizer.ts     # CSS parsing/sanitization (postcss)
