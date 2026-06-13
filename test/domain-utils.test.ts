@@ -6,7 +6,8 @@ import {
     domSerialize,
     getRawHtml,
     resolveHyperlinkHandling,
-    resolveHtmlGroupElement
+    resolveHtmlGroupElement,
+    reconcileVisualDataToDom
 } from '../src/domain-utils';
 import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
@@ -360,7 +361,7 @@ describe('Domain Utils - Exported Functions', () => {
                 expect(out).not.toContain('&lt;');
             });
 
-            it('emits literal > and \' in attribute values', () => {
+            it("emits literal > and ' in attribute values", () => {
                 const node = parseFirst(
                     `<p title="a>b" data-quote="it's">x</p>`
                 );
@@ -381,8 +382,7 @@ describe('Domain Utils - Exported Functions', () => {
                 const dom = new JSDOM(
                     '<!DOCTYPE html><html><body><p></p></body></html>'
                 );
-                const p = dom.window.document.body
-                    .firstElementChild as Element;
+                const p = dom.window.document.body.firstElementChild as Element;
                 p.setAttribute('data-json', '{"k":"v"}');
                 const out = domSerialize(p);
                 expect(out).toContain(
@@ -398,8 +398,7 @@ describe('Domain Utils - Exported Functions', () => {
                 const dom = new JSDOM(
                     '<!DOCTYPE html><html><body><p></p></body></html>'
                 );
-                const p = dom.window.document.body
-                    .firstElementChild as Element;
+                const p = dom.window.document.body.firstElementChild as Element;
                 p.setAttribute('data-mix', 'a & b < c "quoted"');
                 const out = domSerialize(p);
                 expect(out).toContain('a & b < c &quot;quoted&quot;');
@@ -454,9 +453,7 @@ describe('Domain Utils - Exported Functions', () => {
 
             it('emits <img> with attrs and no closing tag', () => {
                 const node = parseFirst('<img src="x.png" alt="x">');
-                expect(domSerialize(node)).toBe(
-                    '<img src="x.png" alt="x">'
-                );
+                expect(domSerialize(node)).toBe('<img src="x.png" alt="x">');
             });
 
             it('emits <hr> without closing tag', () => {
@@ -468,9 +465,7 @@ describe('Domain Utils - Exported Functions', () => {
         describe('nesting and structure', () => {
             it('serializes nested elements in source order', () => {
                 const node = parseFirst('<div><p>x</p><p>y</p></div>');
-                expect(domSerialize(node)).toBe(
-                    '<div><p>x</p><p>y</p></div>'
-                );
+                expect(domSerialize(node)).toBe('<div><p>x</p><p>y</p></div>');
             });
 
             it('emits empty element with open and close tags', () => {
@@ -615,9 +610,8 @@ describe('Domain Utils - Exported Functions', () => {
             // Simulates the post-sanitization DOM: <script> has been
             // stripped and only <p>hi</p> survives. The view must show
             // what is in the DOM (post-sanitize), not the user's input.
-            const { styleSheetContainer, container } = buildContainers(
-                '<p>hi</p>'
-            );
+            const { styleSheetContainer, container } =
+                buildContainers('<p>hi</p>');
             const out = getRawHtml(
                 styleSheetContainer,
                 container,
@@ -685,8 +679,7 @@ describe('Domain Utils - Exported Functions', () => {
             // change ever allowed iframes through. Defends the fix
             // against regression on a path the sanitizer happens to
             // also defend.
-            const { styleSheetContainer, container, dom } =
-                buildContainers('');
+            const { styleSheetContainer, container, dom } = buildContainers('');
             const iframe = dom.window.document.createElement('iframe');
             iframe.setAttribute(
                 'src',
@@ -786,6 +779,85 @@ describe('Domain Utils - Exported Functions', () => {
         });
     });
 
+    const entry = (key: string, content: string): any => ({
+        content,
+        identity: { getKey: () => key, equals: () => false },
+        selected: false,
+        tooltips: []
+    });
+
+    describe('reconcileVisualDataToDom', () => {
+        const setup = () => {
+            const dom = new JSDOM(
+                '<!DOCTYPE html><body><div id="container"></div></body>'
+            );
+            const container = select(dom.window.document).select('#container');
+            return container;
+        };
+
+        it('retains the same DOM node for an unchanged entry across updates', () => {
+            const container = setup();
+            reconcileVisualDataToDom(
+                container,
+                [entry('a', '<p>1</p>')],
+                false
+            );
+            const firstNode = container.select('.htmlViewerEntry').node();
+            // second update, same key + same content
+            const { toRender } = reconcileVisualDataToDom(
+                container,
+                [entry('a', '<p>1</p>')],
+                false
+            );
+            const secondNode = container.select('.htmlViewerEntry').node();
+            expect(secondNode).toBe(firstNode); // same element reference = iframe survives
+            expect(toRender.size()).toBe(0); // nothing to re-render
+        });
+
+        it('marks a changed entry for re-render but keeps its node', () => {
+            const container = setup();
+            reconcileVisualDataToDom(
+                container,
+                [entry('a', '<p>1</p>')],
+                false
+            );
+            const firstNode = container.select('.htmlViewerEntry').node();
+            const { toRender } = reconcileVisualDataToDom(
+                container,
+                [entry('a', '<p>2</p>')],
+                false
+            );
+            expect(container.select('.htmlViewerEntry').node()).toBe(firstNode);
+            expect(toRender.size()).toBe(1);
+        });
+
+        it('enters new entries and exits removed ones by identity key', () => {
+            const container = setup();
+            reconcileVisualDataToDom(
+                container,
+                [entry('a', 'A'), entry('b', 'B')],
+                false
+            );
+            const { merged, toRender } = reconcileVisualDataToDom(
+                container,
+                [entry('a', 'A'), entry('c', 'C')],
+                false
+            );
+            expect(merged.size()).toBe(2); // a retained, c entered, b exited
+            expect(toRender.size()).toBe(1); // only c needs render (a unchanged)
+        });
+
+        it('toRender includes all entries on first bind (no stash yet)', () => {
+            const container = setup();
+            const { toRender } = reconcileVisualDataToDom(
+                container,
+                [entry('a', 'A'), entry('b', 'B')],
+                false
+            );
+            expect(toRender.size()).toBe(2);
+        });
+    });
+
     // Pairs with the format-pane `hyperlinks` toggle. The sanitizer
     // already restricts <a href> / <a xlink:href> to http/https and
     // drops the attribute entirely when the toggle is off, so most of
@@ -798,25 +870,23 @@ describe('Domain Utils - Exported Functions', () => {
         // Helper: build a JSDOM container, wire a mock host with a
         // vi.fn() launchUrl, attach `resolveHyperlinkHandling`, and
         // return primitives the assertions can interrogate.
-        const buildHarness = (
-            innerHtml: string,
-            allowDelegation: boolean
-        ) => {
+        const buildHarness = (innerHtml: string, allowDelegation: boolean) => {
             const dom = new JSDOM(
                 `<!DOCTYPE html><html><body><div id="container">${innerHtml}</div></body></html>`
             );
             const window = dom.window;
             const document = window.document;
-            const container = select(document).select<HTMLDivElement>(
-                '#container'
-            );
+            const container =
+                select(document).select<HTMLDivElement>('#container');
             const launchUrl = vi.fn();
             const host = { launchUrl } as any;
             resolveHyperlinkHandling(host, container, allowDelegation);
             const fireClick = (selector: string) => {
                 const el = document.querySelector(selector);
                 if (!el) {
-                    throw new Error(`fireClick: no element matched ${selector}`);
+                    throw new Error(
+                        `fireClick: no element matched ${selector}`
+                    );
                 }
                 const ev = new window.MouseEvent('click', {
                     bubbles: true,
@@ -893,10 +963,7 @@ describe('Domain Utils - Exported Functions', () => {
             });
 
             it('rejects empty / missing href silently', () => {
-                const { fireClick, launchUrl } = buildHarness(
-                    '<a>x</a>',
-                    true
-                );
+                const { fireClick, launchUrl } = buildHarness('<a>x</a>', true);
                 const ev = fireClick('a');
                 expect(ev.defaultPrevented).toBe(true);
                 expect(launchUrl).not.toHaveBeenCalled();
@@ -943,7 +1010,9 @@ describe('Domain Utils - Exported Functions', () => {
                     true
                 );
                 fireClick('a');
-                expect(launchUrl).toHaveBeenCalledWith('https://primary.example');
+                expect(launchUrl).toHaveBeenCalledWith(
+                    'https://primary.example'
+                );
             });
 
             it('blocks JavaScript: with mixed case (defense-in-depth)', () => {
