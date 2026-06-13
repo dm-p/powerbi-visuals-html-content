@@ -181,6 +181,14 @@ export class Visual implements IVisual {
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, e);
+            // Load-bearing for reconcile integrity: this FULL container wipe is
+            // what recovers from a mid-render throw. reconcile stamps each
+            // node's __renderedContent baseline before rendering it, so a throw
+            // mid-render would otherwise leave nodes marked "rendered" that
+            // never were — poisoning the next reconcile into skipping them.
+            // Wiping the container destroys those nodes (and their stale
+            // stash), so the next update re-renders cleanly. Do NOT narrow this
+            // to a partial cleanup without re-establishing the stash invariant.
             this.contentContainer.selectAll('*').remove();
             this.updateStatus();
         }
