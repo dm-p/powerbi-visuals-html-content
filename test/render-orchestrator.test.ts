@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     computeRenderFingerprint,
-    isEntryAffectingUpdate
+    isEntryAffectingUpdate,
+    RenderOrchestrator
 } from '../src/render-orchestrator';
 
 /**
@@ -98,5 +99,103 @@ describe('isEntryAffectingUpdate', () => {
         expect(isEntryAffectingUpdate(VUT.Resize | 64, false, false)).toBe(
             false
         );
+    });
+});
+
+// Minimal fakes; the orchestrator's render steps are injected so we can
+// assert which branch ran without a real Power BI host or live DOM.
+const makeDeps = () => ({
+    rebuild: vi.fn(),
+    reconcile: vi.fn(),
+    renderEmptyOrRaw: vi.fn(),
+    bindInteractivity: vi.fn(),
+    resolveContainer: vi.fn()
+});
+
+const populatedViewModel = {
+    isValid: true,
+    isEmpty: false,
+    htmlEntries: [{ content: 'A', identity: { getKey: () => 'a' } }]
+} as any;
+
+describe('RenderOrchestrator dispatch', () => {
+    it('viewport-only update does not touch entries', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        o.render(
+            { type: VUT.Data } as any,
+            populatedViewModel,
+            settings(),
+            {} as any
+        ); // first render seeds state
+        deps.rebuild.mockClear();
+        deps.reconcile.mockClear();
+        o.render(
+            { type: VUT.Resize } as any,
+            populatedViewModel,
+            settings(),
+            {} as any
+        );
+        expect(deps.rebuild).not.toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+        expect(deps.resolveContainer).toHaveBeenCalled();
+    });
+
+    it('entry-affecting update in rebuild mode rebuilds', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        o.render(
+            { type: VUT.Data } as any,
+            populatedViewModel,
+            settings({ renderMode: 'rebuild' }),
+            {} as any
+        );
+        expect(deps.rebuild).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+    });
+
+    it('reconcile mode with unchanged fingerprint reconciles (not first render)', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        const s = settings({ renderMode: 'reconcile' });
+        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any); // first = rebuild baseline
+        deps.rebuild.mockClear();
+        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any);
+        expect(deps.reconcile).toHaveBeenCalled();
+        expect(deps.rebuild).not.toHaveBeenCalled();
+    });
+
+    it('reconcile mode rebuilds when the fingerprint changed', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        o.render(
+            { type: VUT.Data } as any,
+            populatedViewModel,
+            settings({ renderMode: 'reconcile' }),
+            {} as any
+        );
+        deps.rebuild.mockClear();
+        deps.reconcile.mockClear();
+        o.render(
+            { type: VUT.Data } as any,
+            populatedViewModel,
+            settings({ renderMode: 'reconcile', format: 'markdown' }),
+            {} as any
+        );
+        expect(deps.rebuild).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+    });
+
+    it('empty view model takes the empty path, never reconcile', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        o.render(
+            { type: VUT.Data } as any,
+            { isValid: true, isEmpty: true, htmlEntries: [] } as any,
+            settings({ renderMode: 'reconcile' }),
+            {} as any
+        );
+        expect(deps.renderEmptyOrRaw).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
     });
 });

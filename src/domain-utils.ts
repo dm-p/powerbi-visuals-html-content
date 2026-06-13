@@ -310,11 +310,21 @@ export function resolveHtmlGroupElement(
 
 /**
  * Use OverlayScrollbars to apply nicer scrolling to the supplied element.
+ * If an existing instance is supplied, it is updated in-place and returned;
+ * otherwise a new instance is constructed and returned.
  *
  * @param element   - HTML element to apply scrolling to.
+ * @param existing  - Optional existing OverlayScrollbars instance to reuse.
  */
-export function resolveScrollableContent(element: HTMLElement) {
-    OverlayScrollbars(element, {
+export function resolveScrollableContent(
+    element: HTMLElement,
+    existing?: OverlayScrollbars
+): OverlayScrollbars {
+    if (existing) {
+        existing.update();
+        return existing;
+    }
+    return OverlayScrollbars(element, {
         scrollbars: {
             clickScrolling: true
         }

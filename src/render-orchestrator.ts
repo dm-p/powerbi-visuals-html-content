@@ -1,10 +1,12 @@
 /**
  * Pure render-lifecycle decision functions: the settings fingerprint and the
- * update classifier. Consumed by the RenderOrchestrator (added in a later
- * unit) to choose between rebuild, reconcile, and viewport-only render paths.
+ * update classifier. Consumed by the RenderOrchestrator to choose between
+ * rebuild, reconcile, and viewport-only render paths.
  */
 
+import powerbi from 'powerbi-visuals-api';
 import { VisualFormattingSettingsModel } from './visual-settings';
+import { IViewModel } from './view-model';
 
 /**
  * VisualUpdateType.Data = 1 << 1 = 2.
@@ -43,4 +45,71 @@ export function isEntryAffectingUpdate(
 ): boolean {
     const hasDataBit = (updateType & DATA_BIT) === DATA_BIT;
     return firstRender || hasDataBit || fingerprintChanged;
+}
+
+export interface RenderSteps {
+    rebuild: (vm: IViewModel, settings: VisualFormattingSettingsModel) => void;
+    reconcile: (
+        vm: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ) => void;
+    renderEmptyOrRaw: (
+        vm: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ) => void;
+    bindInteractivity: (vm: IViewModel) => void;
+    resolveContainer: (settings: VisualFormattingSettingsModel) => void;
+}
+
+type RenderKind = 'populated' | 'empty-or-raw';
+
+export class RenderOrchestrator {
+    private firstRender = true;
+    private lastFingerprint = '';
+    private lastKind: RenderKind | undefined;
+    constructor(private steps: RenderSteps) {}
+
+    render(
+        options: powerbi.extensibility.visual.VisualUpdateOptions,
+        viewModel: IViewModel,
+        settings: VisualFormattingSettingsModel,
+        _host: unknown
+    ): void {
+        const fingerprint = computeRenderFingerprint(settings);
+        const fingerprintChanged = fingerprint !== this.lastFingerprint;
+        const entryAffecting = isEntryAffectingUpdate(
+            options.type,
+            this.firstRender,
+            fingerprintChanged
+        );
+        this.steps.resolveContainer(settings);
+        if (entryAffecting) {
+            const raw =
+                settings.contentFormatting.contentFormattingCardBehavior
+                    .showRawHtml.value;
+            const kind: RenderKind =
+                viewModel.isEmpty || raw ? 'empty-or-raw' : 'populated';
+            const kindChanged = kind !== this.lastKind;
+            const mode =
+                settings.contentFormatting.contentFormattingCardBehavior
+                    .renderMode.value;
+            if (kind === 'empty-or-raw') {
+                this.steps.renderEmptyOrRaw(viewModel, settings);
+            } else if (
+                mode === 'reconcile' &&
+                !fingerprintChanged &&
+                !this.firstRender &&
+                !kindChanged
+            ) {
+                this.steps.reconcile(viewModel, settings);
+                this.steps.bindInteractivity(viewModel);
+            } else {
+                this.steps.rebuild(viewModel, settings);
+                this.steps.bindInteractivity(viewModel);
+            }
+            this.lastKind = kind;
+        }
+        this.lastFingerprint = fingerprint;
+        this.firstRender = false;
+    }
 }
