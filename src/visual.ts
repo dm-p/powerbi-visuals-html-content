@@ -18,25 +18,29 @@ import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel';
 
 // External dependencies
+import OverlayScrollbars from 'overlayscrollbars';
 import { select, Selection } from 'd3-selection';
 
 // Internal Dependencies
 import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
-import { ViewModelHandler } from './view-model';
+import { ViewModelHandler, IHtmlEntry } from './view-model';
 import {
     bindVisualDataToDom,
     getParsedHtmlAsDom,
+    reconcileVisualDataToDom,
     resolveForRawHtml,
     resolveHtmlGroupElement,
     resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
-    resolveHover
+    resolveHover,
+    stampRenderedContent
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
+import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -69,6 +73,14 @@ export class Visual implements IVisual {
     private behavior: BehaviorManager<SelectableDataPoint>;
     // Flag whether the user clicked into the visual or not (for focus management)
     private bodyFocusedWithClick = false;
+    // Drives rendering decisions (rebuild vs reconcile vs viewport-only)
+    private orchestrator: RenderOrchestrator;
+    // Cached OverlayScrollbars instance (reused across updates to preserve scroll position)
+    private scrollbars: OverlayScrollbars | undefined;
+    // The rendered data element selection, carried from rebuild/reconcile to bindInteractivity.
+    // Assigned in rebuild/reconcile before bindInteractivity is ever called; the non-null
+    // assertion (!) tells the compiler the field is set before use.
+    private dataElements!: Selection<HTMLDivElement, IHtmlEntry, any, any>;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -108,6 +120,7 @@ export class Visual implements IVisual {
         this.bindFocusEvents();
         this.events = this.host.eventService;
         this.viewModelHandler.reset();
+        this.orchestrator = new RenderOrchestrator(this.buildRenderSteps());
     }
 
     /**
@@ -125,21 +138,14 @@ export class Visual implements IVisual {
      */
     public update(options: VisualUpdateOptions) {
         const { viewModel } = this.viewModelHandler;
-        // Parse the settings for use in the visual
         this.formattingSettings =
             this.formattingSettingsService.populateFormattingSettingsModel(
                 VisualFormattingSettingsModel,
                 options.dataViews?.[0]
             );
 
-        // Handle main update flow
         try {
-            // Signal we've begun rendering
             this.events.renderingStarted(options);
-            this.updateStatus();
-            this.contentContainer.selectAll('*').remove();
-
-            // If new data, we need to re-map it
             if (
                 powerbi.VisualUpdateType.Data ===
                 (options.type & powerbi.VisualUpdateType.Data)
@@ -159,47 +165,135 @@ export class Visual implements IVisual {
                 this.updateStatus();
             }
             this.formattingSettings.handlePropertyVisibility(viewModel);
-
             this.landingPageHandler.handleLandingPage(
-                this.viewModelHandler.viewModel.isValid,
+                viewModel.isValid,
                 this.host
             );
-
-            // Do checks on potential outcomes and handle accordingly
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
-            resolveStyling(
-                this.styleSheetContainer,
-                this.container,
-                this.formattingSettings
+            this.orchestrator.render(
+                options,
+                viewModel,
+                this.formattingSettings,
+                this.host
             );
-            if (viewModel.isEmpty) {
-                this.updateStatus(
-                    this.formattingSettings.contentFormatting
-                        .contentFormattingCardNoData.noDataMessage.value,
-                    viewModel.contentFormatting.contentFormattingCardBehavior
-                        .showRawHtml.value
+            this.events.renderingFinished(options);
+        } catch (e) {
+            this.events.renderingFailed(options, e);
+            this.contentContainer.selectAll('*').remove();
+            this.updateStatus();
+        }
+    }
+
+    /**
+     * Build the RenderSteps closures that the orchestrator dispatches to.
+     * All closures capture `this` and faithfully reproduce the behaviour of
+     * the old inline update() body, now split by render path.
+     */
+    private buildRenderSteps(): RenderSteps {
+        return {
+            // Runs every update: container-level styling, hyperlink delegation,
+            // and scroll (reusing the cached OverlayScrollbars instance so a
+            // reconcile preserves scroll position).
+            resolveContainer: (settings) => {
+                resolveStyling(
+                    this.styleSheetContainer,
+                    this.container,
+                    settings
                 );
-            } else {
-                const dataElements = bindVisualDataToDom(
+                resolveHyperlinkHandling(
+                    this.host,
+                    this.container,
+                    settings.contentFormatting.contentFormattingCardBehavior
+                        .hyperlinks.value
+                );
+                this.scrollbars = resolveScrollableContent(
+                    this.container.node() as HTMLDivElement,
+                    this.scrollbars
+                );
+            },
+            // No-data message or raw-HTML textarea. Clears content first (state-kind reset).
+            renderEmptyOrRaw: (viewModel, settings) => {
+                this.contentContainer.selectAll('*').remove();
+                const behavior =
+                    settings.contentFormatting.contentFormattingCardBehavior;
+                if (viewModel.isEmpty) {
+                    this.updateStatus(
+                        settings.contentFormatting.contentFormattingCardNoData
+                            .noDataMessage.value,
+                        behavior.showRawHtml.value
+                    );
+                } else {
+                    // populated content but showRawHtml is on: render entries then
+                    // replace with the raw view (resolveForRawHtml wipes+adds textarea)
+                    const dataElements = bindVisualDataToDom(
+                        this.contentContainer,
+                        viewModel.htmlEntries,
+                        viewModel.hasSelection
+                    );
+                    resolveHtmlGroupElement(
+                        dataElements,
+                        behavior.format.value as RenderFormat,
+                        behavior.hyperlinks.value
+                    );
+                    resolveForRawHtml(
+                        this.styleSheetContainer,
+                        this.contentContainer,
+                        settings
+                    );
+                }
+            },
+            // Full rebuild: wipe, bind all, render all, stamp baseline.
+            rebuild: (viewModel, settings) => {
+                const behavior =
+                    settings.contentFormatting.contentFormattingCardBehavior;
+                this.updateStatus();
+                this.contentContainer.selectAll('*').remove();
+                const merged = bindVisualDataToDom(
+                    this.contentContainer,
+                    viewModel.htmlEntries,
+                    viewModel.hasSelection
+                ) as Selection<HTMLDivElement, IHtmlEntry, any, any>;
+                resolveHtmlGroupElement(
+                    merged,
+                    behavior.format.value as RenderFormat,
+                    behavior.hyperlinks.value
+                );
+                stampRenderedContent(merged);
+                resolveForRawHtml(
+                    this.styleSheetContainer,
+                    this.contentContainer,
+                    settings
+                );
+                this.dataElements = merged;
+                resolveHover(merged, this.host, viewModel.hasGranularity);
+            },
+            // Reconcile: keep unchanged nodes, render ONLY the changed/entered subset.
+            reconcile: (viewModel, settings) => {
+                const behavior =
+                    settings.contentFormatting.contentFormattingCardBehavior;
+                this.updateStatus();
+                const { merged, toRender } = reconcileVisualDataToDom(
                     this.contentContainer,
                     viewModel.htmlEntries,
                     viewModel.hasSelection
                 );
+                // CONTRACT (per reconcileVisualDataToDom): render the ENTIRE toRender.
                 resolveHtmlGroupElement(
-                    dataElements,
-                    this.formattingSettings.contentFormatting
-                        .contentFormattingCardBehavior.format
-                        .value as RenderFormat,
-                    this.formattingSettings.contentFormatting
-                        .contentFormattingCardBehavior.hyperlinks.value
+                    toRender,
+                    behavior.format.value as RenderFormat,
+                    behavior.hyperlinks.value
                 );
                 resolveForRawHtml(
                     this.styleSheetContainer,
                     this.contentContainer,
-                    this.formattingSettings
+                    settings
                 );
+                this.dataElements = merged;
+                resolveHover(merged, this.host, viewModel.hasGranularity);
+            },
+            bindInteractivity: (viewModel) => {
                 if (this.host.hostCapabilities.allowInteractions) {
                     this.interactivity.bind(<
                         IHtmlBehaviorOptions<SelectableDataPoint>
@@ -207,29 +301,12 @@ export class Visual implements IVisual {
                         behavior: this.behavior,
                         dataPoints: viewModel.htmlEntries,
                         clearCatcherSelection: this.container,
-                        pointSelection: dataElements,
+                        pointSelection: this.dataElements,
                         viewModel
                     });
                 }
-                resolveHover(dataElements, this.host, viewModel.hasGranularity);
             }
-            resolveHyperlinkHandling(
-                this.host,
-                this.container,
-                viewModel.contentFormatting.contentFormattingCardBehavior
-                    .hyperlinks.value
-            );
-            resolveScrollableContent(this.container.node());
-
-            // Signal that we've finished rendering
-            this.events.renderingFinished(options);
-            return;
-        } catch (e) {
-            // Signal that we've encountered an error
-            this.events.renderingFailed(options, e);
-            this.contentContainer.selectAll('*').remove();
-            this.updateStatus();
-        }
+        };
     }
 
     /**

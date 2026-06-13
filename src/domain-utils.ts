@@ -486,6 +486,17 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
 // into it, so a reconcile can skip nodes whose content is unchanged.
 const RENDERED_CONTENT_PROP = '__renderedContent';
 
+/**
+ * Stamp the current content onto each node so a later reconcile can detect
+ * whether it changed. The rebuild path calls this after rendering so that a
+ * subsequent reconcile has a baseline; reconcile uses it internally too.
+ */
+export function stampRenderedContent(
+    selection: Selection<any, IHtmlEntry, any, any>
+): void {
+    selection.property(RENDERED_CONTENT_PROP, (d: IHtmlEntry) => d.content);
+}
+
 interface IRenderedEntryNode extends HTMLDivElement {
     __renderedContent?: string;
 }
@@ -542,7 +553,7 @@ export function reconcileVisualDataToDom(
         return this.__renderedContent !== d.content;
     });
     const toRender = entered.merge(changed);
-    toRender.property(RENDERED_CONTENT_PROP, (d: IHtmlEntry) => d.content);
+    stampRenderedContent(toRender);
     return { merged, toRender };
 }
 
