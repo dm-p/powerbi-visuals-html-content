@@ -198,4 +198,38 @@ describe('RenderOrchestrator dispatch', () => {
         expect(deps.renderEmptyOrRaw).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
     });
+
+    it('first render in reconcile mode rebuilds (no baseline yet)', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        o.render(
+            { type: VUT.Data } as any,
+            populatedViewModel,
+            settings({ renderMode: 'reconcile' }),
+            {} as any
+        );
+        expect(deps.rebuild).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+    });
+
+    it('reconcile mode rebuilds when kind changed (empty -> populated)', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        const s = settings({ renderMode: 'reconcile' });
+        // first render is empty -> kind 'empty-or-raw'
+        o.render(
+            { type: VUT.Data } as any,
+            { isValid: true, isEmpty: true, htmlEntries: [] } as any,
+            s,
+            {} as any
+        );
+        deps.rebuild.mockClear();
+        deps.reconcile.mockClear();
+        // now populated with the SAME settings (fingerprint unchanged): the
+        // kind changed empty->populated, so there is no DOM baseline to
+        // reconcile against -> must rebuild, not reconcile.
+        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any);
+        expect(deps.rebuild).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+    });
 });

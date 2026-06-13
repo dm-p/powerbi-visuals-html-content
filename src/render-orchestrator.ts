@@ -73,7 +73,8 @@ export class RenderOrchestrator {
         options: powerbi.extensibility.visual.VisualUpdateOptions,
         viewModel: IViewModel,
         settings: VisualFormattingSettingsModel,
-        _host: unknown
+        // Reserved for U5 wiring (passed through from Visual.update); unused here.
+        _host: powerbi.extensibility.visual.IVisualHost
     ): void {
         const fingerprint = computeRenderFingerprint(settings);
         const fingerprintChanged = fingerprint !== this.lastFingerprint;
@@ -95,6 +96,9 @@ export class RenderOrchestrator {
                     .renderMode.value;
             if (kind === 'empty-or-raw') {
                 this.steps.renderEmptyOrRaw(viewModel, settings);
+                // Reconcile only when a prior populated DOM baseline exists (not first
+                // render, kind unchanged) and nothing parse-affecting changed; any of
+                // these failing means there is no safe baseline to preserve, so rebuild.
             } else if (
                 mode === 'reconcile' &&
                 !fingerprintChanged &&
