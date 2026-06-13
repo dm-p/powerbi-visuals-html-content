@@ -472,6 +472,14 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
     return hasSelection && !isSelected;
 }
 
+// JS property stashed on each entry node recording the content last rendered
+// into it, so a reconcile can skip nodes whose content is unchanged.
+const RENDERED_CONTENT_PROP = '__renderedContent';
+
+interface IRenderedEntryNode extends HTMLDivElement {
+    __renderedContent?: string;
+}
+
 export interface ReconcileResult {
     merged: Selection<HTMLDivElement, IHtmlEntry, any, any>;
     toRender: Selection<HTMLDivElement, IHtmlEntry, any, any>;
@@ -488,6 +496,11 @@ export interface ReconcileResult {
  * - `toRender` — the subset that needs (re)rendering: newly entered nodes plus
  *                retained nodes whose `content` changed since last render.
  *                Unchanged nodes are in `merged` but NOT `toRender`.
+ *
+ * CONTRACT: the caller MUST render the entire returned `toRender` selection
+ * (via resolveHtmlGroupElement). The content baseline is stamped here on that
+ * assumption — if a caller renders only part of `toRender`, unrendered nodes
+ * would be wrongly treated as up-to-date on the next reconcile.
  *
  * @param container     - The container to process.
  * @param data          - Array of view model data to bind.
@@ -512,14 +525,14 @@ export function reconcileVisualDataToDom(
         shouldDimPoint(hasSelection, d.selected)
     );
     merged.order();
-    const changed = (joined as any).filter(function (
-        this: HTMLDivElement & { __renderedContent?: string },
+    const changed = joined.filter(function (
+        this: IRenderedEntryNode,
         d: IHtmlEntry
     ) {
         return this.__renderedContent !== d.content;
     });
     const toRender = entered.merge(changed);
-    toRender.property('__renderedContent', (d: IHtmlEntry) => d.content);
+    toRender.property(RENDERED_CONTENT_PROP, (d: IHtmlEntry) => d.content);
     return { merged, toRender };
 }
 

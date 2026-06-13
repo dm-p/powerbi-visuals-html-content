@@ -781,6 +781,8 @@ describe('Domain Utils - Exported Functions', () => {
 
     const entry = (key: string, content: string): any => ({
         content,
+        // getKey is the only identity method the keyed join uses; equals is
+        // unused filler to loosely match the ISelectionId shape.
         identity: { getKey: () => key, equals: () => false },
         selected: false,
         tooltips: []
@@ -855,6 +857,25 @@ describe('Domain Utils - Exported Functions', () => {
                 false
             );
             expect(toRender.size()).toBe(2);
+        });
+
+        it('reorders retained nodes to match new data order (merged.order)', () => {
+            const container = setup();
+            reconcileVisualDataToDom(
+                container,
+                [entry('a', 'A'), entry('b', 'B')],
+                false
+            );
+            const aNode = container.selectAll('.htmlViewerEntry').nodes()[0];
+            reconcileVisualDataToDom(
+                container,
+                [entry('b', 'B'), entry('a', 'A')],
+                false
+            );
+            const nodes = container.selectAll('.htmlViewerEntry').nodes();
+            // DOM order now b, a; and the 'a' node is the same element (retained)
+            expect(nodes.length).toBe(2);
+            expect(nodes[1]).toBe(aNode);
         });
     });
 
