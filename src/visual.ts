@@ -175,8 +175,7 @@ export class Visual implements IVisual {
             this.orchestrator.render(
                 options,
                 viewModel,
-                this.formattingSettings,
-                this.host
+                this.formattingSettings
             );
             this.events.renderingFinished(options);
         } catch (e) {

@@ -122,20 +122,10 @@ describe('RenderOrchestrator dispatch', () => {
     it('viewport-only update does not touch entries', () => {
         const deps = makeDeps();
         const o = new RenderOrchestrator(deps);
-        o.render(
-            { type: VUT.Data } as any,
-            populatedViewModel,
-            settings(),
-            {} as any
-        ); // first render seeds state
+        o.render({ type: VUT.Data } as any, populatedViewModel, settings()); // first render seeds state
         deps.rebuild.mockClear();
         deps.reconcile.mockClear();
-        o.render(
-            { type: VUT.Resize } as any,
-            populatedViewModel,
-            settings(),
-            {} as any
-        );
+        o.render({ type: VUT.Resize } as any, populatedViewModel, settings());
         expect(deps.rebuild).not.toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
         expect(deps.resolveContainer).toHaveBeenCalled();
@@ -147,8 +137,7 @@ describe('RenderOrchestrator dispatch', () => {
         o.render(
             { type: VUT.Data } as any,
             populatedViewModel,
-            settings({ renderMode: 'rebuild' }),
-            {} as any
+            settings({ renderMode: 'rebuild' })
         );
         expect(deps.rebuild).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
@@ -158,9 +147,9 @@ describe('RenderOrchestrator dispatch', () => {
         const deps = makeDeps();
         const o = new RenderOrchestrator(deps);
         const s = settings({ renderMode: 'reconcile' });
-        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any); // first = rebuild baseline
+        o.render({ type: VUT.Data } as any, populatedViewModel, s); // first = rebuild baseline
         deps.rebuild.mockClear();
-        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any);
+        o.render({ type: VUT.Data } as any, populatedViewModel, s);
         expect(deps.reconcile).toHaveBeenCalled();
         expect(deps.rebuild).not.toHaveBeenCalled();
     });
@@ -171,16 +160,14 @@ describe('RenderOrchestrator dispatch', () => {
         o.render(
             { type: VUT.Data } as any,
             populatedViewModel,
-            settings({ renderMode: 'reconcile' }),
-            {} as any
+            settings({ renderMode: 'reconcile' })
         );
         deps.rebuild.mockClear();
         deps.reconcile.mockClear();
         o.render(
             { type: VUT.Data } as any,
             populatedViewModel,
-            settings({ renderMode: 'reconcile', format: 'markdown' }),
-            {} as any
+            settings({ renderMode: 'reconcile', format: 'markdown' })
         );
         expect(deps.rebuild).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
@@ -192,8 +179,7 @@ describe('RenderOrchestrator dispatch', () => {
         o.render(
             { type: VUT.Data } as any,
             { isValid: true, isEmpty: true, htmlEntries: [] } as any,
-            settings({ renderMode: 'reconcile' }),
-            {} as any
+            settings({ renderMode: 'reconcile' })
         );
         expect(deps.renderEmptyOrRaw).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
@@ -205,8 +191,7 @@ describe('RenderOrchestrator dispatch', () => {
         o.render(
             { type: VUT.Data } as any,
             populatedViewModel,
-            settings({ renderMode: 'reconcile' }),
-            {} as any
+            settings({ renderMode: 'reconcile' })
         );
         expect(deps.rebuild).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
@@ -220,15 +205,14 @@ describe('RenderOrchestrator dispatch', () => {
         o.render(
             { type: VUT.Data } as any,
             { isValid: true, isEmpty: true, htmlEntries: [] } as any,
-            s,
-            {} as any
+            s
         );
         deps.rebuild.mockClear();
         deps.reconcile.mockClear();
         // now populated with the SAME settings (fingerprint unchanged): the
         // kind changed empty->populated, so there is no DOM baseline to
         // reconcile against -> must rebuild, not reconcile.
-        o.render({ type: VUT.Data } as any, populatedViewModel, s, {} as any);
+        o.render({ type: VUT.Data } as any, populatedViewModel, s);
         expect(deps.rebuild).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
     });

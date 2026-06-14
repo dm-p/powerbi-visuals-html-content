@@ -72,9 +72,7 @@ export class RenderOrchestrator {
     render(
         options: powerbi.extensibility.visual.VisualUpdateOptions,
         viewModel: IViewModel,
-        settings: VisualFormattingSettingsModel,
-        // Reserved for U5 wiring (passed through from Visual.update); unused here.
-        _host: powerbi.extensibility.visual.IVisualHost
+        settings: VisualFormattingSettingsModel
     ): void {
         const fingerprint = computeRenderFingerprint(settings);
         const fingerprintChanged = fingerprint !== this.lastFingerprint;
