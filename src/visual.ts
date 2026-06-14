@@ -181,14 +181,11 @@ export class Visual implements IVisual {
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, e);
-            // Load-bearing for reconcile integrity: this FULL container wipe is
-            // what recovers from a mid-render throw. reconcile stamps each
-            // node's __renderedContent baseline before rendering it, so a throw
-            // mid-render would otherwise leave nodes marked "rendered" that
-            // never were — poisoning the next reconcile into skipping them.
-            // Wiping the container destroys those nodes (and their stale
-            // stash), so the next update re-renders cleanly. Do NOT narrow this
-            // to a partial cleanup without re-establishing the stash invariant.
+            // Clear any partially-rendered DOM from the failed update so the
+            // next update starts clean. (The reconcile stash can't be left
+            // inconsistent here: it is stamped only AFTER a node's content is
+            // rendered, so a mid-render throw leaves changed nodes un-stamped
+            // and they re-render next reconcile regardless of this wipe.)
             this.contentContainer.selectAll('*').remove();
             this.updateStatus();
         }
@@ -281,12 +278,14 @@ export class Visual implements IVisual {
                     viewModel.htmlEntries,
                     viewModel.hasSelection
                 );
-                // CONTRACT (per reconcileVisualDataToDom): render the ENTIRE toRender.
                 resolveHtmlGroupElement(
                     toRender,
                     behavior.format.value as RenderFormat,
                     behavior.hyperlinks.value
                 );
+                // Stamp the baseline AFTER rendering, so the stash never
+                // claims a node is up-to-date before its content is in the DOM.
+                stampRenderedContent(toRender);
                 this.finalizePopulatedRender(merged, viewModel, settings);
             },
             bindInteractivity: (viewModel) => {

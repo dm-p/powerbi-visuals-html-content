@@ -7,7 +7,8 @@ import {
     getRawHtml,
     resolveHyperlinkHandling,
     resolveHtmlGroupElement,
-    reconcileVisualDataToDom
+    reconcileVisualDataToDom,
+    stampRenderedContent
 } from '../src/domain-utils';
 import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
@@ -797,13 +798,21 @@ describe('Domain Utils - Exported Functions', () => {
             return container;
         };
 
+        // Model a full caller cycle: reconcile, then stamp what it rendered.
+        // The production caller stamps `toRender` after resolveHtmlGroupElement,
+        // so a baseline bind must stamp for the next reconcile to diff against.
+        const reconcileAndStamp = (
+            container: ReturnType<typeof setup>,
+            data: ReturnType<typeof entry>[]
+        ) => {
+            const result = reconcileVisualDataToDom(container, data, false);
+            stampRenderedContent(result.toRender);
+            return result;
+        };
+
         it('retains the same DOM node for an unchanged entry across updates', () => {
             const container = setup();
-            reconcileVisualDataToDom(
-                container,
-                [entry('a', '<p>1</p>')],
-                false
-            );
+            reconcileAndStamp(container, [entry('a', '<p>1</p>')]);
             const firstNode = container.select('.htmlViewerEntry').node();
             // second update, same key + same content
             const { toRender } = reconcileVisualDataToDom(
@@ -818,11 +827,7 @@ describe('Domain Utils - Exported Functions', () => {
 
         it('marks a changed entry for re-render but keeps its node', () => {
             const container = setup();
-            reconcileVisualDataToDom(
-                container,
-                [entry('a', '<p>1</p>')],
-                false
-            );
+            reconcileAndStamp(container, [entry('a', '<p>1</p>')]);
             const firstNode = container.select('.htmlViewerEntry').node();
             const { toRender } = reconcileVisualDataToDom(
                 container,
@@ -835,11 +840,7 @@ describe('Domain Utils - Exported Functions', () => {
 
         it('enters new entries and exits removed ones by identity key', () => {
             const container = setup();
-            reconcileVisualDataToDom(
-                container,
-                [entry('a', 'A'), entry('b', 'B')],
-                false
-            );
+            reconcileAndStamp(container, [entry('a', 'A'), entry('b', 'B')]);
             const { merged, toRender } = reconcileVisualDataToDom(
                 container,
                 [entry('a', 'A'), entry('c', 'C')],
@@ -861,11 +862,7 @@ describe('Domain Utils - Exported Functions', () => {
 
         it('reorders retained nodes to match new data order (merged.order)', () => {
             const container = setup();
-            reconcileVisualDataToDom(
-                container,
-                [entry('a', 'A'), entry('b', 'B')],
-                false
-            );
+            reconcileAndStamp(container, [entry('a', 'A'), entry('b', 'B')]);
             const aNode = container.selectAll('.htmlViewerEntry').nodes()[0];
             reconcileVisualDataToDom(
                 container,

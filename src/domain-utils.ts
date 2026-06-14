@@ -518,10 +518,12 @@ export interface ReconcileResult {
  *                retained nodes whose `content` changed since last render.
  *                Unchanged nodes are in `merged` but NOT `toRender`.
  *
- * CONTRACT: the caller MUST render the entire returned `toRender` selection
- * (via resolveHtmlGroupElement). The content baseline is stamped here on that
- * assumption — if a caller renders only part of `toRender`, unrendered nodes
- * would be wrongly treated as up-to-date on the next reconcile.
+ * The caller renders `toRender` (via resolveHtmlGroupElement) and then calls
+ * `stampRenderedContent(toRender)` to record the new baseline. Stamping after
+ * render (rather than here) keeps the stash and the DOM in agreement at every
+ * observable point: a node is only marked up-to-date once its content is
+ * actually in the DOM, so a mid-render throw leaves changed nodes un-stamped
+ * and they are simply re-rendered on the next reconcile.
  *
  * @param container     - The container to process.
  * @param data          - Array of view model data to bind.
@@ -553,7 +555,6 @@ export function reconcileVisualDataToDom(
         return this.__renderedContent !== d.content;
     });
     const toRender = entered.merge(changed);
-    stampRenderedContent(toRender);
     return { merged, toRender };
 }
 
