@@ -187,6 +187,10 @@ export class Visual implements IVisual {
             // and they re-render next reconcile regardless of this wipe.)
             this.contentContainer.selectAll('*').remove();
             this.updateStatus();
+            // Reset orchestrator state to match the now-empty container, so the
+            // next update rebuilds from scratch rather than skipping a
+            // viewport-only render against stale cached state.
+            this.orchestrator.reset();
         }
     }
 

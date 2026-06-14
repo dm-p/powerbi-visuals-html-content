@@ -216,4 +216,21 @@ describe('RenderOrchestrator dispatch', () => {
         expect(deps.rebuild).toHaveBeenCalled();
         expect(deps.reconcile).not.toHaveBeenCalled();
     });
+
+    it('reset() forces the next render to rebuild even on a viewport-only update', () => {
+        const deps = makeDeps();
+        const o = new RenderOrchestrator(deps);
+        const s = settings({ renderMode: 'reconcile' });
+        o.render({ type: VUT.Data } as any, populatedViewModel, s); // baseline
+        o.render({ type: VUT.Data } as any, populatedViewModel, s); // reconcile active
+        deps.rebuild.mockClear();
+        deps.reconcile.mockClear();
+        // Simulate the error-recovery path: container wiped + orchestrator reset.
+        o.reset();
+        // A viewport-only update type would normally skip entry rendering, but
+        // after reset the next render must rebuild so the wiped DOM is restored.
+        o.render({ type: VUT.Resize } as any, populatedViewModel, s);
+        expect(deps.rebuild).toHaveBeenCalled();
+        expect(deps.reconcile).not.toHaveBeenCalled();
+    });
 });

@@ -114,4 +114,18 @@ export class RenderOrchestrator {
         this.lastFingerprint = fingerprint;
         this.firstRender = false;
     }
+
+    /**
+     * Reset to the initial state so the next render is treated as a first
+     * render (a clean rebuild). The visual calls this after wiping the content
+     * container on an error, so the orchestrator's cached state can never
+     * disagree with the now-empty DOM — otherwise a subsequent viewport-only
+     * update (no Data bit, unchanged fingerprint) would skip rendering and
+     * leave the wiped container blank.
+     */
+    reset(): void {
+        this.firstRender = true;
+        this.lastFingerprint = '';
+        this.lastKind = undefined;
+    }
 }
