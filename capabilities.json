@@ -50,6 +50,22 @@
                         ]
                     }
                 },
+                "renderMode": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayNameKey": "Enum_RenderMode_Rebuild",
+                                "displayName": "Rebuild content",
+                                "value": "rebuild"
+                            },
+                            {
+                                "displayNameKey": "Enum_RenderMode_Reconcile",
+                                "displayName": "Preserve unchanged content",
+                                "value": "reconcile"
+                            }
+                        ]
+                    }
+                },
                 "fontFamily": {
                     "type": {
                         "formatting": {

@@ -64,6 +64,13 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
         descriptionKey: 'Objects_ContentFormatting_Format_Description',
         value: VisualConstants.contentFormatting.format
     });
+    // Render lifecycle mode
+    renderMode = new formattingSettings.AutoDropdown({
+        name: 'renderMode',
+        displayNameKey: 'Objects_ContentFormatting_RenderMode',
+        descriptionKey: 'Objects_ContentFormatting_RenderMode_Description',
+        value: VisualConstants.contentFormatting.renderMode
+    });
     // Whether to render as HTML or show raw code
     showRawHtml = new formattingSettings.ToggleSwitch({
         name: 'showRawHtml',
@@ -87,6 +94,7 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
     });
     slices: Array<FormattingSettingsSlice> = [
         this.format,
+        this.renderMode,
         this.showRawHtml,
         this.hyperlinks,
         this.userSelect

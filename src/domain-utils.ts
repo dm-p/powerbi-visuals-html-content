@@ -1,6 +1,7 @@
 // Power BI API Dependencies
 import powerbi from 'powerbi-visuals-api';
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
+import ISelectionId = powerbi.visuals.ISelectionId;
 import TooltipShowOptions = powerbi.extensibility.TooltipShowOptions;
 import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 
@@ -309,11 +310,21 @@ export function resolveHtmlGroupElement(
 
 /**
  * Use OverlayScrollbars to apply nicer scrolling to the supplied element.
+ * If an existing instance is supplied, it is updated in-place and returned;
+ * otherwise a new instance is constructed and returned.
  *
  * @param element   - HTML element to apply scrolling to.
+ * @param existing  - Optional existing OverlayScrollbars instance to reuse.
  */
-export function resolveScrollableContent(element: HTMLElement) {
-    OverlayScrollbars(element, {
+export function resolveScrollableContent(
+    element: HTMLElement,
+    existing?: OverlayScrollbars
+): OverlayScrollbars {
+    if (existing) {
+        existing.update();
+        return existing;
+    }
+    return OverlayScrollbars(element, {
         scrollbars: {
             clickScrolling: true
         }
@@ -469,6 +480,82 @@ export function bindVisualDataToDom(
  */
 export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
     return hasSelection && !isSelected;
+}
+
+// JS property stashed on each entry node recording the content last rendered
+// into it, so a reconcile can skip nodes whose content is unchanged.
+const RENDERED_CONTENT_PROP = '__renderedContent';
+
+/**
+ * Stamp the current content onto each node so a later reconcile can detect
+ * whether it changed. The rebuild path calls this after rendering so that a
+ * subsequent reconcile has a baseline; reconcile uses it internally too.
+ */
+export function stampRenderedContent(
+    selection: Selection<any, IHtmlEntry, any, any>
+): void {
+    selection.property(RENDERED_CONTENT_PROP, (d: IHtmlEntry) => d.content);
+}
+
+interface IRenderedEntryNode extends HTMLDivElement {
+    __renderedContent?: string;
+}
+
+export interface ReconcileResult {
+    merged: Selection<HTMLDivElement, IHtmlEntry, any, any>;
+    toRender: Selection<HTMLDivElement, IHtmlEntry, any, any>;
+}
+
+/**
+ * Identity-keyed d3 join for visual data entries. Unlike `bindVisualDataToDom`,
+ * the join is keyed on each entry's stable selection identity (`identity.getKey()`)
+ * so that retained entries keep their exact DOM node across updates — which
+ * prevents inline iframes from reloading.
+ *
+ * Returns `{ merged, toRender }`:
+ * - `merged`   — the full enter+update selection (for binding handlers).
+ * - `toRender` — the subset that needs (re)rendering: newly entered nodes plus
+ *                retained nodes whose `content` changed since last render.
+ *                Unchanged nodes are in `merged` but NOT `toRender`.
+ *
+ * The caller renders `toRender` (via resolveHtmlGroupElement) and then calls
+ * `stampRenderedContent(toRender)` to record the new baseline. Stamping after
+ * render (rather than here) keeps the stash and the DOM in agreement at every
+ * observable point: a node is only marked up-to-date once its content is
+ * actually in the DOM, so a mid-render throw leaves changed nodes un-stamped
+ * and they are simply re-rendered on the next reconcile.
+ *
+ * @param container     - The container to process.
+ * @param data          - Array of view model data to bind.
+ * @param hasSelection  - Whether a cross-filter selection is active.
+ */
+export function reconcileVisualDataToDom(
+    container: Selection<any, any, any, any>,
+    data: IHtmlEntry[],
+    hasSelection: boolean
+): ReconcileResult {
+    const { entryClassSelector, unselectedClassSelector } = VisualConstants.dom;
+    const joined = container
+        .selectAll<HTMLDivElement, IHtmlEntry>(`.${entryClassSelector}`)
+        .data(data, (d: IHtmlEntry) => (d.identity as ISelectionId).getKey());
+    joined.exit().remove();
+    const entered = joined
+        .enter()
+        .append('div')
+        .classed(entryClassSelector, true);
+    const merged = entered.merge(joined as any);
+    merged.classed(unselectedClassSelector, (d) =>
+        shouldDimPoint(hasSelection, d.selected)
+    );
+    merged.order();
+    const changed = joined.filter(function (
+        this: IRenderedEntryNode,
+        d: IHtmlEntry
+    ) {
+        return this.__renderedContent !== d.content;
+    });
+    const toRender = entered.merge(changed);
+    return { merged, toRender };
 }
 
 /**
