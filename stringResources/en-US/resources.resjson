@@ -46,7 +46,7 @@
     "Objects_Templates_BodyTemplate": "Body template",
     "Objects_Templates_BodyTemplate_Description": "HTML wrapped around all rows. The {{content}} token marks where the rendered rows are inserted. Supports conditional formatting from a measure.",
     "Objects_Templates_RowTemplate": "Row template",
-    "Objects_Templates_RowTemplate_Description": "HTML wrapped around each row. The {{row}} token marks where the row's value goes. Supports per-row conditional formatting from a measure.",
+    "Objects_Templates_RowTemplate_Description": "HTML wrapped around each row. The {{row}} token marks where the row's value goes. Supports conditional formatting from a measure (applied to all rows).",
     "Objects_CrossFilter": "Cross-filtering",
     "Objects_CrossFilter_Description": "If enabled, this will invoke cross-filtering of other visuals, based on the Granularity of your dataset.",
     "Objects_CrossFilter_Enabled": "Enable",

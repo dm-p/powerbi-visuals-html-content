@@ -8,7 +8,6 @@ import FormattingSettingsModel = formattingSettings.Model;
 import { VisualConstants } from './visual-constants';
 import { IViewModel } from './view-model';
 import { shouldUseStylesheet } from './domain-utils';
-import { dataViewWildcard } from 'powerbi-visuals-utils-dataviewutils';
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     contentFormatting = new ContentFormattingSettings();
@@ -266,17 +265,22 @@ class TemplatesCardMain extends FormattingSettingsGroup {
         selector: undefined,
         instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
-    // Row template: per-row CF via wildcard selector + a static/default counterpart.
+    // Row template: a single value applied to every row — a static string or a
+    // measure-driven rule (conditional formatting "apply to all"). Uses
+    // `selector: undefined` (like bodyTemplate / stylesheet / noDataMessage) so
+    // the value round-trips through `metadata.objects` and the properties pane
+    // displays the author's edit. A wildcard (per-row "apply to each value")
+    // selector writes to the per-instance location, which the formatting service
+    // never reads back into the pane — the value still renders, but the pane
+    // resets the displayed edit to the default. Per-row *different* templates are
+    // expressed via the content measure / CSS classes instead.
     rowTemplate = new formattingSettings.TextArea({
         name: 'rowTemplate',
         displayNameKey: 'Objects_Templates_RowTemplate',
         descriptionKey: 'Objects_Templates_RowTemplate_Description',
         placeholder: '<div><div>{{row}}</div></div>',
         value: VisualConstants.templates.row,
-        selector: dataViewWildcard.createDataViewWildcardSelector(
-            dataViewWildcard.DataViewWildcardMatchingOption.InstancesOnly
-        ),
-        altConstantSelector: undefined,
+        selector: undefined,
         instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
     slices: Array<FormattingSettingsSlice> = [
