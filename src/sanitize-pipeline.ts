@@ -312,13 +312,15 @@ const dpConfig: Config = {
 // child) is removed outright — the same outcome the string path
 // (getSanitizedContent) produces for a forbidden/disallowed element,
 // keeping the two entry points at parity and fail-closed.
+// dpConfig assigns string[] literals; cast narrows DOMPurify's string[]|fn type.
 const IN_PLACE_ALLOWED_ROOT_TAGS = new Set<string>(
-    [...(dpConfig.ALLOWED_TAGS ?? []), ...(dpConfig.ADD_TAGS ?? [])].map((t) =>
-        t.toLowerCase()
-    )
+    [
+        ...((dpConfig.ALLOWED_TAGS as string[]) ?? []),
+        ...((dpConfig.ADD_TAGS as string[]) ?? [])
+    ].map((t) => t.toLowerCase())
 );
 const IN_PLACE_FORBIDDEN_ROOT_TAGS = new Set<string>(
-    (dpConfig.FORBID_TAGS ?? []).map((t) => t.toLowerCase())
+    ((dpConfig.FORBID_TAGS as string[]) ?? []).map((t) => t.toLowerCase())
 );
 const isInPlaceSanitizableRoot = (el: Element): boolean => {
     const tag = el.tagName ? el.tagName.toLowerCase() : '';
