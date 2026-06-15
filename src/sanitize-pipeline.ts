@@ -252,15 +252,97 @@ export const getParsedHtmlAsDom = (
     return parse(dom);
 };
 
+// ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
+// built-in default attr allowlist would otherwise pre-strip legitimate
+// SVG presentation/filter attrs (stdDeviation, fill-opacity, etc.)
+// before our uponSanitizeAttribute hook can decide. Per-tag enforcement
+// is fully delegated to the hook: HTML tags use the strict per-tag
+// allowlist in ALLOWED_ATTRIBUTES; SVG tags use a denylist plus URL
+// scheme rules. Removing ALLOWED_ATTR is a deliberate trade — we lose
+// one defense-in-depth layer and depend entirely on the hook's
+// contract for attribute decisions.
+//
+// Module-level so both the string entry point (getSanitizedContent)
+// and the in-context entry point (parseAndSanitizeInContext) share an
+// identical policy. parseAndSanitizeInContext spreads this object and
+// overrides only IN_PLACE.
+const dpConfig: Config = {
+    ALLOWED_TAGS: VisualConstants.allowedTags,
+    // Allow data: in URL-bearing attrs (sanitized in the hook).
+    ALLOWED_URI_REGEXP:
+        /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+    ALLOW_DATA_ATTR: true,
+    ALLOW_ARIA_ATTR: true,
+    FORBID_TAGS: [
+        'script',
+        'iframe',
+        'object',
+        'embed',
+        'link',
+        'meta',
+        'base'
+    ],
+    FORBID_ATTR: [
+        'srcdoc',
+        'formaction',
+        'action',
+        'ping',
+        'background',
+        'poster',
+        'srcset'
+    ],
+    ADD_TAGS: ['style'],
+    FORCE_BODY: true,
+    IN_PLACE: false,
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false
+};
+
+// In-place root-node eligibility, derived from dpConfig so there is no
+// second tag policy to drift. DOMPurify refuses to sanitize a node in
+// place when the *root* node it is handed is not allowed or is forbidden
+// (purify.ts: `if (!ALLOWED_TAGS[tag] || FORBID_TAGS[tag]) throw 'root
+// node is forbidden and cannot be sanitized in-place'`). Its effective
+// allow-set is ALLOWED_TAGS ∪ ADD_TAGS, lower-cased via transformCaseFunc
+// (text/html parser). We mirror that exactly: an element child is
+// in-place-sanitizable iff its lower-cased tag is in the allow-set and
+// not in the forbid-set. A top-level child that is NOT eligible (e.g. a
+// <script> that survived createContextualFragment as a direct fragment
+// child) is removed outright — the same outcome the string path
+// (getSanitizedContent) produces for a forbidden/disallowed element,
+// keeping the two entry points at parity and fail-closed.
+const IN_PLACE_ALLOWED_ROOT_TAGS = new Set<string>(
+    [...(dpConfig.ALLOWED_TAGS ?? []), ...(dpConfig.ADD_TAGS ?? [])].map((t) =>
+        t.toLowerCase()
+    )
+);
+const IN_PLACE_FORBIDDEN_ROOT_TAGS = new Set<string>(
+    (dpConfig.FORBID_TAGS ?? []).map((t) => t.toLowerCase())
+);
+const isInPlaceSanitizableRoot = (el: Element): boolean => {
+    const tag = el.tagName ? el.tagName.toLowerCase() : '';
+    return (
+        IN_PLACE_ALLOWED_ROOT_TAGS.has(tag) &&
+        !IN_PLACE_FORBIDDEN_ROOT_TAGS.has(tag)
+    );
+};
+
 /**
- * Sanitize the supplied HTML string using DOMPurify.
+ * Register the two sanitizer hooks (closing over `options.allowHyperlinks`),
+ * run `run(purify)`, and always tear the hooks down afterward. Shared by
+ * the string entry point (getSanitizedContent) and the in-context entry
+ * point (parseAndSanitizeInContext) so both apply byte-identical policy.
+ *
+ * The hook bodies are the visual's security boundary — they are moved
+ * here verbatim from the former getSanitizedContent body. Do not change
+ * a rule here without changing the frozen sanitizer policy on purpose.
  */
-export const getSanitizedContent = (
-    content: string,
+function withSanitizerHooks<T>(
+    run: (purify: DOMPurifyType) => T,
     options?: SanitizeOptions
-): string => {
+): T {
     const allowHyperlinks = options?.allowHyperlinks ?? false;
-    const preprocessed = preprocessStyleTags(content);
     const purify = getPurify();
 
     // Ensure a clean hook slate before registering. If a prior call
@@ -689,49 +771,7 @@ export const getSanitizedContent = (
             }
         });
 
-        // ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
-        // built-in default attr allowlist would otherwise pre-strip legitimate
-        // SVG presentation/filter attrs (stdDeviation, fill-opacity, etc.)
-        // before our uponSanitizeAttribute hook can decide. Per-tag enforcement
-        // is fully delegated to the hook: HTML tags use the strict per-tag
-        // allowlist in ALLOWED_ATTRIBUTES; SVG tags use a denylist plus URL
-        // scheme rules. Removing ALLOWED_ATTR is a deliberate trade — we lose
-        // one defense-in-depth layer and depend entirely on the hook's
-        // contract for attribute decisions.
-        const dpConfig: Config = {
-            ALLOWED_TAGS: VisualConstants.allowedTags,
-            // Allow data: in URL-bearing attrs (sanitized in the hook).
-            ALLOWED_URI_REGEXP:
-                /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-            ALLOW_UNKNOWN_PROTOCOLS: false,
-            ALLOW_DATA_ATTR: true,
-            ALLOW_ARIA_ATTR: true,
-            FORBID_TAGS: [
-                'script',
-                'iframe',
-                'object',
-                'embed',
-                'link',
-                'meta',
-                'base'
-            ],
-            FORBID_ATTR: [
-                'srcdoc',
-                'formaction',
-                'action',
-                'ping',
-                'background',
-                'poster',
-                'srcset'
-            ],
-            ADD_TAGS: ['style'],
-            FORCE_BODY: true,
-            IN_PLACE: false,
-            RETURN_DOM: false,
-            RETURN_DOM_FRAGMENT: false
-        };
-
-        return purify.sanitize(preprocessed, dpConfig);
+        return run(purify);
     } finally {
         // Hooks are global per instance — tear them down so they don't
         // leak across calls (or across tests). Wraps both addHook calls
@@ -739,6 +779,97 @@ export const getSanitizedContent = (
         // the cleanup path (no leaked hooks on the cached singleton).
         purify.removeAllHooks();
     }
+}
+
+/**
+ * Sanitize the supplied HTML string using DOMPurify.
+ */
+export const getSanitizedContent = (
+    content: string,
+    options?: SanitizeOptions
+): string => {
+    const preprocessed = preprocessStyleTags(content);
+    return withSanitizerHooks(
+        (purify) => purify.sanitize(preprocessed, dpConfig),
+        options
+    );
+};
+
+/**
+ * Parse `content` in the content model of `contextEl` (so `<tr>` etc.
+ * survive instead of being foster-parented out of a context-free
+ * fragment), then sanitize the parsed node(s) in place. Tokens
+ * (`{{content}}` / `{{row}}`) must already be substituted before this is
+ * called, so they never reach the sanitizer.
+ *
+ * The string is run through `preprocessStyleTags` before parsing (same as
+ * the string path), and the `uponSanitizeElement` `<style>` backstop also
+ * fires on the node path, so `<style>` bodies are sanitized both ways.
+ * ELEMENT_NODE children are sanitized in place; COMMENT_NODE children are
+ * removed (matching the string path — DOMPurify SAFE_FOR_XML strips
+ * comments); inert TEXT_NODE children are preserved as authored content.
+ *
+ * NAMESPACE REQUIREMENT: `contextEl` MUST be an HTML-namespace element.
+ * The in-place root-eligibility check (`isInPlaceSanitizableRoot`) and
+ * DOMPurify's IN_PLACE pre-check are tag-name-only (namespace-blind), so
+ * passing an SVG- or MathML-namespaced `contextEl` would cause
+ * `createContextualFragment` to parse in that content model and diverge
+ * from the expected HTML-context outcome. The intended callers in later
+ * units always pass an HTML row/body container, so no runtime guard is
+ * added here.
+ */
+export const parseAndSanitizeInContext = (
+    content: string,
+    format: RenderFormat,
+    contextEl: Element,
+    options?: SanitizeOptions
+): DocumentFragment => {
+    const converted =
+        format === 'markdown' ? marked.parse(content).toString() : content;
+    const preprocessed = config.sanitize
+        ? preprocessStyleTags(converted)
+        : converted;
+    const range = document.createRange();
+    // Context = contextEl's content model, so the HTML parser applies the
+    // insertion-mode rules for that element (e.g. <tr> is legal inside a
+    // <tbody> context and is not foster-parented out, as it would be in a
+    // context-free fragment — issue #138).
+    range.selectNodeContents(contextEl);
+    const fragment = range.createContextualFragment(preprocessed);
+    if (config.sanitize) {
+        withSanitizerHooks((purify) => {
+            // IN_PLACE: true sanitizes the existing node's subtree in
+            // place (and returns it) instead of re-parsing a string, so
+            // the table/list context createContextualFragment established
+            // is preserved. Everything else in the policy is spread
+            // unchanged from dpConfig.
+            //
+            // COMMENT_NODE children are removed to match the string path
+            // (DOMPurify SAFE_FOR_XML strips comments). TEXT_NODE children
+            // are inert and kept as authored content. A top-level element
+            // that is not in-place-sanitizable (forbidden or not on the
+            // allow-list — e.g. a <script> that parsed as a direct fragment
+            // child) is removed outright rather than passed to DOMPurify,
+            // which would throw "root node is forbidden and cannot be
+            // sanitized in-place". Removal mirrors the string path's
+            // outcome for such elements and keeps the boundary fail-closed.
+            Array.from(fragment.childNodes).forEach((n) => {
+                if (n.nodeType === Node.COMMENT_NODE) {
+                    // Match the string path: DOMPurify SAFE_FOR_XML strips comments.
+                    (n as ChildNode).remove();
+                    return;
+                }
+                if (n.nodeType !== Node.ELEMENT_NODE) return; // text nodes are inert; keep
+                const el = n as Element;
+                if (isInPlaceSanitizableRoot(el)) {
+                    purify.sanitize(el, { ...dpConfig, IN_PLACE: true });
+                } else {
+                    el.remove();
+                }
+            });
+        }, options);
+    }
+    return fragment;
 };
 
 /**
