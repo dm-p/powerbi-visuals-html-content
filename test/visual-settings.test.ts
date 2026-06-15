@@ -37,8 +37,8 @@ describe('VisualFormattingSettingsModel', () => {
             expect(settings.crossFilter.name).toBe('crossFilter');
         });
 
-        it('should have three cards in total', () => {
-            expect(settings.cards).toHaveLength(3);
+        it('should have four cards in total', () => {
+            expect(settings.cards).toHaveLength(4);
         });
     });
 
@@ -329,5 +329,24 @@ describe('VisualFormattingSettingsModel', () => {
                     .value
             ).toBe(70);
         });
+    });
+});
+
+describe('TemplatesSettings', () => {
+    it('exposes body + row templates with byte-identical defaults', () => {
+        const settings = new VisualFormattingSettingsModel();
+        const main = settings.templates.templatesCardMain;
+        expect(main.bodyTemplate.value).toBe('{{content}}');
+        expect(main.rowTemplate.value).toBe('<div><div>{{row}}</div></div>');
+        expect(main.slices).toContain(main.bodyTemplate);
+        expect(main.slices).toContain(main.rowTemplate);
+        expect(settings.cards).toContain(settings.templates);
+    });
+    it('marks both template slices conditional-formattable', () => {
+        const main = new VisualFormattingSettingsModel().templates
+            .templatesCardMain;
+        // VisualEnumerationInstanceKinds.ConstantOrRule = Constant(1) | Rule(2) = 3
+        expect(main.bodyTemplate.instanceKind).toBe(3);
+        expect(main.rowTemplate.instanceKind).toBe(3);
     });
 });

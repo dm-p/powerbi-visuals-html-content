@@ -8,12 +8,19 @@ import FormattingSettingsModel = formattingSettings.Model;
 import { VisualConstants } from './visual-constants';
 import { IViewModel } from './view-model';
 import { shouldUseStylesheet } from './domain-utils';
+import { dataViewWildcard } from 'powerbi-visuals-utils-dataviewutils';
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     contentFormatting = new ContentFormattingSettings();
     stylesheet = new StylesheetSettings();
     crossFilter = new CrossFilterSettings();
-    cards = [this.contentFormatting, this.stylesheet, this.crossFilter];
+    templates = new TemplatesSettings();
+    cards = [
+        this.contentFormatting,
+        this.stylesheet,
+        this.crossFilter,
+        this.templates
+    ];
     handlePropertyVisibility(viewModel: IViewModel) {
         // Handle visibility of default body formatting properties if stylesheet is used
         if (
@@ -236,5 +243,44 @@ class CrossFilterCardMain extends FormattingSettingsGroup {
         this.enabled,
         this.useTransparency,
         this.transparencyPercent
+    ];
+}
+
+export class TemplatesSettings extends FormattingSettingsCompositeCard {
+    name = 'templates';
+    displayNameKey = 'Objects_Templates';
+    descriptionKey = 'Objects_Templates_Description';
+    templatesCardMain = new TemplatesCardMain(Object());
+    groups: Array<FormattingSettingsGroup> = [this.templatesCardMain];
+}
+
+class TemplatesCardMain extends FormattingSettingsGroup {
+    name = 'templates-main';
+    // Body template: single value (applies once) — static or CF "apply to all".
+    bodyTemplate = new formattingSettings.TextArea({
+        name: 'bodyTemplate',
+        displayNameKey: 'Objects_Templates_BodyTemplate',
+        descriptionKey: 'Objects_Templates_BodyTemplate_Description',
+        placeholder: '{{content}}',
+        value: VisualConstants.templates.body,
+        selector: undefined,
+        instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
+    });
+    // Row template: per-row CF via wildcard selector + a static/default counterpart.
+    rowTemplate = new formattingSettings.TextArea({
+        name: 'rowTemplate',
+        displayNameKey: 'Objects_Templates_RowTemplate',
+        descriptionKey: 'Objects_Templates_RowTemplate_Description',
+        placeholder: '<div><div>{{row}}</div></div>',
+        value: VisualConstants.templates.row,
+        selector: dataViewWildcard.createDataViewWildcardSelector(
+            dataViewWildcard.DataViewWildcardMatchingOption.InstancesOnly
+        ),
+        altConstantSelector: undefined,
+        instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
+    });
+    slices: Array<FormattingSettingsSlice> = [
+        this.bodyTemplate,
+        this.rowTemplate
     ];
 }

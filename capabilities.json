@@ -132,6 +132,12 @@
                 }
             }
         },
+        "templates": {
+            "properties": {
+                "bodyTemplate": { "type": { "text": true } },
+                "rowTemplate": { "type": { "text": true } }
+            }
+        },
         "crossFilter": {
             "properties": {
                 "enabled": {

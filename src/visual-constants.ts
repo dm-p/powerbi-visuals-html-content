@@ -207,6 +207,10 @@ export const VisualConstants = {
     stylesheet: {
         stylesheet: ''
     },
+    templates: {
+        body: '{{content}}',
+        row: '<div><div>{{row}}</div></div>'
+    },
     crossFilter: {
         enabled: false,
         useTransparency: true,
