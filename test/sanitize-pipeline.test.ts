@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     getSanitizedHtmlForTesting,
     getSanitizedCss,
@@ -767,5 +767,50 @@ describe('parseAndSanitizeInContext', () => {
         );
         expect(frag.textContent).toContain('plain text');
         expect(frag.querySelector('div')?.textContent).toBe('x');
+    });
+});
+
+describe('sanitizeFragmentInPlace — edition-consistency guard', () => {
+    // Verify that with config.sanitize === true (the default used by the
+    // standard/AppSource editions) sanitizeFragmentInPlace strips dangerous
+    // markup. The element hook removes any element carrying an on* handler, so
+    // a <div onclick="x()"> is dropped entirely. This guards against regression
+    // from the early-return added for the standalone edition.
+    it('removes onclick element when config.sanitize is true (default edition)', async () => {
+        const { sanitizeFragmentInPlace } =
+            await import('../src/sanitize-pipeline');
+        const frag = document.createDocumentFragment();
+        const div = document.createElement('div');
+        div.setAttribute('onclick', 'x()');
+        frag.appendChild(div);
+        sanitizeFragmentInPlace(frag);
+        // The element hook drops any element with an on* handler; the div is gone.
+        expect(frag.querySelector('div')).toBeNull();
+    });
+
+    // Verify that with config.sanitize === false (the standalone/unsanitized
+    // edition) sanitizeFragmentInPlace is a no-op — dangerous markup
+    // survives, matching the content path (getParsedHtmlAsDom /
+    // parseAndSanitizeInContext) which also skips sanitization in that edition.
+    it('is a no-op (onclick element survives) when config.sanitize is false (standalone edition)', async () => {
+        vi.doMock('../config/visual.json', () => ({ sanitize: false }));
+        vi.resetModules();
+        try {
+            const { sanitizeFragmentInPlace: sanitizeOff } =
+                await import('../src/sanitize-pipeline');
+            const frag = document.createDocumentFragment();
+            const div = document.createElement('div');
+            div.setAttribute('onclick', 'x()');
+            frag.appendChild(div);
+            sanitizeOff(frag);
+            // No-op: the div and its onclick attribute are untouched.
+            expect(frag.querySelector('div')).not.toBeNull();
+            expect(frag.querySelector('div')?.hasAttribute('onclick')).toBe(
+                true
+            );
+        } finally {
+            vi.doUnmock('../config/visual.json');
+            vi.resetModules();
+        }
     });
 });

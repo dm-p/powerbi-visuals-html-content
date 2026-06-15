@@ -831,6 +831,11 @@ export const sanitizeFragmentInPlace = (
     fragment: DocumentFragment | Element,
     options?: SanitizeOptions
 ): void => {
+    // The unsanitized (standalone) edition renders author HTML as-is. Match
+    // getParsedHtmlAsDom/parseAndSanitizeInContext: when sanitization is
+    // disabled this is a no-op, so body templates are NOT sanitized while
+    // row content is left raw — the two paths stay consistent per edition.
+    if (!config.sanitize) return;
     withSanitizerHooks((purify) => {
         // IN_PLACE: true sanitizes the existing node's subtree in
         // place (and returns it) instead of re-parsing a string, so
