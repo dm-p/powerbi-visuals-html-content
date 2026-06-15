@@ -85,26 +85,9 @@ vi.mock('powerbi-visuals-api', async (importOriginal) => {
     };
 });
 
-// Mock powerbi-visuals-utils-dataviewutils so the const enum
-// DataViewWildcardMatchingOption is available at runtime in vitest
-// (const enums from external packages are NOT inlined by esbuild).
-vi.mock('powerbi-visuals-utils-dataviewutils', async (importOriginal) => {
-    const original =
-        await importOriginal<
-            typeof import('powerbi-visuals-utils-dataviewutils')
-        >();
-    return {
-        ...original,
-        dataViewWildcard: {
-            ...original.dataViewWildcard,
-            DataViewWildcardMatchingOption: {
-                InstancesAndTotals: 0,
-                InstancesOnly: 1,
-                TotalsOnly: 2
-            }
-        }
-    };
-});
+// powerbi-visuals-utils-dataviewutils: use the real module (dataViewObjects is
+// still used by resolveBodyTemplate). No const-enum overrides needed here —
+// the wildcard enum was only required by the now-removed per-row CF path.
 
 // Mock Power BI utils libraries that have ESM/CJS compatibility issues
 vi.mock('powerbi-visuals-utils-formattingutils', () => ({

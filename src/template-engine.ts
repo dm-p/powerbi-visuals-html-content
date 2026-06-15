@@ -33,18 +33,9 @@ export function resolveBodyTemplate(
     );
 }
 
-/** Per-row row template: per-row `objects` bag → metadata.objects → static value. */
+/** The row template — a single static wrapper applied to every row. */
 export function resolveRowTemplate(
-    rowObjects: powerbi.DataViewObjects | undefined,
-    metadataObjects: powerbi.DataViewObjects | undefined,
     settings: VisualFormattingSettingsModel
 ): string {
-    const staticValue = settings.templates.templatesCardMain.rowTemplate.value;
-    const id = { objectName: TEMPLATES_OBJECT, propertyName: 'rowTemplate' };
-    const metaValue = dataViewObjects.getValue<string>(
-        metadataObjects,
-        id,
-        staticValue
-    );
-    return dataViewObjects.getValue<string>(rowObjects, id, metaValue);
+    return settings.templates.templatesCardMain.rowTemplate.value;
 }

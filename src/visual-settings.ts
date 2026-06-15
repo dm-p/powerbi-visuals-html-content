@@ -265,23 +265,17 @@ class TemplatesCardMain extends FormattingSettingsGroup {
         selector: undefined,
         instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
-    // Row template: a single value applied to every row — a static string or a
-    // measure-driven rule (conditional formatting "apply to all"). Uses
-    // `selector: undefined` (like bodyTemplate / stylesheet / noDataMessage) so
-    // the value round-trips through `metadata.objects` and the properties pane
-    // displays the author's edit. A wildcard (per-row "apply to each value")
-    // selector writes to the per-instance location, which the formatting service
-    // never reads back into the pane — the value still renders, but the pane
-    // resets the displayed edit to the default. Per-row *different* templates are
-    // expressed via the content measure / CSS classes instead.
+    // Row template: the static wrapper applied around every row. Per-row
+    // variation comes from the content measure (the content is already
+    // per-row), so this property has no conditional formatting — keeping the
+    // typed value visible/editable in the pane (a CF wildcard selector writes
+    // per-instance and the pane only reads back metadata.objects).
     rowTemplate = new formattingSettings.TextArea({
         name: 'rowTemplate',
         displayNameKey: 'Objects_Templates_RowTemplate',
         descriptionKey: 'Objects_Templates_RowTemplate_Description',
         placeholder: '<div><div>{{row}}</div></div>',
-        value: VisualConstants.templates.row,
-        selector: undefined,
-        instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
+        value: VisualConstants.templates.row
     });
     slices: Array<FormattingSettingsSlice> = [
         this.bodyTemplate,

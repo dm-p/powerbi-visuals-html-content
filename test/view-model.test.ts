@@ -815,65 +815,6 @@ describe('ViewModelHandler', () => {
             );
         });
 
-        it('entry rowTemplate uses per-row CF value when present, falls back to default for rows without it', () => {
-            const mockSettingsWithTemplates = {
-                ...mockSettings,
-                templates: {
-                    templatesCardMain: {
-                        bodyTemplate: { value: '{{content}}' },
-                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
-                    }
-                }
-            } as any;
-
-            const catSource = {
-                roles: { content: true },
-                displayName: 'HTML',
-                queryName: 'q0'
-            };
-            const dataViews: any[] = [
-                {
-                    metadata: {
-                        columns: [
-                            {
-                                roles: { content: true },
-                                displayName: 'HTML',
-                                queryName: 'q0'
-                            }
-                        ]
-                    },
-                    categorical: {
-                        categories: [
-                            {
-                                source: catSource,
-                                values: ['<p>Row 1</p>', '<p>Row 2</p>'],
-                                // Row 0 has a CF rowTemplate; row 1 does not
-                                objects: [
-                                    {
-                                        templates: {
-                                            rowTemplate:
-                                                '<section>{{row}}</section>'
-                                        }
-                                    },
-                                    undefined
-                                ]
-                            }
-                        ]
-                    }
-                }
-            ];
-
-            handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
-
-            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
-                '<section>{{row}}</section>'
-            );
-            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
-                '<div><div>{{row}}</div></div>'
-            );
-        });
-
         it('reset() initialises bodyTemplate to the VisualConstants body default', () => {
             handler.viewModel.bodyTemplate = 'something';
             handler.reset();

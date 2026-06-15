@@ -111,9 +111,10 @@ export class ViewModelHandler {
         host: IVisualHost
     ) {
         if (this.viewModel.isValid) {
-            const { columns, rows, identities, objects } =
-                mapCategoricalToTable(dataViews[0].categorical, host);
-            const metadataObjects = dataViews[0].metadata?.objects;
+            const { columns, rows, identities } = mapCategoricalToTable(
+                dataViews[0].categorical,
+                host
+            );
             // validateDataView sets a provisional contentIndex from metadata.columns.
             // This recompute moves it into simulated-table column space
             // (categories-then-values), which is the index space `rows` uses.
@@ -139,17 +140,14 @@ export class ViewModelHandler {
                 ...this.getTooltipColumns('sampling', columns, host),
                 ...this.getTooltipColumns('tooltips', columns, host)
             ];
+            const rowTemplate = resolveRowTemplate(settings);
             const htmlEntries: IHtmlEntry[] =
                 contentIndex > -1
                     ? rows.map((row, index) => {
                           const value = row[contentIndex];
                           return {
                               content: value ? value.toString() : '',
-                              rowTemplate: resolveRowTemplate(
-                                  objects[index],
-                                  metadataObjects,
-                                  settings
-                              ),
+                              rowTemplate,
                               identity: identities[index],
                               selected:
                                   selectedKeys.size > 0 &&

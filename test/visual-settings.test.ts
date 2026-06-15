@@ -342,11 +342,13 @@ describe('TemplatesSettings', () => {
         expect(main.slices).toContain(main.rowTemplate);
         expect(settings.cards).toContain(settings.templates);
     });
-    it('marks both template slices conditional-formattable', () => {
+    it('bodyTemplate is conditional-formattable; rowTemplate is a plain property (no CF)', () => {
         const main = new VisualFormattingSettingsModel().templates
             .templatesCardMain;
+        // bodyTemplate retains single-value CF (ConstantOrRule = 3)
         // VisualEnumerationInstanceKinds.ConstantOrRule = Constant(1) | Rule(2) = 3
         expect(main.bodyTemplate.instanceKind).toBe(3);
-        expect(main.rowTemplate.instanceKind).toBe(3);
+        // rowTemplate is a plain TextArea — no instanceKind set
+        expect(main.rowTemplate.instanceKind).toBeUndefined();
     });
 });

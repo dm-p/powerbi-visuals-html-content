@@ -26,15 +26,12 @@ describe('substitute', () => {
 });
 
 describe('resolveRowTemplate', () => {
-    const settings = {
-        templates: { templatesCardMain: { rowTemplate: { value: 'DFLT' } } }
-    } as any;
-    it('prefers the per-row objects bag, then metadata, then the static value', () => {
-        const id = 'templates';
-        const row = { [id]: { rowTemplate: 'ROW' } } as any;
-        const meta = { [id]: { rowTemplate: 'META' } } as any;
-        expect(resolveRowTemplate(row, meta, settings)).toBe('ROW');
-        expect(resolveRowTemplate(undefined, meta, settings)).toBe('META');
-        expect(resolveRowTemplate(undefined, undefined, settings)).toBe('DFLT');
+    it('returns settings.templates.templatesCardMain.rowTemplate.value', () => {
+        const settings = {
+            templates: {
+                templatesCardMain: { rowTemplate: { value: 'STATIC' } }
+            }
+        } as any;
+        expect(resolveRowTemplate(settings)).toBe('STATIC');
     });
 });
