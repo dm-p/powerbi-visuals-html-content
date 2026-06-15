@@ -2,6 +2,7 @@
 import powerbi from 'powerbi-visuals-api';
 import DataViewCategorical = powerbi.DataViewCategorical;
 import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
+import DataViewObjects = powerbi.DataViewObjects;
 import PrimitiveValue = powerbi.PrimitiveValue;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ISelectionId = powerbi.visuals.ISelectionId;
@@ -15,6 +16,7 @@ export interface ISimulatedTable {
     columns: DataViewMetadataColumn[]; // categories first, then values
     rows: PrimitiveValue[][]; // row-major, aligned to columns
     identities: ISelectionId[]; // one per row
+    objects: (DataViewObjects | undefined)[]; // per-row CF bags, index-aligned to rows
 }
 
 /**
@@ -60,6 +62,13 @@ export function mapCategoricalToTable(
         ...categories.map((c) => c.source),
         ...values.map((v) => v.source)
     ];
+    // Find the first column (categories before values) that carries per-row CF
+    // objects. The scan runs once per update — O(columns), not O(rows).
+    const objectsColumn = [...categories, ...values].find((c) => c.objects);
+    const objects = Array.from(
+        { length: rowCount },
+        (_, i) => objectsColumn?.objects?.[i]
+    );
     const rows: PrimitiveValue[][] = [];
     const identities: ISelectionId[] = [];
     for (let i = 0; i < rowCount; i++) {
@@ -78,5 +87,5 @@ export function mapCategoricalToTable(
         });
         identities.push(builder.createSelectionId());
     }
-    return { columns, rows, identities };
+    return { columns, rows, identities, objects };
 }

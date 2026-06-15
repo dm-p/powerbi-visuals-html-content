@@ -16,6 +16,8 @@ import {
     VisualFormattingSettingsModel
 } from './visual-settings';
 import { mapCategoricalToTable } from './categorical-table';
+import { resolveBodyTemplate, resolveRowTemplate } from './template-engine';
+import { VisualConstants } from './visual-constants';
 
 /**
  * View model structure
@@ -28,11 +30,13 @@ export interface IViewModel {
     hasSelection: boolean;
     contentIndex: number;
     contentFormatting?: ContentFormattingSettings;
+    bodyTemplate: string;
     htmlEntries: IHtmlEntry[];
 }
 
 export interface IHtmlEntry extends SelectableDataPoint {
     content: string;
+    rowTemplate: string;
     tooltips: VisualTooltipDataItem[];
 }
 
@@ -68,6 +72,7 @@ export class ViewModelHandler {
             hasGranularity: false,
             hasSelection: false,
             contentIndex: -1,
+            bodyTemplate: VisualConstants.templates.body,
             htmlEntries: []
         };
     }
@@ -106,10 +111,9 @@ export class ViewModelHandler {
         host: IVisualHost
     ) {
         if (this.viewModel.isValid) {
-            const { columns, rows, identities } = mapCategoricalToTable(
-                dataViews[0].categorical,
-                host
-            );
+            const { columns, rows, identities, objects } =
+                mapCategoricalToTable(dataViews[0].categorical, host);
+            const metadataObjects = dataViews[0].metadata?.objects;
             // validateDataView sets a provisional contentIndex from metadata.columns.
             // This recompute moves it into simulated-table column space
             // (categories-then-values), which is the index space `rows` uses.
@@ -141,6 +145,11 @@ export class ViewModelHandler {
                           const value = row[contentIndex];
                           return {
                               content: value ? value.toString() : '',
+                              rowTemplate: resolveRowTemplate(
+                                  objects[index],
+                                  metadataObjects,
+                                  settings
+                              ),
                               identity: identities[index],
                               selected:
                                   selectedKeys.size > 0 &&
@@ -156,6 +165,10 @@ export class ViewModelHandler {
             this.viewModel.hasGranularity = hasGranularity;
             this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
+            this.viewModel.bodyTemplate = resolveBodyTemplate(
+                dataViews[0],
+                settings
+            );
             this.viewModel.htmlEntries = htmlEntries;
             this.viewModel.isEmpty = htmlEntries.length === 0;
         }

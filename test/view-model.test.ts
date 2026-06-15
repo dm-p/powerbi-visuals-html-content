@@ -217,7 +217,13 @@ describe('ViewModelHandler', () => {
                     enabled: { value: false }
                 }
             },
-            contentFormatting: {}
+            contentFormatting: {},
+            templates: {
+                templatesCardMain: {
+                    bodyTemplate: { value: '{{content}}' },
+                    rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                }
+            }
         } as any;
 
         it('should not map data if view model is invalid', () => {
@@ -665,6 +671,213 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.htmlEntries[0].content).toBe(
                 '<p>Test</p>'
             );
+        });
+
+        it('bodyTemplate defaults to {{content}} when settings carry no CF override', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                        // no metadata.objects → falls back to static value
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+
+            expect(handler.viewModel.bodyTemplate).toBe('{{content}}');
+        });
+
+        it('bodyTemplate uses CF metadata.objects value when present', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ],
+                        objects: {
+                            templates: {
+                                bodyTemplate: '<body>{{content}}</body>'
+                            }
+                        }
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+
+            expect(handler.viewModel.bodyTemplate).toBe(
+                '<body>{{content}}</body>'
+            );
+        });
+
+        it('each entry rowTemplate defaults to static value when no per-row or metadata CF override', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>', '<p>Row 2</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+
+            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
+                '<div><div>{{row}}</div></div>'
+            );
+            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
+                '<div><div>{{row}}</div></div>'
+            );
+        });
+
+        it('entry rowTemplate uses per-row CF value when present, falls back to default for rows without it', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const catSource = {
+                roles: { content: true },
+                displayName: 'HTML',
+                queryName: 'q0'
+            };
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: catSource,
+                                values: ['<p>Row 1</p>', '<p>Row 2</p>'],
+                                // Row 0 has a CF rowTemplate; row 1 does not
+                                objects: [
+                                    {
+                                        templates: {
+                                            rowTemplate:
+                                                '<section>{{row}}</section>'
+                                        }
+                                    },
+                                    undefined
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+
+            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
+                '<section>{{row}}</section>'
+            );
+            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
+                '<div><div>{{row}}</div></div>'
+            );
+        });
+
+        it('reset() initialises bodyTemplate to the VisualConstants body default', () => {
+            handler.viewModel.bodyTemplate = 'something';
+            handler.reset();
+            expect(handler.viewModel.bodyTemplate).toBe('{{content}}');
         });
 
         it('should exclude roles-less columns from tooltips (#159)', () => {
