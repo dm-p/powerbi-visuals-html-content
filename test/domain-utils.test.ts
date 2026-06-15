@@ -9,7 +9,9 @@ import {
     resolveHtmlGroupElement,
     reconcileVisualDataToDom,
     stampRenderedContent,
-    resolveTemplateContainer
+    resolveTemplateContainer,
+    renderTemplatedEntries,
+    reconcileTemplatedEntries
 } from '../src/domain-utils';
 import type { StylesheetSettings } from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
@@ -1354,6 +1356,345 @@ describe('Domain Utils - Exported Functions', () => {
             expect(tc.container).toBe(table);
             expect(tc.anchor).not.toBeNull();
             expect(table!.contains(tc.anchor)).toBe(true);
+        });
+    });
+
+    // Unit 6 — the CORE render unit. The templated row renderer plus the
+    // generalized identity-keyed reconcile. Default templates must reproduce
+    // today's DOM byte-for-byte (the `.htmlViewerEntry > div > content`
+    // two-div structure); custom templates render structural HTML at the row
+    // grain (a `<tr>` template yields a real table row, no wrapper div); and
+    // the reconcile preserves unchanged-key rows so their exact DOM node (and
+    // any inline iframe) survives across updates. These functions are tested
+    // directly in jsdom — Unit 7 wires them into the visual.
+    describe('renderTemplatedEntries / reconcileTemplatedEntries', () => {
+        const entry = (
+            key: string,
+            content: string,
+            rowTemplate = '<div><div>{{row}}</div></div>'
+        ) =>
+            ({
+                identity: { getKey: () => key },
+                content,
+                rowTemplate,
+                selected: false,
+                tooltips: []
+            }) as any;
+        const OPTS = {
+            format: 'html',
+            allowHyperlinks: false,
+            hasSelection: false
+        } as const;
+
+        it('default template reproduces the two-div .htmlViewerEntry > div structure', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            renderTemplatedEntries(tc as any, [entry('a', 'X')], OPTS as any);
+            const outer = tc.container.querySelector('.htmlViewerEntry')!;
+            expect(outer.tagName).toBe('DIV');
+            expect(outer.firstElementChild?.tagName).toBe('DIV');
+            expect(outer.textContent).toContain('X');
+        });
+
+        it('a <tr> row template yields a real table row (no auto-close, no wrapper div)', () => {
+            const tbody = document.createElement('tbody');
+            renderTemplatedEntries(
+                { container: tbody, anchor: null } as any,
+                [entry('a', '<td>c</td>', '<tr>{{row}}</tr>')],
+                OPTS as any
+            );
+            const tr = tbody.querySelector('tr')!;
+            expect(tr.classList.contains('htmlViewerEntry')).toBe(true);
+            expect(tr.querySelector('td')?.textContent).toBe('c');
+            expect(tbody.querySelector(':scope > div')).toBeNull();
+        });
+
+        it('reconcile retains the same node for an unchanged row (iframe survives)', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A'), entry('b', 'B')],
+                OPTS as any
+            );
+            const aNode = tc.container.querySelector('.htmlViewerEntry');
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A'), entry('b', 'B2')],
+                OPTS as any
+            );
+            expect(tc.container.querySelectorAll('.htmlViewerEntry')[0]).toBe(
+                aNode
+            ); // a retained (same node)
+            expect(tc.container.textContent).toContain('B2'); // b re-rendered
+        });
+
+        it('reconcile re-renders a changed row and exits a removed row', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A'), entry('b', 'B')],
+                OPTS as any
+            );
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A2')],
+                OPTS as any
+            );
+            expect(
+                tc.container.querySelectorAll('.htmlViewerEntry').length
+            ).toBe(1);
+            expect(tc.container.textContent).toContain('A2');
+        });
+
+        it('reconcile inserts rows before the anchor (static siblings preserved)', () => {
+            const container = document.createElement('section');
+            const footer = document.createElement('footer');
+            container.appendChild(footer);
+            const anchor = document.createComment('HC:CONTENT');
+            container.insertBefore(anchor, footer);
+            reconcileTemplatedEntries(
+                { container, anchor } as any,
+                [entry('a', 'A')],
+                OPTS as any
+            );
+            const row = container.querySelector('.htmlViewerEntry')!;
+            expect(row.nextSibling).toBe(anchor); // row before anchor
+            expect(anchor.nextSibling).toBe(footer); // anchor before footer
+        });
+
+        it('a multi-root row template degrades to a single .htmlViewerEntry wrapper', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            renderTemplatedEntries(
+                tc as any,
+                [entry('a', 'x', '<span>{{row}}</span><span>!</span>')],
+                OPTS as any
+            );
+            expect(
+                tc.container.querySelectorAll(':scope > .htmlViewerEntry')
+                    .length
+            ).toBe(1);
+        });
+
+        it('markdown content is converted but the template stays HTML', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            renderTemplatedEntries(
+                tc as any,
+                [entry('a', '**bold**', '<div>{{row}}</div>')],
+                {
+                    format: 'markdown',
+                    allowHyperlinks: false,
+                    hasSelection: false
+                } as any
+            );
+            expect(
+                tc.container.querySelector('.htmlViewerEntry strong')
+                    ?.textContent
+            ).toBe('bold');
+        });
+
+        it('selector-CF: per-row template variation re-renders on template change', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A', '<div>{{row}}</div>')],
+                OPTS as any
+            );
+            const before = tc.container.querySelector('.htmlViewerEntry');
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A', '<p>{{row}}</p>')],
+                OPTS as any
+            ); // same content, new template
+            const after = tc.container.querySelector('.htmlViewerEntry');
+            expect(after).not.toBe(before); // re-rendered because rowRenderKey changed
+            expect(after?.tagName).toBe('P');
+        });
+
+        // Fix 1: dim class must be refreshed on retained rows when only selection changes
+        it('reconcile refreshes the dim class on a retained row when selection changes', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            const A1 = {
+                identity: { getKey: () => 'a' },
+                content: 'A',
+                rowTemplate: '<div>{{row}}</div>',
+                selected: true,
+                tooltips: []
+            } as any;
+            const B1 = {
+                identity: { getKey: () => 'b' },
+                content: 'B',
+                rowTemplate: '<div>{{row}}</div>',
+                selected: false,
+                tooltips: []
+            } as any;
+            const OPTS_SEL = {
+                format: 'html',
+                allowHyperlinks: false,
+                hasSelection: true
+            } as any;
+            reconcileTemplatedEntries(tc as any, [A1, B1], OPTS_SEL);
+            const aNode = tc.container.querySelectorAll('.htmlViewerEntry')[0];
+            // Initial state: a is selected (not dimmed), b is not selected (dimmed)
+            expect(aNode.classList.contains('unselected')).toBe(false);
+            expect(
+                tc.container
+                    .querySelectorAll('.htmlViewerEntry')[1]
+                    .classList.contains('unselected')
+            ).toBe(true);
+            // Selection flips, content identical -> rows retained
+            const A2 = { ...A1, selected: false };
+            const B2 = { ...B1, selected: true };
+            reconcileTemplatedEntries(tc as any, [A2, B2], OPTS_SEL);
+            expect(tc.container.querySelectorAll('.htmlViewerEntry')[0]).toBe(
+                aNode
+            ); // retained (same node)
+            // a is now not selected -> should be dimmed
+            expect(aNode.classList.contains('unselected')).toBe(true);
+            // b is now selected -> should not be dimmed
+            expect(
+                tc.container
+                    .querySelectorAll('.htmlViewerEntry')[1]
+                    .classList.contains('unselected')
+            ).toBe(false);
+        });
+
+        // Fix 2: pin current reorder behavior (node identity retained, final order matches data)
+        it('reconcile retains node identity and reorders rows (order() repositions retained nodes)', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            const mk = (k: string) =>
+                ({
+                    identity: { getKey: () => k },
+                    content: k.toUpperCase(),
+                    rowTemplate: '<div>{{row}}</div>',
+                    selected: false,
+                    tooltips: []
+                }) as any;
+            reconcileTemplatedEntries(
+                tc as any,
+                [mk('a'), mk('b'), mk('c')],
+                OPTS as any
+            );
+            const before = Array.from(
+                tc.container.querySelectorAll('.htmlViewerEntry')
+            );
+            // Same keys+content, reordered
+            reconcileTemplatedEntries(
+                tc as any,
+                [mk('c'), mk('a'), mk('b')],
+                OPTS as any
+            );
+            const after = Array.from(
+                tc.container.querySelectorAll('.htmlViewerEntry')
+            );
+            // Same node objects, just repositioned (retained identity)
+            expect(after[0]).toBe(before[2]); // c
+            expect(after[1]).toBe(before[0]); // a
+            expect(after[2]).toBe(before[1]); // b
+            expect(after.map((n) => n.textContent)).toEqual(['C', 'A', 'B']);
+        });
+
+        // Fix 3a: mixed enter/retain/change/exit pass
+        it('mixed pass [a,b,c,d] → [a,b′,e,c]: correct node identity, order, toRender', () => {
+            const tc = {
+                container: document.createElement('div'),
+                anchor: null
+            };
+            reconcileTemplatedEntries(
+                tc as any,
+                [
+                    entry('a', 'A'),
+                    entry('b', 'B'),
+                    entry('c', 'C'),
+                    entry('d', 'D')
+                ],
+                OPTS as any
+            );
+            const nodesBefore = Array.from(
+                tc.container.querySelectorAll('.htmlViewerEntry')
+            );
+            const [aNode, , cNode] = nodesBefore; // b and d will change/exit
+            const { toRender } = reconcileTemplatedEntries(
+                tc as any,
+                [
+                    entry('a', 'A'), // retained, unchanged
+                    entry('b', 'B2'), // retained, changed -> fresh
+                    entry('e', 'E'), // entered -> fresh
+                    entry('c', 'C') // retained, unchanged
+                ],
+                OPTS as any
+            );
+            const nodesAfter = Array.from(
+                tc.container.querySelectorAll('.htmlViewerEntry')
+            );
+            // a and c are the same node refs (retained, unchanged)
+            expect(nodesAfter[0]).toBe(aNode);
+            expect(nodesAfter[3]).toBe(cNode);
+            // b′ and e are fresh nodes (not the originals)
+            expect(nodesAfter[1]).not.toBe(nodesBefore[1]);
+            expect(nodesAfter[2]).not.toBe(nodesBefore[0]);
+            // d is gone
+            expect(
+                tc.container.querySelectorAll('.htmlViewerEntry').length
+            ).toBe(4);
+            // Final text order
+            expect(nodesAfter.map((n) => n.textContent)).toEqual([
+                'A',
+                'B2',
+                'E',
+                'C'
+            ]);
+            // toRender contains exactly b′ and e (size 2)
+            expect(toRender.size()).toBe(2);
+            const toRenderTexts = toRender
+                .nodes()
+                .map((n) => (n as Element).textContent);
+            expect(toRenderTexts.sort()).toEqual(['B2', 'E'].sort());
+        });
+
+        // Fix 3b: all-exit with anchor — container footer and anchor are preserved
+        it('all-exit with anchor: zero rows, footer and anchor preserved, no crash', () => {
+            const container = document.createElement('section');
+            const footer = document.createElement('footer');
+            container.appendChild(footer);
+            const anchor = document.createComment('HC:CONTENT');
+            container.insertBefore(anchor, footer);
+            const tc = { container, anchor };
+            reconcileTemplatedEntries(
+                tc as any,
+                [entry('a', 'A'), entry('b', 'B')],
+                OPTS as any
+            );
+            // Now exit all rows
+            reconcileTemplatedEntries(tc as any, [], OPTS as any);
+            expect(container.querySelectorAll('.htmlViewerEntry').length).toBe(
+                0
+            );
+            // footer and anchor still present
+            expect(container.contains(footer)).toBe(true);
+            expect(container.contains(anchor)).toBe(true);
         });
     });
 });
