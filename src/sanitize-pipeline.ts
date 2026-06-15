@@ -796,6 +796,73 @@ export const getSanitizedContent = (
 };
 
 /**
+ * Sanitize the top-level children of an already-parsed `DocumentFragment`
+ * (or `Element`) IN PLACE, applying the frozen sanitizer policy
+ * (`dpConfig` + the two hooks in `withSanitizerHooks`). This is the single
+ * shared in-place sanitize implementation:
+ *   - ELEMENT_NODE children are sanitized in place via DOMPurify
+ *     (`IN_PLACE: true`), preserving any table/list content model the
+ *     caller established with `createContextualFragment`.
+ *   - COMMENT_NODE children are removed, matching the string path
+ *     (DOMPurify SAFE_FOR_XML strips comments).
+ *   - inert TEXT_NODE children are preserved as authored content.
+ *   - a top-level element that is NOT in-place-sanitizable (forbidden or
+ *     not on the allow-list — e.g. a `<script>` that parsed as a direct
+ *     fragment child) is removed outright rather than passed to DOMPurify,
+ *     which would throw "root node is forbidden and cannot be sanitized
+ *     in-place". Removal mirrors the string path's outcome and keeps the
+ *     boundary fail-closed.
+ *
+ * SECURITY: callers MUST sanitize the fragment WHILE IT IS DETACHED from
+ * the live document, and only append the (now sanitized) fragment to a
+ * connected node afterwards. Appending unsanitized content to the live DOM
+ * — even briefly — can let an `<img onerror>` / `<svg onload>` handler fire
+ * once connected. This helper does not connect anything; it only mutates
+ * the nodes it is given.
+ *
+ * Extracted verbatim from the former `parseAndSanitizeInContext` body so
+ * both that entry point and `resolveTemplateContainer` (domain-utils) reuse
+ * one security-reviewed sanitize loop. Behavior is unchanged from the
+ * inline version — see the U4 sanitizer suite for the parity proof.
+ */
+export const sanitizeFragmentInPlace = (
+    fragment: DocumentFragment | Element,
+    options?: SanitizeOptions
+): void => {
+    withSanitizerHooks((purify) => {
+        // IN_PLACE: true sanitizes the existing node's subtree in
+        // place (and returns it) instead of re-parsing a string, so
+        // the table/list context createContextualFragment established
+        // is preserved. Everything else in the policy is spread
+        // unchanged from dpConfig.
+        //
+        // COMMENT_NODE children are removed to match the string path
+        // (DOMPurify SAFE_FOR_XML strips comments). TEXT_NODE children
+        // are inert and kept as authored content. A top-level element
+        // that is not in-place-sanitizable (forbidden or not on the
+        // allow-list — e.g. a <script> that parsed as a direct fragment
+        // child) is removed outright rather than passed to DOMPurify,
+        // which would throw "root node is forbidden and cannot be
+        // sanitized in-place". Removal mirrors the string path's
+        // outcome for such elements and keeps the boundary fail-closed.
+        Array.from(fragment.childNodes).forEach((n) => {
+            if (n.nodeType === Node.COMMENT_NODE) {
+                // Match the string path: DOMPurify SAFE_FOR_XML strips comments.
+                (n as ChildNode).remove();
+                return;
+            }
+            if (n.nodeType !== Node.ELEMENT_NODE) return; // text nodes are inert; keep
+            const el = n as Element;
+            if (isInPlaceSanitizableRoot(el)) {
+                purify.sanitize(el, { ...dpConfig, IN_PLACE: true });
+            } else {
+                el.remove();
+            }
+        });
+    }, options);
+};
+
+/**
  * Parse `content` in the content model of `contextEl` (so `<tr>` etc.
  * survive instead of being foster-parented out of a context-free
  * fragment), then sanitize the parsed node(s) in place. Tokens
@@ -837,37 +904,11 @@ export const parseAndSanitizeInContext = (
     range.selectNodeContents(contextEl);
     const fragment = range.createContextualFragment(preprocessed);
     if (config.sanitize) {
-        withSanitizerHooks((purify) => {
-            // IN_PLACE: true sanitizes the existing node's subtree in
-            // place (and returns it) instead of re-parsing a string, so
-            // the table/list context createContextualFragment established
-            // is preserved. Everything else in the policy is spread
-            // unchanged from dpConfig.
-            //
-            // COMMENT_NODE children are removed to match the string path
-            // (DOMPurify SAFE_FOR_XML strips comments). TEXT_NODE children
-            // are inert and kept as authored content. A top-level element
-            // that is not in-place-sanitizable (forbidden or not on the
-            // allow-list — e.g. a <script> that parsed as a direct fragment
-            // child) is removed outright rather than passed to DOMPurify,
-            // which would throw "root node is forbidden and cannot be
-            // sanitized in-place". Removal mirrors the string path's
-            // outcome for such elements and keeps the boundary fail-closed.
-            Array.from(fragment.childNodes).forEach((n) => {
-                if (n.nodeType === Node.COMMENT_NODE) {
-                    // Match the string path: DOMPurify SAFE_FOR_XML strips comments.
-                    (n as ChildNode).remove();
-                    return;
-                }
-                if (n.nodeType !== Node.ELEMENT_NODE) return; // text nodes are inert; keep
-                const el = n as Element;
-                if (isInPlaceSanitizableRoot(el)) {
-                    purify.sanitize(el, { ...dpConfig, IN_PLACE: true });
-                } else {
-                    el.remove();
-                }
-            });
-        }, options);
+        // The fragment is detached (createContextualFragment does not
+        // insert it); sanitize it in place via the shared helper before any
+        // caller appends it to the live DOM. Identical loop to the former
+        // inline version — see sanitizeFragmentInPlace.
+        sanitizeFragmentInPlace(fragment, options);
     }
     return fragment;
 };

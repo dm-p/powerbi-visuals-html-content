@@ -18,7 +18,13 @@ import {
 } from './visual-settings';
 import { IHtmlEntry } from './view-model';
 import { RenderFormat } from './types';
-import { getParsedHtmlAsDom, getSanitizedCss } from './sanitize-pipeline';
+import {
+    getParsedHtmlAsDom,
+    getSanitizedCss,
+    sanitizeFragmentInPlace,
+    SanitizeOptions
+} from './sanitize-pipeline';
+import { CONTENT_TOKEN, substitute } from './template-engine';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
@@ -121,6 +127,158 @@ export const resolveStyling = (
         VisualConstants.dom.defaultBodyStylingClass,
         applyOverride
     );
+};
+
+/**
+ * The result of resolving a body template into a live join container.
+ *   - `container` — the element that rows are inserted into. For the
+ *     default body this is `rootEl` itself (`#htmlContent`); for a custom
+ *     body it is the element that contained the `{{content}}` slot.
+ *   - `anchor` — a persistent invisible comment node marking the exact slot
+ *     position. Unit 6 inserts rows BEFORE this anchor so any static
+ *     siblings authored around the slot keep their position. `null` for the
+ *     default body, where rows simply append to `rootEl` (today's behavior).
+ */
+export interface TemplateContainer {
+    container: HTMLElement;
+    anchor: Comment | null;
+}
+
+// Internal sentinel value for the body-template content slot. Substituted
+// in for the user's `{{content}}` token as an HTML comment before parsing
+// (comments are valid in every content model and are not foster-parented),
+// then re-used as the persistent anchor comment after sanitization.
+const SLOT_MARKER = VisualConstants.dom.contentSlotMarker;
+
+/**
+ * Find the first COMMENT node under `root` whose value matches `marker`.
+ * Used to locate the content slot in a freshly parsed body fragment BEFORE
+ * sanitization (the sanitizer strips comments, so the marker must be read
+ * while it still exists).
+ */
+const findCommentMarker = (root: Node, marker: string): Comment | null => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
+    let node = walker.nextNode();
+    while (node) {
+        if (node.nodeValue === marker) {
+            return node as Comment;
+        }
+        node = walker.nextNode();
+    }
+    return null;
+};
+
+/**
+ * Resolve the BODY template into a live "join container" where rows will
+ * later be inserted (Unit 6), and clear `rootEl` in the process.
+ *
+ * DEFAULT BODY — when `bodyTemplate` is just the `{{content}}` token
+ * (ignoring surrounding whitespace), no wrapper is parsed: `rootEl` is
+ * cleared and returned as the container with a `null` anchor. This is
+ * byte-identical to today's behavior, where rows go straight into
+ * `#htmlContent`.
+ *
+ * CUSTOM BODY — the body is parsed, sanitized, and inserted into `rootEl`;
+ * the element that contained `{{content}}` is returned as `container`, plus
+ * a persistent invisible `anchor` comment marking the exact slot position.
+ *
+ * SECURITY (this is a CERTIFIED visual): author/CF body HTML is NEVER
+ * appended to the live DOM unsanitized. `createContextualFragment` returns
+ * a DETACHED fragment; we sanitize that fragment in place (shared
+ * `sanitizeFragmentInPlace` helper) and only THEN append it to the live
+ * `rootEl`. An `<img src=x onerror=...>` in the body therefore has its
+ * handler stripped (and the whole element dropped) before it is ever
+ * connected to the document, so the handler cannot fire.
+ *
+ * @param rootEl        - The live content root (`#htmlContent`).
+ * @param bodyTemplate  - The body template string. The `{{content}}` token
+ *                        must NOT yet be substituted — this function
+ *                        substitutes it for the internal slot marker.
+ * @param options       - Sanitizer options (e.g. `allowHyperlinks`).
+ */
+export const resolveTemplateContainer = (
+    rootEl: HTMLElement,
+    bodyTemplate: string,
+    options: SanitizeOptions
+): TemplateContainer => {
+    // Clear the root (replaces today's selectAll('*').remove()).
+    rootEl.replaceChildren();
+
+    // Default body: the template is ONLY the content token (+ whitespace),
+    // so there is no wrapper to parse. Rows go straight into rootEl.
+    if (bodyTemplate.replace(CONTENT_TOKEN, '').trim() === '') {
+        return { container: rootEl, anchor: null };
+    }
+
+    // Custom body: substitute the slot for a COMMENT marker. Comments are
+    // valid in every content model and are NOT foster-parented at parse
+    // time (unlike a bare token or a context-invalid element), so the
+    // marker reliably survives parsing at the slot's true position.
+    const withMarker = substitute(
+        bodyTemplate,
+        CONTENT_TOKEN,
+        `<!--${SLOT_MARKER}-->`
+    );
+    const range = document.createRange();
+    // Parse in rootEl's content model so table/list slots behave correctly.
+    range.selectNodeContents(rootEl);
+    // DETACHED fragment — createContextualFragment does not auto-insert.
+    const frag = range.createContextualFragment(withMarker);
+
+    // Locate the marker BEFORE sanitizing — the sanitizer strips comments,
+    // so its position must be recorded now and not relied upon to survive.
+    const marker = findCommentMarker(frag, SLOT_MARKER);
+    if (!marker) {
+        // No slot found (e.g. the token sat in a position the parser
+        // dropped, or inside a forbidden element the sanitizer removes):
+        // fail safe — sanitize the detached fragment, append it, and use
+        // rootEl as the container so rows still render.
+        sanitizeFragmentInPlace(frag, options);
+        rootEl.appendChild(frag);
+        return { container: rootEl, anchor: null };
+    }
+    const container = marker.parentNode as HTMLElement;
+    // Anchor position reference: the element immediately before the slot, if
+    // any. Captured pre-sanitize; it remains the same node IF it survives
+    // sanitization (allowed element). The guard below handles removal.
+    const prevEl = marker.previousElementSibling;
+    marker.remove();
+
+    // Sanitize the DETACHED fragment, THEN append to the live rootEl. This
+    // is the security boundary: nothing unsanitized is ever connected.
+    sanitizeFragmentInPlace(frag, options);
+    rootEl.appendChild(frag);
+
+    // Containment guard: if the sanitizer removed the element that contained
+    // the slot (e.g. a `<div onclick="x()">` wrapper — the element hook drops
+    // any element carrying an on* handler), `container` is now detached and
+    // rows inserted into it would render nowhere (silently blank output). Fall
+    // back to the root so rows still render.
+    if (!rootEl.contains(container)) {
+        return { container: rootEl, anchor: null };
+    }
+
+    // Drop a persistent invisible anchor at the slot position. Added AFTER
+    // sanitize so it is not stripped. Rows insert before it; static
+    // siblings keep their position. If prevEl survived sanitization and is
+    // still a child of container, place the anchor right after it;
+    // otherwise prepend (covers the common "slot is the sole content of its
+    // parent" case AND the case where sanitize removed prevEl).
+    //
+    // The survival test is `prevEl.parentNode === container`, NOT
+    // `isConnected`: `rootEl` (#htmlContent) is not guaranteed to be
+    // attached to the live document at this point (and is detached under
+    // test), so `isConnected` would spuriously fail for a surviving prevEl
+    // and mis-prepend the anchor. parentNode identity is the precise signal
+    // — a sanitizer-removed element has a null parentNode, a survivor is
+    // still a child of container.
+    const anchor = document.createComment(SLOT_MARKER);
+    if (prevEl && prevEl.parentNode === container) {
+        prevEl.after(anchor);
+    } else {
+        container.prepend(anchor);
+    }
+    return { container, anchor };
 };
 
 /**
