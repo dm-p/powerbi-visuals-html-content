@@ -927,6 +927,12 @@ export const getSanitizedCss = (css: string): string => {
     if (!css || typeof css !== 'string') {
         return '';
     }
+    // The unsanitized (standalone) edition renders author CSS as-is, matching
+    // its raw HTML / <style> / script behaviour. Only the certified editions
+    // (config.sanitize === true) run the CSS sanitizer on the custom stylesheet.
+    if (!config.sanitize) {
+        return css;
+    }
     return sanitizeCss(css, 'stylesheet');
 };
 

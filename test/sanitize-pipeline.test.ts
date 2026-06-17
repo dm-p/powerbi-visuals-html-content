@@ -814,3 +814,31 @@ describe('sanitizeFragmentInPlace — edition-consistency guard', () => {
         }
     });
 });
+
+describe('getSanitizedCss — edition guard', () => {
+    // Certified editions (config.sanitize === true) sanitize the custom
+    // stylesheet — a dangerous url() is stripped.
+    it('sanitizes the custom stylesheet when config.sanitize is true (default edition)', () => {
+        const out = getSanitizedCss(
+            'p { background: url(javascript:alert(1)); }'
+        );
+        expect(out).not.toContain('javascript');
+    });
+
+    // The unsanitized (standalone) edition renders author CSS as-is, matching
+    // the raw HTML / <style> / script behaviour — the CSS sanitizer is skipped.
+    it('returns the custom stylesheet untouched when config.sanitize is false (standalone edition)', async () => {
+        vi.doMock('../config/visual.json', () => ({ sanitize: false }));
+        vi.resetModules();
+        try {
+            const { getSanitizedCss: cssOff } =
+                await import('../src/sanitize-pipeline');
+            const css = 'p { background: url(javascript:alert(1)); }';
+            // No-op: returned verbatim, dangerous url() and all.
+            expect(cssOff(css)).toBe(css);
+        } finally {
+            vi.doUnmock('../config/visual.json');
+            vi.resetModules();
+        }
+    });
+});
