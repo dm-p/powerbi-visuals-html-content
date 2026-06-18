@@ -222,12 +222,18 @@ export class Visual implements IVisual {
                 throw new Error('View model mapping error');
             }
             if (diagOn) beginCapture();
-            this.orchestrator.render(
-                options,
-                viewModel,
-                this.formattingSettings
-            );
-            if (diagOn) this.lastSanitizerCapture = endCapture();
+            try {
+                this.orchestrator.render(
+                    options,
+                    viewModel,
+                    this.formattingSettings
+                );
+            } finally {
+                // Always disarm the sink, even if render throws: this keeps the
+                // capture up to the failure point (useful for diagnosing the
+                // throw) and prevents the sink staying armed into later renders.
+                if (diagOn) this.lastSanitizerCapture = endCapture();
+            }
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, e);
