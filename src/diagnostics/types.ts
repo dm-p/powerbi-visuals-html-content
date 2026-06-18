@@ -20,6 +20,7 @@ export interface SanitizerCapture {
 }
 
 export interface ConsoleEntry {
+    /** Unix epoch timestamp in milliseconds (Date.now()). */
     ts: number;
     level: ConsoleLevel;
     text: string;
