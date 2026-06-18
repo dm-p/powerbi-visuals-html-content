@@ -30,8 +30,15 @@ export const recordRemoval = (e: SanitizerEntry): void => {
     entries.push(e);
 };
 
-/** Disarm and return the collected capture (a copy). */
+/**
+ * Disarm and return the collected capture (a copy). Internal state is cleared
+ * so a second endCapture() before the next beginCapture() yields an empty
+ * capture rather than stale data.
+ */
 export const endCapture = (): SanitizerCapture => {
     armed = false;
-    return { entries: entries.slice(), overflow };
+    const result: SanitizerCapture = { entries: entries.slice(), overflow };
+    entries = [];
+    overflow = 0;
+    return result;
 };

@@ -47,4 +47,14 @@ describe('diagnostics-sink', () => {
         beginCapture();
         expect(endCapture().entries).toEqual([]);
     });
+
+    it('clears state on endCapture so a second call yields an empty capture', () => {
+        beginCapture();
+        recordRemoval(entry(1));
+        const first = endCapture();
+        expect(first.entries.map((e) => e.subject)).toEqual(['a1']);
+        const second = endCapture();
+        expect(second.entries).toEqual([]);
+        expect(second.overflow).toBe(0);
+    });
 });
