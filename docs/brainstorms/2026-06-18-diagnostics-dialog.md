@@ -70,7 +70,14 @@ These were settled during brainstorming; rationale captured inline.
 
 7. **Console tee, not replace.** When armed, `console.log/info/warn/error` are patched once to push into a bounded ring buffer (e.g. last 200 entries) **and always call through** to the originals. **Scope:** Power BI hosts each custom visual in its own sandboxed `<iframe>`, and `console` is a per-`window` object — so patching `window.console` affects only this visual's iframe (capturing the author's in-iframe `<script>` output, which is the point), and never the parent Power BI window, other visuals, or the browser's global console. Call-through means the real console still receives everything.
 
-8. **Raw HTML tab: cheap colorization, native scroll.** The tab applies a tiny, dependency-free regex highlighter (tag / attribute / string / comment → `<span>`s) over the shared `getRawHtml` output, rendered into a `<pre>` that scrolls natively. Above a size threshold (very large documents) it falls back to plain un-highlighted text to avoid a token-span node explosion. No highlighting library and no DOM virtualization in v1 (both rejected/deferred per Non-goals). **Copy** yields the raw string, not the highlighted markup.
+8. **Raw HTML tab: cheap colorization, native scroll.** The tab applies a tiny, dependency-free regex highlighter (tag / attribute / string / comment → `<span>`s) over the (already size-bounded — Decision 9) raw string, rendered into a `<pre>` that scrolls natively. Above a size threshold it falls back to plain un-highlighted text to avoid a token-span node explosion. No highlighting library and no DOM virtualization in v1 (both rejected/deferred per Non-goals). **Copy** yields the raw string, not the highlighted markup.
+
+9. **Bounded snapshot — truncate for scale.** Authors routinely push enormous content through this visual (a body-template measure near the ~2MB Power BI measure ceiling, *plus* a per-row content measure also up to ~2MB across many rows), so the live DOM and its serialization can reach tens of MB. The diagnostics snapshot crosses the iframe boundary as `initialState`, so every channel is capped with an explicit truncation marker — caps are tunable constants in [visual-constants.ts](../../src/visual-constants.ts):
+   - **Raw HTML:** the dialog truncates the shared `getRawHtml` output to a byte/char cap (default ~512 KB) with a `… [truncated — showing first X of Y]` marker before placing it in `initialState`. The in-canvas **Show Raw HTML stays un-truncated** (its existing demo behaviour is unchanged — it lives in the live DOM, not across the boundary).
+   - **Sanitizer entries:** the sink stops recording after an entry cap (default ~1000) and increments an overflow counter surfaced as `+N more removals not shown`. Capping at *capture* time also bounds memory during a huge multi-row render.
+   - **Console:** the ring buffer already caps entry count (~200); each line's text is additionally length-capped (default ~2000 chars).
+
+   This keeps the cross-context transfer fast and the dialog responsive regardless of content size, and is the reason DOM virtualization isn't needed.
 
 ## High-level design
 
@@ -95,7 +102,7 @@ icon click
 
 ### Tab 1 — Sanitizer transparency
 
-- **Sink module** (`src/diagnostics/diagnostics-sink.ts`): `beginCapture()`, `recordRemoval(entry)`, `endCapture(): Entry[]`; armed-state boolean. `Entry = { kind: 'element' | 'attr' | 'css' | 'tag', subject, rule, snippet? }`.
+- **Sink module** (`src/diagnostics/diagnostics-sink.ts`): `beginCapture()`, `recordRemoval(entry)`, `endCapture(): { entries: Entry[]; overflow: number }`; armed-state boolean. `Entry = { kind: 'element' | 'attr' | 'css' | 'tag', subject, rule, snippet? }`. Recording stops after the entry cap (Decision 9), incrementing `overflow` rather than growing unbounded.
 - **Attributes:** a `recordRemoval(...)` call at each `keepAttr = false` site in [sanitize-pipeline.ts](../../src/sanitize-pipeline.ts) (event-handler, per-tag allowlist miss, disallowed URL scheme, SVG default-deny, funciri scheme, SMIL `attributeName`, dangerous-pattern, hyperlink-toggle, fail-closed catch). Each site already knows its precise reason.
 - **Elements:** the on*-handler removal in `uponSanitizeElement` records an `element` entry.
 - **Core removals:** read `purify.removed` after `sanitize()` and fold in forbidden/unknown tags DOMPurify itself stripped, with a generic rule label.
@@ -104,12 +111,12 @@ icon click
 
 ### Tab 2 — Console capture
 
-- `src/diagnostics/console-capture.ts`: an `install()` that patches the four console methods once to tee into a bounded ring buffer of `{ ts, level, text }`, always calling through. `snapshot()` returns a copy; `clear()` empties it.
+- `src/diagnostics/console-capture.ts`: an `install()` that patches the four console methods once to tee into a bounded ring buffer of `{ ts, level, text }`, always calling through. Each line's `text` is length-capped (Decision 9). `snapshot()` returns a copy; `clear()` empties it.
 - Captures author script output (standalone) and the visual's own `console.warn` diagnostics (sanitizer fail-closed, blocked data URIs) in every edition.
 
 ### Tab 3 — Raw HTML (DRY)
 
-- `renderPanel`'s Raw HTML tab calls the existing `getRawHtml`/`domSerialize` core. The in-canvas Show Raw HTML path keeps using the same function. Output improvements land in both.
+- `renderPanel`'s Raw HTML tab calls the existing `getRawHtml`/`domSerialize` core. The in-canvas Show Raw HTML path keeps using the same function. Output improvements land in both. The snapshot assembly truncates the string to the raw-HTML cap (Decision 9) before it enters `initialState`; the in-canvas path passes it through untruncated.
 - A small `src/diagnostics/highlight-html.ts` (no dependency) tokenizes the raw string into `<span>`-wrapped tag/attr/string/comment classes (styled via the dialog's CSS), rendered into a `<pre>` with native scroll. A size threshold (e.g. raw length over a constant) bypasses highlighting and renders plain text. A **copy** action copies the underlying raw string, never the span markup.
 
 ## Files and architecture
@@ -126,7 +133,7 @@ Touched:
 - [sanitize-pipeline.ts](../../src/sanitize-pipeline.ts) — `recordRemoval` calls at each rejection site + `purify.removed` fold-in.
 - [css-sanitizer.ts](../../src/css-sanitizer.ts) — record dropped declarations.
 - [visual-settings.ts](../../src/visual-settings.ts) — `enableDiagnostics` toggle slice.
-- [visual-constants.ts](../../src/visual-constants.ts) — `DIALOG_ID`, dialog size/position, ring-buffer cap, icon selector, default `enableDiagnostics: false`.
+- [visual-constants.ts](../../src/visual-constants.ts) — `DIALOG_ID`, dialog size/position, icon selector, default `enableDiagnostics: false`, and the Decision 9 caps (raw-HTML byte cap, sanitizer entry cap, console ring-buffer count + per-line length cap).
 - `stringResources/en-US/resources.resjson` — toggle label/description, tab/section labels.
 
 No `capabilities.json` change expected.
@@ -135,7 +142,8 @@ No `capabilities.json` change expected.
 
 - **Byte-identical sanitize proof:** sanitize output is identical with capture armed vs disarmed (the security boundary is unchanged).
 - **Sink:** parametrized over each rejection rule → asserts the right `Entry` is recorded; CSS-declaration capture; `purify.removed` fold-in.
-- **Console:** ring-buffer cap, ordering, level mapping, tee-through (originals still called).
+- **Console:** ring-buffer cap, ordering, level mapping, tee-through (originals still called), per-line length cap.
+- **Truncation / overflow (Decision 9):** raw-HTML over the cap is truncated with the marker and the in-canvas path is not; the sink stops at the entry cap and reports the correct `overflow` count; a snapshot built from oversized content stays within bounds.
 - **Snapshot assembly + gating:** `allowModalDialog` false ⇒ no icon; toggle off ⇒ no icon, no arming.
 - **`renderPanel(snapshot)`** as a pure DOM builder (tabs, tables, empty states).
 - **`highlight-html.ts`:** tokenization classes are correct for representative markup; the size-threshold bypass returns plain text; highlighting never alters the underlying text (strip spans ⇒ original string); the copy affordance yields the raw string.
@@ -144,7 +152,7 @@ No `capabilities.json` change expected.
 
 ## Risks and open questions
 
-- **`initialState` serialization size.** Very large raw HTML crosses the iframe boundary as the dialog's initial state. Expected fine; if needed, cap/elide the raw tab with a note. *(Watch in UAT.)*
+- **`initialState` serialization size.** Mitigated by Decision 9 — every channel is capped before it enters `initialState`, so the cross-boundary payload is bounded regardless of how much content the author pushes through. Open question is only whether the default caps (~512 KB raw / ~1000 entries / ~200 console lines) feel right. *(Tune in UAT.)*
 - **`purify.removed` shape/availability** across the pinned DOMPurify version — verify the field exists and its entry shape before relying on it; the hook-level records are the primary source regardless.
 - **Console patch lifetime.** Patch once and keep call-through; ensure no double-install across `update()` calls and no interference with the visual's own logging.
 - **Icon placement vs. content.** A corner icon must not occlude author content or fight the scroll affordance — finalize position/size in UAT.
