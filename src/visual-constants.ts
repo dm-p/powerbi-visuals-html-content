@@ -202,7 +202,11 @@ export const VisualConstants = {
         // reporters. Custom-stylesheet mode disables this gate entirely
         // regardless of the toggle's value.
         overrideInlineStyling: false,
-        noDataMessage: 'No data available to display'
+        noDataMessage: 'No data available to display',
+        // Off by default. When on (and the host supports modal dialogs) the
+        // diagnostics icon appears; it also arms the passive sanitizer sink
+        // and console capture. Does not affect rendered output.
+        enableDiagnostics: false
     },
     stylesheet: {
         stylesheet: ''
@@ -248,6 +252,23 @@ export const VisualConstants = {
         // the slot after sanitization for row insertion. NOT the user-facing
         // token — purely an implementation detail of slot resolution.
         contentSlotMarker: 'HC:CONTENT'
+    },
+    diagnostics: {
+        dialogId: 'DiagnosticsDialog',
+        iconIdSelector: 'htmlDiagnosticsToggle',
+        // Snapshot caps (Decision 9) — bound the cross-iframe initialState
+        // for the multi-MB content authors push through this visual.
+        rawHtmlCapBytes: 512 * 1024,
+        sanitizerEntryCap: 1000,
+        consoleBufferCap: 200,
+        consoleLineCap: 2000,
+        // Above this raw length, skip span-colorization and render plain
+        // (escaped) text to avoid a token-span node explosion.
+        highlightSizeLimit: 200 * 1024,
+        dialog: {
+            title: 'HTML Content — Diagnostics',
+            size: { width: 900, height: 600 }
+        }
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{
