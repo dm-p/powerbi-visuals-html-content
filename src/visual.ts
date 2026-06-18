@@ -54,7 +54,8 @@ import {
     buildSnapshot,
     shouldShowDiagnosticsIcon,
     createDiagnosticsIcon,
-    setIconVisibility
+    setIconVisibility,
+    isDiagnosticsHotkey
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
@@ -110,6 +111,12 @@ export class Visual implements IVisual {
         entries: [],
         overflow: 0
     };
+    // Whether diagnostics is active (toggle + host support + edit mode), kept in
+    // sync each update so the Ctrl/Cmd+D hotkey can honour the same gate.
+    private diagActive = false;
+    // Remembered diagnostics tab for this visual instance (resets per
+    // constructor). Lets the dialog reopen on the last-viewed tab.
+    private lastDiagnosticsTab = 'raw';
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -156,6 +163,7 @@ export class Visual implements IVisual {
             this.diagnosticsIcon
         );
         this.bindFocusEvents();
+        this.bindDiagnosticsHotkey();
         this.events = this.host.eventService;
         this.viewModelHandler.reset();
         this.orchestrator = new RenderOrchestrator(this.buildRenderSteps());
@@ -193,6 +201,7 @@ export class Visual implements IVisual {
             this.host.hostCapabilities?.allowModalDialog,
             options.viewMode === 1 || options.viewMode === 2
         );
+        this.diagActive = diagActive;
         if (diagActive) {
             installConsoleCapture();
         }
@@ -454,6 +463,20 @@ export class Visual implements IVisual {
         };
     }
 
+    /**
+     * Open diagnostics via Ctrl+D (Windows/Linux) / Cmd+D (Mac) when active.
+     * Same gate as the icon (`this.diagActive`). The default Ctrl/Cmd+D
+     * (bookmark) is suppressed only when we actually open the dialog.
+     */
+    private bindDiagnosticsHotkey(): void {
+        document.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (this.diagActive && isDiagnosticsHotkey(e)) {
+                e.preventDefault();
+                this.openDiagnostics();
+            }
+        });
+    }
+
     /** Assemble a bounded snapshot and open the host modal dialog. */
     private openDiagnostics(): void {
         const rawHtml = getDiagnosticsRawHtml(
@@ -466,21 +489,38 @@ export class Visual implements IVisual {
             sanitizer: this.lastSanitizerCapture,
             console: consoleSnapshot(),
             labels: this.diagnosticsLabels(),
-            sanitizeEnabled: config.sanitize
+            sanitizeEnabled: config.sanitize,
+            initialTab: this.lastDiagnosticsTab
         });
-        void this.host.openModalDialog(
-            VisualConstants.diagnostics.dialogId,
-            {
-                title: this.localisationManager.getDisplayName(
-                    'Diagnostics_DialogTitle'
-                ),
-                size: VisualConstants.diagnostics.dialog.size,
-                // Literals avoid const-enum inlining ambiguity:
-                position: { type: 0 /* VisualDialogPositionType.Center */ },
-                actionButtons: [0 /* DialogAction.Close */]
-            },
-            snapshot
-        );
+        void this.host
+            .openModalDialog(
+                VisualConstants.diagnostics.dialogId,
+                {
+                    title: this.localisationManager.getDisplayName(
+                        'Diagnostics_DialogTitle'
+                    ),
+                    size: VisualConstants.diagnostics.dialog.size,
+                    // Literals avoid const-enum inlining ambiguity:
+                    position: {
+                        type: 0 /* VisualDialogPositionType.Center */
+                    },
+                    actionButtons: [0 /* DialogAction.Close */]
+                },
+                snapshot
+            )
+            .then((result) => {
+                // Remember the tab the user left on for the next open this
+                // session (the dialog reports it via setResult → resultState).
+                const lastTab = (
+                    result?.resultState as { lastTab?: string } | undefined
+                )?.lastTab;
+                if (lastTab) {
+                    this.lastDiagnosticsTab = lastTab;
+                }
+            })
+            .catch(() => {
+                /* dialog dismissed / unsupported; keep the current tab */
+            });
     }
 
     /**

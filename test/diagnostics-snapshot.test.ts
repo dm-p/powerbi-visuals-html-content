@@ -3,7 +3,8 @@ import {
     buildSnapshot,
     shouldShowDiagnosticsIcon,
     createDiagnosticsIcon,
-    setIconVisibility
+    setIconVisibility,
+    isDiagnosticsHotkey
 } from '../src/diagnostics/diagnostics-snapshot';
 import { VisualConstants } from '../src/visual-constants';
 
@@ -32,6 +33,32 @@ const labels = {
     truncated: 'first {0} of {1}',
     copy: 'Copy'
 };
+
+describe('isDiagnosticsHotkey', () => {
+    const ev = (o: Partial<Parameters<typeof isDiagnosticsHotkey>[0]>) => ({
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        shiftKey: false,
+        key: 'd',
+        ...o
+    });
+    it('matches Ctrl+D / Cmd+D only (no other modifiers)', () => {
+        expect(isDiagnosticsHotkey(ev({ ctrlKey: true }))).toBe(true);
+        expect(isDiagnosticsHotkey(ev({ metaKey: true }))).toBe(true);
+        expect(isDiagnosticsHotkey(ev({ ctrlKey: true, key: 'D' }))).toBe(true);
+        expect(isDiagnosticsHotkey(ev({ ctrlKey: true, shiftKey: true }))).toBe(
+            false
+        );
+        expect(isDiagnosticsHotkey(ev({ ctrlKey: true, altKey: true }))).toBe(
+            false
+        );
+        expect(isDiagnosticsHotkey(ev({ ctrlKey: true, key: 'a' }))).toBe(
+            false
+        );
+        expect(isDiagnosticsHotkey(ev({ key: 'd' }))).toBe(false); // no modifier
+    });
+});
 
 describe('buildSnapshot', () => {
     const base = {

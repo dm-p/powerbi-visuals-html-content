@@ -26,6 +26,7 @@ export const buildSnapshot = (input: {
     console: ConsoleEntry[];
     labels: DiagnosticsLabels;
     sanitizeEnabled: boolean;
+    initialTab?: string;
 }): DiagnosticsSnapshot => {
     const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
     const total = input.rawHtml.length;
@@ -35,6 +36,7 @@ export const buildSnapshot = (input: {
         console: input.console,
         labels: input.labels,
         sanitizeEnabled: input.sanitizeEnabled,
+        initialTab: input.initialTab,
         rawHtml: {
             text: truncated ? input.rawHtml.slice(0, cap) : input.rawHtml,
             truncated,
@@ -65,6 +67,23 @@ export const createDiagnosticsIcon = (
     });
     return btn;
 };
+
+/**
+ * True for the diagnostics open shortcut: Ctrl+D (Windows/Linux) or Cmd+D
+ * (Mac), with no other modifiers. Pure so the visual's keydown handler stays
+ * testable.
+ */
+export const isDiagnosticsHotkey = (e: {
+    ctrlKey: boolean;
+    metaKey: boolean;
+    altKey: boolean;
+    shiftKey: boolean;
+    key: string;
+}): boolean =>
+    (e.ctrlKey || e.metaKey) &&
+    !e.altKey &&
+    !e.shiftKey &&
+    e.key.toLowerCase() === 'd';
 
 export const setIconVisibility = (btn: HTMLElement, visible: boolean): void => {
     // inline-block (not block) keeps the button's hit-area content-sized. The

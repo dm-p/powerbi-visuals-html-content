@@ -56,6 +56,38 @@ describe('renderPanel', () => {
         expect(tabTexts).toEqual(['Raw HTML', 'Console']);
     });
 
+    it('opens on the remembered initialTab when available', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ initialTab: 'console' }));
+        expect(
+            el.querySelector('#hc-tab-console')?.getAttribute('aria-selected')
+        ).toBe('true');
+        expect(
+            el.querySelector('#hc-tab-raw')?.getAttribute('aria-selected')
+        ).toBe('false');
+    });
+
+    it('falls back to the first tab when initialTab is unavailable', () => {
+        const el = document.createElement('div');
+        // remembered "sanitizer" but the tab is hidden this edition
+        renderPanel(
+            el,
+            snap({ initialTab: 'sanitizer', sanitizeEnabled: false })
+        );
+        const tabs = el.querySelectorAll<HTMLElement>('[role="tab"]');
+        expect(tabs[0].textContent).toBe('Raw HTML');
+        expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('reports the active tab via onTabChange on init and on click', () => {
+        const el = document.createElement('div');
+        const seen: string[] = [];
+        renderPanel(el, snap(), (id) => seen.push(id));
+        expect(seen).toEqual(['raw']); // initial active tab reported
+        (el.querySelector('#hc-tab-console') as HTMLButtonElement).click();
+        expect(seen[seen.length - 1]).toBe('console');
+    });
+
     it('lists sanitizer entries and the overflow note', () => {
         const el = document.createElement('div');
         renderPanel(

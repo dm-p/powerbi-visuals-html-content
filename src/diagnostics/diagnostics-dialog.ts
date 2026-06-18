@@ -127,10 +127,15 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     return wrap;
 };
 
-/** Build the tabbed diagnostics UI into `host` from `snapshot`. Pure DOM. */
+/**
+ * Build the tabbed diagnostics UI into `host` from `snapshot`. Pure DOM.
+ * `onTabChange` (optional) fires with the active tab id on the initial render
+ * and on every tab switch, so the caller can remember the selection.
+ */
 export const renderPanel = (
     host: HTMLElement,
-    snapshot: DiagnosticsSnapshot
+    snapshot: DiagnosticsSnapshot,
+    onTabChange?: (tabId: string) => void
 ): void => {
     host.replaceChildren(); // clear without innerHTML (cert-safe)
     host.className = 'hc-diagnostics';
@@ -152,11 +157,28 @@ export const renderPanel = (
         label: snapshot.labels.tabConsole,
         body: consoleTab(snapshot)
     });
+
+    // Restore the remembered tab if it's available this render; otherwise
+    // default to the first tab (Raw HTML).
+    const activeId = tabs.some((t) => t.id === snapshot.initialTab)
+        ? (snapshot.initialTab as string)
+        : tabs[0].id;
+
     const bar = el('div', 'hc-tabbar');
     bar.setAttribute('role', 'tablist');
     const panels = el('div', 'hc-panels');
     const buttons: HTMLButtonElement[] = [];
-    tabs.forEach((t, i) => {
+
+    const activate = (id: string): void => {
+        tabs.forEach((o, j) => {
+            const on = o.id === id;
+            o.body.style.display = on ? 'block' : 'none';
+            buttons[j].setAttribute('aria-selected', String(on));
+        });
+        onTabChange?.(id);
+    };
+
+    tabs.forEach((t) => {
         const tabId = `hc-tab-${t.id}`;
         const panelId = `hc-panel-${t.id}`;
         const btn = el('button', 'hc-tab', t.label) as HTMLButtonElement;
@@ -167,30 +189,39 @@ export const renderPanel = (
         // aria-selected is the single source of truth for the active tab —
         // CSS (.hc-tab[aria-selected="true"]) styles it, and assistive tech
         // announces it. Keep it in sync with panel visibility below.
-        btn.setAttribute('aria-selected', String(i === 0));
+        btn.setAttribute('aria-selected', String(t.id === activeId));
         t.body.id = panelId;
         t.body.setAttribute('role', 'tabpanel');
         t.body.setAttribute('aria-labelledby', tabId);
-        t.body.style.display = i === 0 ? 'block' : 'none';
-        btn.addEventListener('click', () => {
-            tabs.forEach((o, j) => {
-                const active = o.id === t.id;
-                o.body.style.display = active ? 'block' : 'none';
-                buttons[j].setAttribute('aria-selected', String(active));
-            });
-        });
+        t.body.style.display = t.id === activeId ? 'block' : 'none';
+        btn.addEventListener('click', () => activate(t.id));
         buttons.push(btn);
         bar.appendChild(btn);
         panels.appendChild(t.body);
     });
     host.appendChild(bar);
     host.appendChild(panels);
+    // Report the initial active tab so the caller's remembered selection is
+    // correct even if the user closes without switching tabs.
+    onTabChange?.(activeId);
 };
 
 export class DiagnosticsDialog {
     static id = VisualConstants.diagnostics.dialogId;
-    constructor(options: { element: HTMLElement }, initialState: object) {
-        renderPanel(options.element, initialState as DiagnosticsSnapshot);
+    constructor(
+        options: {
+            element: HTMLElement;
+            host?: { setResult?: (state: object) => void };
+        },
+        initialState: object
+    ) {
+        // Report tab changes back to the visual via the dialog host result, so
+        // the visual can reopen on the same tab during the session.
+        renderPanel(
+            options.element,
+            initialState as DiagnosticsSnapshot,
+            (tabId) => options.host?.setResult?.({ lastTab: tabId })
+        );
     }
 }
 

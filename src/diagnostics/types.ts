@@ -59,4 +59,9 @@ export interface DiagnosticsSnapshot {
      * standard/standalone editions, where the sanitizer never runs.
      */
     sanitizeEnabled: boolean;
+    /**
+     * Tab to open on (the visual's remembered selection for the session). The
+     * dialog falls back to the first tab when this is absent or unavailable.
+     */
+    initialTab?: string;
 }
