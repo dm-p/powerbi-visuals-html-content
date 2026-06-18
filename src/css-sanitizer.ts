@@ -31,6 +31,7 @@ import valueParser, {
     FunctionNode
 } from 'postcss-value-parser';
 import { isSafeImageDataUri } from './svg-payload-scan';
+import { recordRemoval } from './diagnostics/diagnostics-sink';
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
@@ -230,6 +231,11 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
 
     root.walkAtRules((atRule) => {
         if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
+            recordRemoval({
+                kind: 'css',
+                subject: `@${atRule.name}`,
+                rule: 'blocked-at-rule'
+            });
             atRule.remove();
         }
     });
@@ -237,6 +243,11 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
     if (mode === 'stylesheet') {
         root.walkRules((rule) => {
             if (hasDangerousSelector(rule.selector)) {
+                recordRemoval({
+                    kind: 'css',
+                    subject: rule.selector.slice(0, 80),
+                    rule: 'dangerous-selector'
+                });
                 rule.remove();
             }
         });
@@ -244,6 +255,12 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
 
     root.walkDecls((decl: Declaration) => {
         if (isDangerousDeclaration(decl)) {
+            recordRemoval({
+                kind: 'css',
+                subject: decl.prop,
+                rule: 'blocked-declaration',
+                snippet: (decl.value || '').slice(0, 80)
+            });
             decl.remove();
         }
     });
@@ -267,6 +284,11 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
     }
 
     if (!finalPassIsClean(output)) {
+        recordRemoval({
+            kind: 'css',
+            subject: 'stylesheet',
+            rule: 'defense-in-depth-final-pass'
+        });
         console.warn(
             'sanitizeCss: defense-in-depth final pass caught a dangerous pattern; dropping entire block'
         );
