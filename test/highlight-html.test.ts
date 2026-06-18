@@ -28,4 +28,34 @@ describe('highlight-html', () => {
         expect(out).not.toContain('<span');
         expect(out).toBe(escapeHtml(big));
     });
+
+    it('colorizes a self-closing tag and keeps the lossless invariant', () => {
+        const raw = '<br/><img src="data:x" />';
+        const out = highlightHtml(raw);
+        expect(out).toContain('<span class="hc-tag">br</span>');
+        expect(out).toContain('<span class="hc-tag">img</span>');
+        expect(stripSpans(out)).toBe(escapeHtml(raw));
+    });
+
+    it('treats a literal "<" in text (not a tag) as plain text', () => {
+        const raw = 'if (a < b && c > d) return;';
+        const out = highlightHtml(raw);
+        expect(out).not.toContain('<span');
+        expect(stripSpans(out)).toBe(escapeHtml(raw));
+    });
+
+    // Regression guard for the O(n^2) tempered-greedy regex this module used to
+    // use: many literal "<word" with no nearby ">" (e.g. unclosed-tag-looking
+    // text). getRawHtml emits text nodes unescaped, so this is realistic author
+    // content. The linear scanner must finish near-instantly; the previous
+    // implementation took several seconds and would exceed the test timeout.
+    it('handles pathological unclosed-tag-like text in linear time', () => {
+        const limit = VisualConstants.diagnostics.highlightSizeLimit;
+        // Stay just under the escaped-length bypass so the scanner actually
+        // runs (raw "<undefined " escapes ~1.36x; 12000 reps ≈ 132KB raw).
+        const raw = '<undefined '.repeat(12000);
+        expect(escapeHtml(raw).length).toBeLessThan(limit);
+        const out = highlightHtml(raw);
+        expect(stripSpans(out)).toBe(escapeHtml(raw));
+    });
 });
