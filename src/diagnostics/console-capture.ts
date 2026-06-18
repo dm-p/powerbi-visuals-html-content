@@ -7,14 +7,18 @@
 import { ConsoleEntry, ConsoleLevel } from './types';
 import { VisualConstants } from '../visual-constants';
 
+type ConsoleFn = (...args: unknown[]) => void;
+
 const LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
 const buffer: ConsoleEntry[] = [];
 let installed = false;
-type ConsoleFn = (...args: unknown[]) => void;
 const originals = new Map<ConsoleLevel, ConsoleFn>();
 
 const stringify = (a: unknown): string => {
     if (typeof a === 'string') return a;
+    // null / undefined → their literal names. JSON.stringify(undefined)
+    // returns undefined, which would otherwise join into an empty string.
+    if (a == null) return String(a);
     if (a instanceof Error) return a.stack || a.message;
     try {
         return JSON.stringify(a);

@@ -55,6 +55,12 @@ describe('console-capture', () => {
         expect(snapshot().filter((e) => e.text === 'once').length).toBe(1);
     });
 
+    it('stringifies null and undefined by name', () => {
+        install();
+        console.log(undefined, null);
+        expect(snapshot().slice(-1)[0].text).toBe('undefined null');
+    });
+
     it('clear empties the buffer but keeps capturing', () => {
         install();
         console.log('before');
