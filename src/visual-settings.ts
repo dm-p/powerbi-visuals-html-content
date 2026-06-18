@@ -17,8 +17,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     cards = [
         this.contentFormatting,
         this.stylesheet,
-        this.crossFilter,
-        this.templates
+        this.templates,
+        this.crossFilter
     ];
     handlePropertyVisibility(viewModel: IViewModel) {
         // Handle visibility of default body formatting properties if stylesheet is used
