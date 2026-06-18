@@ -25,10 +25,10 @@ const span = (cls: string, text: string): HTMLSpanElement => {
 const isLetter = (c: string | undefined): boolean =>
     c !== undefined && /[a-zA-Z]/.test(c);
 
-// name="value" (double-quoted) attribute pairs within a single tag's body.
-// Operates on one tag's worth of text, so it can never run away on whole-doc
-// input.
-const ATTR = /([\w-]+)(=)("[^"]*")/g;
+// name="value" / name='value' attribute pairs within a single tag's body.
+// Both quote styles are colorized (authors use both). Operates on one tag's
+// worth of text, so it can never run away on whole-doc input.
+const ATTR = /([\w-]+)(=)("[^"]*"|'[^']*')/g;
 
 /** Append a tag body (between name and close delimiter), coloring attr pairs. */
 const appendBody = (parent: Node, body: string): void => {

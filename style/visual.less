@@ -171,7 +171,17 @@
     .hc-tab {
         padding: 4px 10px;
         border: none;
+        border-bottom: 2px solid transparent;
         background: none;
+        cursor: pointer;
+    }
+    .hc-tab[aria-selected='true'] {
+        border-bottom-color: #0078d4;
+        font-weight: 600;
+    }
+    .hc-copy {
+        float: right;
+        padding: 2px 8px;
         cursor: pointer;
     }
     .hc-table {
@@ -196,6 +206,12 @@
     }
     .hc-log.hc-error .hc-level {
         color: #b00020;
+    }
+    .hc-time {
+        color: #999;
+    }
+    .hc-level {
+        min-width: 40px;
     }
     .hc-pre {
         white-space: pre-wrap;

@@ -30,6 +30,14 @@ describe('buildHighlightedFragment', () => {
         expect(host.textContent).toBe('<div class="x">hi</div>');
     });
 
+    it('colorizes single-quoted attribute values too', () => {
+        const raw = "<a href='/x'>k</a>";
+        const host = render(raw);
+        expect(host.querySelector('.hc-attr')?.textContent).toBe('href');
+        expect(host.querySelector('.hc-str')?.textContent).toBe("'/x'");
+        expect(host.textContent).toBe(raw);
+    });
+
     it('colorizes a self-closing tag, lossless', () => {
         const raw = '<br/><img src="data:x" />';
         const host = render(raw);

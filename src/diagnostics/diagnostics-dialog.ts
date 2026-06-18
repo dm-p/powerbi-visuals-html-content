@@ -25,7 +25,7 @@ const sanitizerTab = (s: DiagnosticsSnapshot): HTMLElement => {
     }
     const table = el('table', 'hc-table');
     const head = el('tr');
-    ['kind', 'removed', 'rule'].forEach((h) =>
+    ['kind', 'subject', 'rule'].forEach((h) =>
         head.appendChild(el('th', undefined, h))
     );
     table.appendChild(head);
@@ -55,6 +55,16 @@ const sanitizerTab = (s: DiagnosticsSnapshot): HTMLElement => {
     return wrap;
 };
 
+const pad = (n: number, w = 2): string => String(n).padStart(w, '0');
+
+/** Local wall-clock HH:MM:SS.mmm for a captured console entry timestamp. */
+const fmtTime = (ts: number): string => {
+    const d = new Date(ts);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
+        d.getSeconds()
+    )}.${pad(d.getMilliseconds(), 3)}`;
+};
+
 const consoleTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-console');
     if (s.console.length === 0) {
@@ -63,6 +73,7 @@ const consoleTab = (s: DiagnosticsSnapshot): HTMLElement => {
     }
     s.console.forEach((c: ConsoleEntry) => {
         const line = el('div', `hc-log hc-${c.level}`);
+        line.appendChild(el('span', 'hc-time', fmtTime(c.ts)));
         line.appendChild(el('span', 'hc-level', c.level));
         line.appendChild(el('span', 'hc-text', c.text));
         wrap.appendChild(line);
@@ -114,18 +125,31 @@ export const renderPanel = (
     const bar = el('div', 'hc-tabbar');
     bar.setAttribute('role', 'tablist');
     const panels = el('div', 'hc-panels');
+    const buttons: HTMLButtonElement[] = [];
     tabs.forEach((t, i) => {
+        const tabId = `hc-tab-${t.id}`;
+        const panelId = `hc-panel-${t.id}`;
         const btn = el('button', 'hc-tab', t.label) as HTMLButtonElement;
         btn.type = 'button';
+        btn.id = tabId;
         btn.setAttribute('role', 'tab');
-        btn.dataset.target = t.id;
-        t.body.dataset.tab = t.id;
+        btn.setAttribute('aria-controls', panelId);
+        // aria-selected is the single source of truth for the active tab —
+        // CSS (.hc-tab[aria-selected="true"]) styles it, and assistive tech
+        // announces it. Keep it in sync with panel visibility below.
+        btn.setAttribute('aria-selected', String(i === 0));
+        t.body.id = panelId;
+        t.body.setAttribute('role', 'tabpanel');
+        t.body.setAttribute('aria-labelledby', tabId);
         t.body.style.display = i === 0 ? 'block' : 'none';
         btn.addEventListener('click', () => {
-            tabs.forEach((o) => {
-                o.body.style.display = o.id === t.id ? 'block' : 'none';
+            tabs.forEach((o, j) => {
+                const active = o.id === t.id;
+                o.body.style.display = active ? 'block' : 'none';
+                buttons[j].setAttribute('aria-selected', String(active));
             });
         });
+        buttons.push(btn);
         bar.appendChild(btn);
         panels.appendChild(t.body);
     });

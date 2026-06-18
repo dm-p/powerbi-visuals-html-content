@@ -82,6 +82,44 @@ describe('renderPanel', () => {
         // ...and lossless: the pre's text is exactly the raw source.
         expect(pre.textContent).toBe(raw);
     });
+
+    it('marks the active tab via aria-selected and toggles panels on click', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const tabs = el.querySelectorAll<HTMLElement>('[role="tab"]');
+        const panels = el.querySelectorAll<HTMLElement>('[role="tabpanel"]');
+        expect(panels.length).toBe(3);
+        // First tab active initially.
+        expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+        expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+        expect(panels[0].style.display).toBe('block');
+        expect(panels[1].style.display).toBe('none');
+        // Each tab controls/labels its panel.
+        expect(tabs[1].getAttribute('aria-controls')).toBe(panels[1].id);
+        expect(panels[1].getAttribute('aria-labelledby')).toBe(tabs[1].id);
+        // Click the second tab.
+        tabs[1].click();
+        expect(tabs[0].getAttribute('aria-selected')).toBe('false');
+        expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+        expect(panels[0].style.display).toBe('none');
+        expect(panels[1].style.display).toBe('block');
+    });
+
+    it('renders console entries with a timestamp, level, and text', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                console: [{ ts: 0, level: 'warn', text: 'careful' }]
+            })
+        );
+        const line = el.querySelector('.hc-log') as HTMLElement;
+        expect(line.querySelector('.hc-time')?.textContent).toMatch(
+            /^\d{2}:\d{2}:\d{2}\.\d{3}$/
+        );
+        expect(line.querySelector('.hc-level')?.textContent).toBe('warn');
+        expect(line.querySelector('.hc-text')?.textContent).toBe('careful');
+    });
 });
 
 describe('DiagnosticsDialog registration', () => {
