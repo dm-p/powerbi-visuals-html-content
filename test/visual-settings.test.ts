@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { VisualFormattingSettingsModel } from '../src/visual-settings';
 import { IViewModel } from '../src/view-model';
 import { VisualConstants } from '../src/visual-constants';
+import capabilities from '../capabilities.json';
 
 describe('VisualFormattingSettingsModel', () => {
     let settings: VisualFormattingSettingsModel;
@@ -363,5 +364,47 @@ describe('TemplatesSettings', () => {
         expect(main.bodyTemplate.instanceKind).toBe(3);
         // rowTemplate is a plain TextArea — no instanceKind set
         expect(main.rowTemplate.instanceKind).toBeUndefined();
+    });
+});
+
+describe('capabilities.json persistence parity', () => {
+    // A format slice only PERSISTS if it is declared in capabilities.json under
+    // its object's properties — the formatting-model class only builds the pane
+    // UI. A slice missing from capabilities renders in the pane but reverts to
+    // its default on the next update (the enableDiagnostics UAT bug).
+    it('declares every contentFormatting behavior slice so values persist', () => {
+        const model = new VisualFormattingSettingsModel();
+        const sliceNames =
+            model.contentFormatting.contentFormattingCardBehavior.slices.map(
+                (s: { name: string }) => s.name
+            );
+        const props = (
+            capabilities as {
+                objects: {
+                    contentFormatting: { properties: Record<string, unknown> };
+                };
+            }
+        ).objects.contentFormatting.properties;
+        for (const name of sliceNames) {
+            expect(
+                Object.prototype.hasOwnProperty.call(props, name),
+                `capabilities.json must declare contentFormatting.${name} or its value will not persist`
+            ).toBe(true);
+        }
+    });
+
+    it('declares enableDiagnostics as a bool property', () => {
+        const props = (
+            capabilities as {
+                objects: {
+                    contentFormatting: {
+                        properties: {
+                            enableDiagnostics?: { type?: { bool?: boolean } };
+                        };
+                    };
+                };
+            }
+        ).objects.contentFormatting.properties;
+        expect(props.enableDiagnostics?.type?.bool).toBe(true);
     });
 });
