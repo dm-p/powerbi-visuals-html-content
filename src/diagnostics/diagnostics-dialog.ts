@@ -81,6 +81,29 @@ const consoleTab = (s: DiagnosticsSnapshot): HTMLElement => {
     return wrap;
 };
 
+/**
+ * Copy text to the clipboard. The dialog runs in Power BI's sandboxed iframe,
+ * where the async Clipboard API (navigator.clipboard) is blocked, so we use the
+ * deprecated-but-functional execCommand('copy') path: stage the text in an
+ * off-screen textarea, select it, and copy. Best-effort — failures are silent.
+ */
+const copyText = (text: string): void => {
+    const staging = document.createElement('textarea');
+    staging.value = text;
+    staging.setAttribute('readonly', '');
+    staging.style.position = 'fixed';
+    staging.style.top = '-1000px';
+    staging.style.opacity = '0';
+    document.body.appendChild(staging);
+    staging.select();
+    try {
+        document.execCommand('copy');
+    } catch {
+        /* copy unavailable in this host; ignore */
+    }
+    document.body.removeChild(staging);
+};
+
 const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-raw');
     if (s.rawHtml.truncated) {
@@ -94,13 +117,7 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     }
     const copy = el('button', 'hc-copy', 'Copy') as HTMLButtonElement;
     copy.type = 'button';
-    copy.addEventListener('click', () => {
-        try {
-            void navigator.clipboard?.writeText(s.rawHtml.text);
-        } catch {
-            /* clipboard unavailable; ignore */
-        }
-    });
+    copy.addEventListener('click', () => copyText(s.rawHtml.text));
     wrap.appendChild(copy);
     const pre = el('pre', 'hc-pre');
     // Built as DOM nodes (not innerHTML) so the certified visual keeps its

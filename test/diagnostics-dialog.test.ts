@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     renderPanel,
     DiagnosticsDialog
@@ -103,6 +103,28 @@ describe('renderPanel', () => {
         expect(tabs[1].getAttribute('aria-selected')).toBe('true');
         expect(panels[0].style.display).toBe('none');
         expect(panels[1].style.display).toBe('block');
+    });
+
+    it('copy button uses execCommand (Clipboard API is blocked in the dialog iframe)', () => {
+        const exec = vi.fn().mockReturnValue(true);
+        const original = (document as unknown as { execCommand?: unknown })
+            .execCommand;
+        (document as unknown as { execCommand: unknown }).execCommand = exec;
+        try {
+            const el = document.createElement('div');
+            const raw = '<p>copy me</p>';
+            renderPanel(
+                el,
+                snap({
+                    rawHtml: { text: raw, truncated: false, totalLength: 14 }
+                })
+            );
+            (el.querySelector('.hc-copy') as HTMLButtonElement).click();
+            expect(exec).toHaveBeenCalledWith('copy');
+        } finally {
+            (document as unknown as { execCommand: unknown }).execCommand =
+                original;
+        }
     });
 
     it('renders console entries with a timestamp, level, and text', () => {
