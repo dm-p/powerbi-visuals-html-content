@@ -97,14 +97,28 @@ describe('renderPanel', () => {
     it('raw tab shows the sanitized banner when sanitize is on, plain otherwise', () => {
         const on = document.createElement('div');
         renderPanel(on, snap({ sanitizeEnabled: true }));
-        expect(on.querySelector('.hc-banner')?.textContent).toBe(
+        // Scope to the raw panel: the Sanitizer tab's doc banner also carries
+        // .hc-banner, so an unscoped selector would depend on tab render order.
+        expect(on.querySelector('.hc-raw .hc-banner')?.textContent).toBe(
             'Processed and sanitized HTML.'
         );
         const off = document.createElement('div');
         renderPanel(off, snap({ sanitizeEnabled: false }));
-        expect(off.querySelector('.hc-banner')?.textContent).toBe(
+        expect(off.querySelector('.hc-raw .hc-banner')?.textContent).toBe(
             'Processed HTML.'
         );
+    });
+
+    it('places the sanitizer doc links in a top info banner (matches Raw HTML position)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const panel = el.querySelector('.hc-sanitizer');
+        // The doc banner is the first child and reuses the .hc-banner box so it
+        // matches the Raw HTML info label's format and top position (UAT).
+        const first = panel?.firstElementChild as HTMLElement;
+        expect(first.classList.contains('hc-banner')).toBe(true);
+        expect(first.classList.contains('hc-docs')).toBe(true);
+        expect(first.querySelectorAll('.hc-doc-link').length).toBe(2);
     });
 
     it('console Clear empties the display and reports onClearConsole', () => {
