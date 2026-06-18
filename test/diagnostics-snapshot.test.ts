@@ -31,7 +31,13 @@ const labels = {
     colRule: 'rule',
     overflow: '+{0} more',
     truncated: 'first {0} of {1}',
-    copy: 'Copy'
+    copy: 'Copy',
+    consoleClear: 'Clear',
+    docsHeading: 'Learn:',
+    docsSanitization: 'Sanitization rules',
+    docsAcceptedTags: 'Accepted tags',
+    rawBanner: 'Processed HTML.',
+    rawBannerSanitized: 'Processed and sanitized HTML.'
 };
 
 describe('isDiagnosticsHotkey', () => {

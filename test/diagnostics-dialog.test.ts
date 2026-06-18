@@ -17,7 +17,13 @@ const labels = {
     colRule: 'rule',
     overflow: '+{0} more removals not shown',
     truncated: '… truncated — showing first {0} of {1} characters',
-    copy: 'Copy'
+    copy: 'Copy',
+    consoleClear: 'Clear',
+    docsHeading: 'Learn:',
+    docsSanitization: 'Sanitization rules',
+    docsAcceptedTags: 'Accepted tags',
+    rawBanner: 'Processed HTML.',
+    rawBannerSanitized: 'Processed and sanitized HTML.'
 };
 
 const snap = (
@@ -82,10 +88,71 @@ describe('renderPanel', () => {
     it('reports the active tab via onTabChange on init and on click', () => {
         const el = document.createElement('div');
         const seen: string[] = [];
-        renderPanel(el, snap(), (id) => seen.push(id));
+        renderPanel(el, snap(), { onTabChange: (id) => seen.push(id) });
         expect(seen).toEqual(['raw']); // initial active tab reported
         (el.querySelector('#hc-tab-console') as HTMLButtonElement).click();
         expect(seen[seen.length - 1]).toBe('console');
+    });
+
+    it('raw tab shows the sanitized banner when sanitize is on, plain otherwise', () => {
+        const on = document.createElement('div');
+        renderPanel(on, snap({ sanitizeEnabled: true }));
+        expect(on.querySelector('.hc-banner')?.textContent).toBe(
+            'Processed and sanitized HTML.'
+        );
+        const off = document.createElement('div');
+        renderPanel(off, snap({ sanitizeEnabled: false }));
+        expect(off.querySelector('.hc-banner')?.textContent).toBe(
+            'Processed HTML.'
+        );
+    });
+
+    it('console Clear empties the display and reports onClearConsole', () => {
+        const el = document.createElement('div');
+        let cleared = 0;
+        renderPanel(
+            el,
+            snap({ console: [{ ts: 0, level: 'warn', text: 'careful' }] }),
+            { onClearConsole: () => cleared++ }
+        );
+        expect(el.querySelector('.hc-log')).not.toBeNull();
+        (el.querySelector('.hc-clear') as HTMLButtonElement).click();
+        expect(el.querySelector('.hc-log')).toBeNull();
+        expect(cleared).toBe(1);
+    });
+
+    it('console level filter hides lines of the unchecked level', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                console: [
+                    { ts: 0, level: 'warn', text: 'w' },
+                    { ts: 0, level: 'error', text: 'e' }
+                ]
+            })
+        );
+        const warnCb = el.querySelector(
+            'input[data-level="warn"]'
+        ) as HTMLInputElement;
+        const warnLine = el.querySelector('.hc-log.hc-warn') as HTMLElement;
+        const errorLine = el.querySelector('.hc-log.hc-error') as HTMLElement;
+        expect(warnLine.style.display).not.toBe('none');
+        warnCb.checked = false;
+        warnCb.dispatchEvent(new Event('change'));
+        expect(warnLine.style.display).toBe('none');
+        expect(errorLine.style.display).not.toBe('none');
+    });
+
+    it('sanitizer doc links report onLaunchDoc with the doc key', () => {
+        const el = document.createElement('div');
+        const launched: string[] = [];
+        renderPanel(el, snap(), { onLaunchDoc: (k) => launched.push(k) });
+        const links = el.querySelectorAll<HTMLButtonElement>('.hc-doc-link');
+        expect(links.length).toBe(2);
+        links[0].click();
+        links[1].click();
+        expect(launched).toEqual(['sanitization', 'acceptedTags']);
     });
 
     it('lists sanitizer entries and the overflow note', () => {

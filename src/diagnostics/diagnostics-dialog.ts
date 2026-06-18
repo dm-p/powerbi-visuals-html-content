@@ -4,9 +4,24 @@
  * DiagnosticsDialog class is the host entry point; it self-registers so the
  * packaged config can resolve it by id (no webpack entry needed).
  */
-import { DiagnosticsSnapshot, SanitizerEntry, ConsoleEntry } from './types';
+import {
+    DiagnosticsSnapshot,
+    SanitizerEntry,
+    ConsoleEntry,
+    ConsoleLevel,
+    DiagnosticsDocKey
+} from './types';
 import { buildHighlightedFragment } from './highlight-html';
 import { VisualConstants } from '../visual-constants';
+
+/** Callbacks the renderer fires; the dialog wires them to the host result. */
+export interface PanelCallbacks {
+    onTabChange?: (tabId: string) => void;
+    onClearConsole?: () => void;
+    onLaunchDoc?: (key: DiagnosticsDocKey) => void;
+}
+
+const CONSOLE_LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
 
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     const n = document.createElement(tag);
@@ -15,41 +30,66 @@ const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     return n;
 };
 
-const sanitizerTab = (s: DiagnosticsSnapshot): HTMLElement => {
+/** Footer of doc links; the visual launches them via launchUrl on a doc key. */
+const sanitizerDocs = (
+    s: DiagnosticsSnapshot,
+    callbacks: PanelCallbacks
+): HTMLElement => {
+    const docs = el('div', 'hc-docs');
+    docs.appendChild(el('span', 'hc-docs-heading', s.labels.docsHeading));
+    const link = (text: string, key: DiagnosticsDocKey): HTMLButtonElement => {
+        const b = el('button', 'hc-doc-link', text) as HTMLButtonElement;
+        b.type = 'button';
+        b.addEventListener('click', () => callbacks.onLaunchDoc?.(key));
+        return b;
+    };
+    docs.appendChild(link(s.labels.docsSanitization, 'sanitization'));
+    docs.appendChild(link(s.labels.docsAcceptedTags, 'acceptedTags'));
+    return docs;
+};
+
+const sanitizerTab = (
+    s: DiagnosticsSnapshot,
+    callbacks: PanelCallbacks
+): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-sanitizer');
     if (s.sanitizer.entries.length === 0) {
         wrap.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
-        return wrap;
-    }
-    const table = el('table', 'hc-table');
-    const head = el('tr');
-    [s.labels.colKind, s.labels.colSubject, s.labels.colRule].forEach((h) =>
-        head.appendChild(el('th', undefined, h))
-    );
-    table.appendChild(head);
-    s.sanitizer.entries.forEach((e: SanitizerEntry) => {
-        const tr = el('tr');
-        tr.appendChild(el('td', undefined, e.kind));
-        tr.appendChild(
-            el(
-                'td',
-                undefined,
-                e.snippet ? `${e.subject} — ${e.snippet}` : e.subject
-            )
+    } else {
+        const table = el('table', 'hc-table');
+        const head = el('tr');
+        [s.labels.colKind, s.labels.colSubject, s.labels.colRule].forEach((h) =>
+            head.appendChild(el('th', undefined, h))
         );
-        tr.appendChild(el('td', undefined, e.rule));
-        table.appendChild(tr);
-    });
-    wrap.appendChild(table);
-    if (s.sanitizer.overflow > 0) {
-        wrap.appendChild(
-            el(
-                'p',
-                'hc-overflow',
-                s.labels.overflow.replace('{0}', String(s.sanitizer.overflow))
-            )
-        );
+        table.appendChild(head);
+        s.sanitizer.entries.forEach((e: SanitizerEntry) => {
+            const tr = el('tr');
+            tr.appendChild(el('td', undefined, e.kind));
+            tr.appendChild(
+                el(
+                    'td',
+                    undefined,
+                    e.snippet ? `${e.subject} — ${e.snippet}` : e.subject
+                )
+            );
+            tr.appendChild(el('td', undefined, e.rule));
+            table.appendChild(tr);
+        });
+        wrap.appendChild(table);
+        if (s.sanitizer.overflow > 0) {
+            wrap.appendChild(
+                el(
+                    'p',
+                    'hc-overflow',
+                    s.labels.overflow.replace(
+                        '{0}',
+                        String(s.sanitizer.overflow)
+                    )
+                )
+            );
+        }
     }
+    wrap.appendChild(sanitizerDocs(s, callbacks));
     return wrap;
 };
 
@@ -63,19 +103,68 @@ const fmtTime = (ts: number): string => {
     )}.${pad(d.getMilliseconds(), 3)}`;
 };
 
-const consoleTab = (s: DiagnosticsSnapshot): HTMLElement => {
+const consoleTab = (
+    s: DiagnosticsSnapshot,
+    callbacks: PanelCallbacks
+): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-console');
-    if (s.console.length === 0) {
-        wrap.appendChild(el('p', 'hc-empty', s.labels.consoleEmpty));
-        return wrap;
+    const lines = el('div', 'hc-console-lines');
+
+    // Level filter (multi-select). Show/hide lines by level; in-dialog only.
+    const filters: HTMLInputElement[] = [];
+    function applyFilter(): void {
+        const on = new Set(
+            filters.filter((f) => f.checked).map((f) => f.dataset.level)
+        );
+        lines.querySelectorAll<HTMLElement>('.hc-log').forEach((line) => {
+            line.style.display = on.has(line.dataset.level ?? '') ? '' : 'none';
+        });
     }
-    s.console.forEach((c: ConsoleEntry) => {
-        const line = el('div', `hc-log hc-${c.level}`);
-        line.appendChild(el('span', 'hc-time', fmtTime(c.ts)));
-        line.appendChild(el('span', 'hc-level', c.level));
-        line.appendChild(el('span', 'hc-text', c.text));
-        wrap.appendChild(line);
+
+    const toolbar = el('div', 'hc-console-toolbar');
+    const clearBtn = el(
+        'button',
+        'hc-clear',
+        s.labels.consoleClear
+    ) as HTMLButtonElement;
+    clearBtn.type = 'button';
+    clearBtn.addEventListener('click', () => {
+        // Empty the display now; the live buffer is cleared by the visual when
+        // the dialog closes (via the result), so the next open starts fresh.
+        lines.replaceChildren(el('p', 'hc-empty', s.labels.consoleEmpty));
+        callbacks.onClearConsole?.();
     });
+    toolbar.appendChild(clearBtn);
+    CONSOLE_LEVELS.forEach((level) => {
+        const lbl = el('label', 'hc-filter');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.level = level;
+        cb.addEventListener('change', applyFilter);
+        lbl.appendChild(cb);
+        // hc-lvl-* (not hc-${level}) so the filter label can't collide with the
+        // console line marker class `.hc-log` when the level is "log".
+        lbl.appendChild(el('span', `hc-filter-label hc-lvl-${level}`, level));
+        toolbar.appendChild(lbl);
+        filters.push(cb);
+    });
+
+    if (s.console.length === 0) {
+        lines.appendChild(el('p', 'hc-empty', s.labels.consoleEmpty));
+    } else {
+        s.console.forEach((c: ConsoleEntry) => {
+            const line = el('div', `hc-log hc-${c.level}`);
+            line.dataset.level = c.level;
+            line.appendChild(el('span', 'hc-time', fmtTime(c.ts)));
+            line.appendChild(el('span', 'hc-level', c.level));
+            line.appendChild(el('span', 'hc-text', c.text));
+            lines.appendChild(line);
+        });
+    }
+
+    wrap.appendChild(toolbar);
+    wrap.appendChild(lines);
     return wrap;
 };
 
@@ -104,6 +193,13 @@ const copyText = (text: string): void => {
 
 const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-raw');
+    wrap.appendChild(
+        el(
+            'p',
+            'hc-banner',
+            s.sanitizeEnabled ? s.labels.rawBannerSanitized : s.labels.rawBanner
+        )
+    );
     if (s.rawHtml.truncated) {
         wrap.appendChild(
             el(
@@ -129,13 +225,13 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
 
 /**
  * Build the tabbed diagnostics UI into `host` from `snapshot`. Pure DOM.
- * `onTabChange` (optional) fires with the active tab id on the initial render
- * and on every tab switch, so the caller can remember the selection.
+ * `callbacks` report tab changes, a console-clear request, and doc-link
+ * launches back to the caller (the dialog wires them to the host result).
  */
 export const renderPanel = (
     host: HTMLElement,
     snapshot: DiagnosticsSnapshot,
-    onTabChange?: (tabId: string) => void
+    callbacks: PanelCallbacks = {}
 ): void => {
     host.replaceChildren(); // clear without innerHTML (cert-safe)
     host.className = 'hc-diagnostics';
@@ -149,13 +245,13 @@ export const renderPanel = (
         tabs.push({
             id: 'sanitizer',
             label: snapshot.labels.tabSanitizer,
-            body: sanitizerTab(snapshot)
+            body: sanitizerTab(snapshot, callbacks)
         });
     }
     tabs.push({
         id: 'console',
         label: snapshot.labels.tabConsole,
-        body: consoleTab(snapshot)
+        body: consoleTab(snapshot, callbacks)
     });
 
     // Restore the remembered tab if it's available this render; otherwise
@@ -175,7 +271,7 @@ export const renderPanel = (
             o.body.style.display = on ? 'block' : 'none';
             buttons[j].setAttribute('aria-selected', String(on));
         });
-        onTabChange?.(id);
+        callbacks.onTabChange?.(id);
     };
 
     tabs.forEach((t) => {
@@ -203,7 +299,7 @@ export const renderPanel = (
     host.appendChild(panels);
     // Report the initial active tab so the caller's remembered selection is
     // correct even if the user closes without switching tabs.
-    onTabChange?.(activeId);
+    callbacks.onTabChange?.(activeId);
 };
 
 export class DiagnosticsDialog {
@@ -211,17 +307,35 @@ export class DiagnosticsDialog {
     constructor(
         options: {
             element: HTMLElement;
-            host?: { setResult?: (state: object) => void };
+            host?: {
+                setResult?: (state: object) => void;
+                close?: (action: number, state?: object) => void;
+            };
         },
         initialState: object
     ) {
-        // Report tab changes back to the visual via the dialog host result, so
-        // the visual can reopen on the same tab during the session.
-        renderPanel(
-            options.element,
-            initialState as DiagnosticsSnapshot,
-            (tabId) => options.host?.setResult?.({ lastTab: tabId })
-        );
+        const host = options.host;
+        // Accumulate the result the visual reads on close: the last tab (so it
+        // can reopen there) and a console-clear request. Doc links close the
+        // dialog explicitly, carrying the same state plus the doc key.
+        const result: { lastTab: string; clearConsole?: boolean } = {
+            lastTab: 'raw'
+        };
+        renderPanel(options.element, initialState as DiagnosticsSnapshot, {
+            onTabChange: (tabId) => {
+                result.lastTab = tabId;
+                host?.setResult?.({ ...result });
+            },
+            onClearConsole: () => {
+                result.clearConsole = true;
+                host?.setResult?.({ ...result });
+            },
+            onLaunchDoc: (key) =>
+                host?.close?.(0 /* DialogAction.Close */, {
+                    ...result,
+                    launchDoc: key
+                })
+        });
     }
 }
 

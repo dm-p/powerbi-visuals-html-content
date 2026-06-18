@@ -48,7 +48,8 @@ import './diagnostics/diagnostics-dialog'; // registration side-effect — must 
 import { beginCapture, endCapture } from './diagnostics/diagnostics-sink';
 import {
     install as installConsoleCapture,
-    snapshot as consoleSnapshot
+    snapshot as consoleSnapshot,
+    clear as clearConsoleBuffer
 } from './diagnostics/console-capture';
 import {
     buildSnapshot,
@@ -459,7 +460,13 @@ export class Visual implements IVisual {
             colRule: t('Diagnostics_ColRule'),
             overflow: t('Diagnostics_Overflow'),
             truncated: t('Diagnostics_Truncated'),
-            copy: t('Diagnostics_Copy')
+            copy: t('Diagnostics_Copy'),
+            consoleClear: t('Diagnostics_ConsoleClear'),
+            docsHeading: t('Diagnostics_DocsHeading'),
+            docsSanitization: t('Diagnostics_DocsSanitization'),
+            docsAcceptedTags: t('Diagnostics_DocsAcceptedTags'),
+            rawBanner: t('Diagnostics_RawBanner'),
+            rawBannerSanitized: t('Diagnostics_RawBannerSanitized')
         };
     }
 
@@ -509,17 +516,33 @@ export class Visual implements IVisual {
                 snapshot
             )
             .then((result) => {
-                // Remember the tab the user left on for the next open this
-                // session (the dialog reports it via setResult → resultState).
-                const lastTab = (
-                    result?.resultState as { lastTab?: string } | undefined
-                )?.lastTab;
-                if (lastTab) {
-                    this.lastDiagnosticsTab = lastTab;
+                // The dialog reports its state via setResult / close →
+                // resultState: the last tab (so we reopen there), a console
+                // clear request, and a doc-link launch (mapped to our own URL).
+                const rs = result?.resultState as
+                    | {
+                          lastTab?: string;
+                          clearConsole?: boolean;
+                          launchDoc?: 'sanitization' | 'acceptedTags';
+                      }
+                    | undefined;
+                if (rs?.lastTab) {
+                    this.lastDiagnosticsTab = rs.lastTab;
+                }
+                if (rs?.clearConsole) {
+                    clearConsoleBuffer();
+                }
+                if (rs?.launchDoc) {
+                    // Map the doc KEY to our own constant URL — launchUrl can
+                    // only ever open one of our documented pages.
+                    const url = VisualConstants.diagnostics.docs[rs.launchDoc];
+                    if (url) {
+                        this.host.launchUrl(url);
+                    }
                 }
             })
             .catch(() => {
-                /* dialog dismissed / unsupported; keep the current tab */
+                /* dialog dismissed / unsupported; keep the current state */
             });
     }
 

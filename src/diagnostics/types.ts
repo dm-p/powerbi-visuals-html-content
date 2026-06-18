@@ -46,7 +46,18 @@ export interface DiagnosticsLabels {
     /** Template, `{0}` = shown chars, `{1}` = total chars. */
     truncated: string;
     copy: string;
+    consoleClear: string;
+    docsHeading: string;
+    docsSanitization: string;
+    docsAcceptedTags: string;
+    /** Raw HTML banner — unsanitized editions. */
+    rawBanner: string;
+    /** Raw HTML banner — sanitized (lite) edition. */
+    rawBannerSanitized: string;
 }
+
+/** Doc pages the Sanitizer tab links to (launched by the visual via launchUrl). */
+export type DiagnosticsDocKey = 'sanitization' | 'acceptedTags';
 
 export interface DiagnosticsSnapshot {
     sanitizer: SanitizerCapture;

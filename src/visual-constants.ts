@@ -269,6 +269,13 @@ export const VisualConstants = {
         // visual.ts; only the size lives here.
         dialog: {
             size: { width: 900, height: 600 }
+        },
+        // Documentation pages linked from the Sanitizer tab. The dialog passes
+        // only a doc KEY back; the visual maps it to one of these URLs and
+        // launches via host.launchUrl — so only these known URLs can ever open.
+        docs: {
+            sanitization: 'https://html-content.com/docs/sanitization',
+            acceptedTags: 'https://html-content.com/docs/accepted-tags'
         }
     },
     allowedSchemes: [],
