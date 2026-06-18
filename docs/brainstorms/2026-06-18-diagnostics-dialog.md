@@ -37,7 +37,7 @@ The earlier Show-Raw-HTML brainstorm explicitly **deferred** a "what was removed
 2. **Modal dialog API** (`host.openModalDialog`) as the surface — a large, unclipped reading area that solves the limited-container-space constraint without a bundled full-screen UI. Gated to environments that support it (Desktop + Service).
 3. **Sanitizer transparency.** Report, per render, every removal the sanitizer made — element, attribute, URL scheme, and CSS declaration — each with a human-readable rule label.
 4. **Console capture.** Surface `console.log/info/warn/error` from author scripts (standalone) and from the visual's own diagnostics (`console.warn` fail-closed messages) in every edition.
-5. **DRY raw-HTML display.** The dialog's Raw HTML tab and the in-canvas Show Raw HTML view render from one shared `getRawHtml`/`domSerialize` core; improving the output improves both.
+5. **DRY raw-HTML display.** The dialog's Raw HTML tab and the in-canvas Show Raw HTML view render from one shared `getRawHtml`/`domSerialize` core; improving the output improves both. The dialog tab additionally applies lightweight, dependency-free syntax colorization with a size-threshold fallback (Decision 8).
 6. **Zero behaviour change when off.** No bundle path executes, no sanitizer instrumentation records, no console patch tees, and no icon renders unless the author arms the toggle. The sanitizer's security boundary is **byte-identical** with capture on vs off.
 7. **No removals, full back-compat.** `showRawHtml` and every other persisted property stays. Nothing is deleted from the format model (see Decision 1).
 8. **Certification-safe.** No new data role, no new privileges, no new `capabilities.json` surface (the dialog is code-registered). `"privileges": []` stays.
@@ -49,6 +49,7 @@ The earlier Show-Raw-HTML brainstorm explicitly **deferred** a "what was removed
 - **Removing or reworking Show Raw HTML.** It stays exactly as-is (Decision 1); only its underlying raw-HTML function is shared.
 - **Editing / round-tripping content from the dialog.** It is read-only diagnostics. No "fix it here" affordance.
 - **A general logging framework / telemetry.** Console capture is a bounded in-memory ring buffer for the current session only; nothing is persisted or sent anywhere.
+- **A syntax-highlighter dependency or DOM virtualization for the Raw HTML tab.** v1 uses a tiny hand-rolled highlighter and native `<pre>` scroll (Decision 8). A full highlighting library (highlight.js/Prism) is rejected — it would ship in the package for every user to benefit a debug-only view. DOM-windowed virtualization is deferred unless UAT surfaces large-document lag.
 - **Exhaustive provenance for every sanitizer micro-rule.** v1 labels removals with the rule that fired at the call site (plus a generic label for DOMPurify-core removals); it is not a formal grammar of the policy.
 
 ## Key technical decisions
@@ -67,7 +68,9 @@ These were settled during brainstorming; rationale captured inline.
 
 6. **The oracle concern is moot.** The deferred-diagnostic worry (disclosing what the sanitizer strips) does not apply: capture runs only when the author arms it on their own content, and the sanitizer rules are open-source. No information is exposed that an attacker couldn't already read in the repo.
 
-7. **Console tee, not replace.** When armed, `console.log/info/warn/error` are patched once to push into a bounded ring buffer (e.g. last 200 entries) **and always call through** to the originals. The visual runs in its own sandboxed iframe, so patching its `window.console` is self-contained.
+7. **Console tee, not replace.** When armed, `console.log/info/warn/error` are patched once to push into a bounded ring buffer (e.g. last 200 entries) **and always call through** to the originals. **Scope:** Power BI hosts each custom visual in its own sandboxed `<iframe>`, and `console` is a per-`window` object — so patching `window.console` affects only this visual's iframe (capturing the author's in-iframe `<script>` output, which is the point), and never the parent Power BI window, other visuals, or the browser's global console. Call-through means the real console still receives everything.
+
+8. **Raw HTML tab: cheap colorization, native scroll.** The tab applies a tiny, dependency-free regex highlighter (tag / attribute / string / comment → `<span>`s) over the shared `getRawHtml` output, rendered into a `<pre>` that scrolls natively. Above a size threshold (very large documents) it falls back to plain un-highlighted text to avoid a token-span node explosion. No highlighting library and no DOM virtualization in v1 (both rejected/deferred per Non-goals). **Copy** yields the raw string, not the highlighted markup.
 
 ## High-level design
 
@@ -107,6 +110,7 @@ icon click
 ### Tab 3 — Raw HTML (DRY)
 
 - `renderPanel`'s Raw HTML tab calls the existing `getRawHtml`/`domSerialize` core. The in-canvas Show Raw HTML path keeps using the same function. Output improvements land in both.
+- A small `src/diagnostics/highlight-html.ts` (no dependency) tokenizes the raw string into `<span>`-wrapped tag/attr/string/comment classes (styled via the dialog's CSS), rendered into a `<pre>` with native scroll. A size threshold (e.g. raw length over a constant) bypasses highlighting and renders plain text. A **copy** action copies the underlying raw string, never the span markup.
 
 ## Files and architecture
 
@@ -115,6 +119,7 @@ New `src/diagnostics/`:
 - `diagnostics-sink.ts` — armed-state sanitizer removal sink.
 - `console-capture.ts` — console tee + ring buffer.
 - `diagnostics-dialog.ts` — registered `DiagnosticsDialog` + pure `renderPanel(element, snapshot)`.
+- `highlight-html.ts` — dependency-free raw-HTML tokenizer/colorizer with size-threshold fallback.
 
 Touched:
 - [visual.ts](../../src/visual.ts) — icon render + gating, arm sink/console, assemble snapshot, `openModalDialog`, import dialog module for registration.
@@ -133,6 +138,7 @@ No `capabilities.json` change expected.
 - **Console:** ring-buffer cap, ordering, level mapping, tee-through (originals still called).
 - **Snapshot assembly + gating:** `allowModalDialog` false ⇒ no icon; toggle off ⇒ no icon, no arming.
 - **`renderPanel(snapshot)`** as a pure DOM builder (tabs, tables, empty states).
+- **`highlight-html.ts`:** tokenization classes are correct for representative markup; the size-threshold bypass returns plain text; highlighting never alters the underlying text (strip spans ⇒ original string); the copy affordance yields the raw string.
 - The modal cannot run in jsdom → covered by UAT in Desktop + Service.
 - `npm test` for fast feedback; `npm run test:all` as the final gate; zero sanitizer-rule churn expected.
 
