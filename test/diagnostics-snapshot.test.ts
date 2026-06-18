@@ -37,11 +37,18 @@ describe('buildSnapshot', () => {
     const base = {
         sanitizer: { entries: [], overflow: 0 },
         console: [],
-        labels
+        labels,
+        sanitizeEnabled: true
     };
 
-    it('passes the labels through unchanged', () => {
-        expect(buildSnapshot({ ...base, rawHtml: 'x' }).labels).toBe(labels);
+    it('passes the labels and sanitizeEnabled through unchanged', () => {
+        const snap = buildSnapshot({ ...base, rawHtml: 'x' });
+        expect(snap.labels).toBe(labels);
+        expect(snap.sanitizeEnabled).toBe(true);
+        expect(
+            buildSnapshot({ ...base, rawHtml: 'x', sanitizeEnabled: false })
+                .sanitizeEnabled
+        ).toBe(false);
     });
 
     it('passes short raw HTML through untruncated', () => {

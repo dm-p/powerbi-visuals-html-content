@@ -53,4 +53,10 @@ export interface DiagnosticsSnapshot {
     console: ConsoleEntry[];
     rawHtml: { text: string; truncated: boolean; totalLength: number };
     labels: DiagnosticsLabels;
+    /**
+     * Whether this edition runs the sanitizer (config.sanitize). The Sanitizer
+     * tab is shown only when true — it's meaningless in the unsanitized
+     * standard/standalone editions, where the sanitizer never runs.
+     */
+    sanitizeEnabled: boolean;
 }

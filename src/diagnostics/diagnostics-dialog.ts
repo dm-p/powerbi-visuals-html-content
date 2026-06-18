@@ -134,19 +134,24 @@ export const renderPanel = (
 ): void => {
     host.replaceChildren(); // clear without innerHTML (cert-safe)
     host.className = 'hc-diagnostics';
+    // Raw HTML is first (the default tab). The Sanitizer tab is included only
+    // when this edition runs the sanitizer — it's meaningless in the
+    // unsanitized standard/standalone editions. Console is always present.
     const tabs = [
-        {
+        { id: 'raw', label: snapshot.labels.tabRaw, body: rawTab(snapshot) }
+    ];
+    if (snapshot.sanitizeEnabled) {
+        tabs.push({
             id: 'sanitizer',
             label: snapshot.labels.tabSanitizer,
             body: sanitizerTab(snapshot)
-        },
-        {
-            id: 'console',
-            label: snapshot.labels.tabConsole,
-            body: consoleTab(snapshot)
-        },
-        { id: 'raw', label: snapshot.labels.tabRaw, body: rawTab(snapshot) }
-    ];
+        });
+    }
+    tabs.push({
+        id: 'console',
+        label: snapshot.labels.tabConsole,
+        body: consoleTab(snapshot)
+    });
     const bar = el('div', 'hc-tabbar');
     bar.setAttribute('role', 'tablist');
     const panels = el('div', 'hc-panels');

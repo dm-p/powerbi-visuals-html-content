@@ -27,15 +27,33 @@ const snap = (
     console: [],
     rawHtml: { text: '<p>hi</p>', truncated: false, totalLength: 9 },
     labels,
+    sanitizeEnabled: true,
     ...over
 });
 
 describe('renderPanel', () => {
-    it('renders three tab buttons', () => {
+    it('renders three tab buttons when the sanitizer applies', () => {
         const el = document.createElement('div');
         renderPanel(el, snap());
         const tabs = el.querySelectorAll('[role="tab"]');
         expect(tabs.length).toBe(3);
+    });
+
+    it('puts Raw HTML first as the default active tab', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const tabs = el.querySelectorAll<HTMLElement>('[role="tab"]');
+        expect(tabs[0].textContent).toBe('Raw HTML');
+        expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('omits the Sanitizer tab when sanitize is disabled (standard/standalone)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ sanitizeEnabled: false }));
+        const tabTexts = Array.from(el.querySelectorAll('[role="tab"]')).map(
+            (t) => t.textContent
+        );
+        expect(tabTexts).toEqual(['Raw HTML', 'Console']);
     });
 
     it('lists sanitizer entries and the overflow note', () => {

@@ -2,6 +2,7 @@
 import './../style/visual.less';
 import 'overlayscrollbars/css/OverlayScrollbars.css';
 import 'w3-css/w3.css';
+import * as config from '../config/visual.json';
 import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
@@ -464,7 +465,8 @@ export class Visual implements IVisual {
             rawHtml,
             sanitizer: this.lastSanitizerCapture,
             console: consoleSnapshot(),
-            labels: this.diagnosticsLabels()
+            labels: this.diagnosticsLabels(),
+            sanitizeEnabled: config.sanitize
         });
         void this.host.openModalDialog(
             VisualConstants.diagnostics.dialogId,
