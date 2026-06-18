@@ -11,9 +11,13 @@ import {
     stampRenderedContent,
     resolveTemplateContainer,
     renderTemplatedEntries,
-    reconcileTemplatedEntries
+    reconcileTemplatedEntries,
+    resolveForRawHtml
 } from '../src/domain-utils';
-import type { StylesheetSettings } from '../src/visual-settings';
+import type {
+    StylesheetSettings,
+    VisualFormattingSettingsModel
+} from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
@@ -1735,5 +1739,37 @@ describe('Domain Utils - Exported Functions', () => {
             expect(container.contains(footer)).toBe(true);
             expect(container.contains(anchor)).toBe(true);
         });
+    });
+});
+
+describe('resolveForRawHtml — colorized in-canvas raw view (DRY)', () => {
+    const settingsStub = (css = ''): VisualFormattingSettingsModel =>
+        ({
+            contentFormatting: {
+                contentFormattingCardBehavior: { showRawHtml: { value: true } }
+            },
+            stylesheet: { stylesheetCardMain: { stylesheet: { value: css } } }
+        }) as unknown as VisualFormattingSettingsModel;
+
+    it('renders a colorized <pre> (not a <textarea>) via the shared highlighter', () => {
+        // Use the global jsdom document so buildHighlightedFragment's nodes and
+        // the container share one document.
+        const content = document.createElement('div');
+        const p = document.createElement('p');
+        p.textContent = 'hi';
+        content.appendChild(p);
+        const styleEl = document.createElement('style');
+
+        resolveForRawHtml(select(styleEl), select(content), settingsStub());
+
+        const pre = content.querySelector('#rawHtmlOutput') as HTMLElement;
+        expect(pre).not.toBeNull();
+        expect(pre.tagName).toBe('PRE');
+        expect(content.querySelector('textarea')).toBeNull();
+        // Colorized via the same buildHighlightedFragment the dialog uses...
+        expect(pre.querySelectorAll('.hc-tag').length).toBeGreaterThan(0);
+        // ...and shows the serialized raw markup (lossless text).
+        expect(pre.textContent).toContain('hi');
+        expect(pre.textContent).toContain('<p>');
     });
 });

@@ -40,11 +40,31 @@
 }
 
 #rawHtmlOutput {
+    box-sizing: border-box;
     height: 97vh;
     width: 100vw;
-    resize: none;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
     font-family: monospace;
     font-size: 10pt;
+}
+
+// Raw-HTML token colors — shared by the diagnostics dialog's Raw HTML tab and
+// the in-canvas Show Raw HTML <pre> (both render buildHighlightedFragment
+// output), so they live at top level rather than nested under .hc-diagnostics.
+.hc-punc {
+    color: #999;
+}
+.hc-tag {
+    color: #22863a;
+}
+.hc-attr {
+    color: #6f42c1;
+}
+.hc-str {
+    color: #032f62;
 }
 
 .w3-theme-l5 {
@@ -224,18 +244,8 @@
     .hc-empty {
         color: #666;
     }
-    .hc-punc {
-        color: #999;
-    }
-    .hc-tag {
-        color: #22863a;
-    }
-    .hc-attr {
-        color: #6f42c1;
-    }
-    .hc-str {
-        color: #032f62;
-    }
+    // Token colors (.hc-punc/.hc-tag/.hc-attr/.hc-str) are defined at top level
+    // so they apply to both this tab and the in-canvas Show Raw HTML <pre>.
 }
 
 #htmlDiagnosticsToggle {
