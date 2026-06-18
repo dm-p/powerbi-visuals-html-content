@@ -17,8 +17,30 @@ describe('shouldShowDiagnosticsIcon', () => {
     });
 });
 
+const labels = {
+    tabSanitizer: 'Sanitizer',
+    tabConsole: 'Console',
+    tabRaw: 'Raw HTML',
+    sanitizerEmpty: 'none',
+    consoleEmpty: 'none',
+    colKind: 'kind',
+    colSubject: 'subject',
+    colRule: 'rule',
+    overflow: '+{0} more',
+    truncated: 'first {0} of {1}',
+    copy: 'Copy'
+};
+
 describe('buildSnapshot', () => {
-    const base = { sanitizer: { entries: [], overflow: 0 }, console: [] };
+    const base = {
+        sanitizer: { entries: [], overflow: 0 },
+        console: [],
+        labels
+    };
+
+    it('passes the labels through unchanged', () => {
+        expect(buildSnapshot({ ...base, rawHtml: 'x' }).labels).toBe(labels);
+    });
 
     it('passes short raw HTML through untruncated', () => {
         const snap = buildSnapshot({ ...base, rawHtml: '<p>hi</p>' });
@@ -50,16 +72,22 @@ describe('buildSnapshot', () => {
 });
 
 describe('icon helpers', () => {
-    it('creates a button with the configured id and wires the click', () => {
+    it('creates a button with the configured id, localized labels, and wires the click', () => {
         let clicked = 0;
-        const btn = createDiagnosticsIcon(() => clicked++);
+        const btn = createDiagnosticsIcon(
+            () => clicked++,
+            'Diag title',
+            'Open diag'
+        );
         expect(btn.id).toBe(VisualConstants.diagnostics.iconIdSelector);
+        expect(btn.title).toBe('Diag title');
+        expect(btn.getAttribute('aria-label')).toBe('Open diag');
         btn.dispatchEvent(new MouseEvent('click'));
         expect(clicked).toBe(1);
     });
 
     it('toggles visibility', () => {
-        const btn = createDiagnosticsIcon(() => {});
+        const btn = createDiagnosticsIcon(() => {}, 't', 'a');
         setIconVisibility(btn, false);
         expect(btn.style.display).toBe('none');
         setIconVisibility(btn, true);
@@ -67,7 +95,7 @@ describe('icon helpers', () => {
     });
 
     it('stops click propagation (does not bubble to the visual)', () => {
-        const btn = createDiagnosticsIcon(() => {});
+        const btn = createDiagnosticsIcon(() => {}, 't', 'a');
         document.body.appendChild(btn);
         let bubbled = false;
         const onBody = () => {

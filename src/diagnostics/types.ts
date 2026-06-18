@@ -26,8 +26,31 @@ export interface ConsoleEntry {
     text: string;
 }
 
+/**
+ * Localized UI strings the dialog renders. The dialog runs in its own iframe
+ * (only an IDialogHost, no localization manager), so the visual resolves these
+ * via its ILocalizationManager and passes them in the snapshot. `overflow` and
+ * `truncated` are templates: `{0}`/`{1}` are substituted at render time.
+ */
+export interface DiagnosticsLabels {
+    tabSanitizer: string;
+    tabConsole: string;
+    tabRaw: string;
+    sanitizerEmpty: string;
+    consoleEmpty: string;
+    colKind: string;
+    colSubject: string;
+    colRule: string;
+    /** Template, `{0}` = overflow count. */
+    overflow: string;
+    /** Template, `{0}` = shown chars, `{1}` = total chars. */
+    truncated: string;
+    copy: string;
+}
+
 export interface DiagnosticsSnapshot {
     sanitizer: SanitizerCapture;
     console: ConsoleEntry[];
     rawHtml: { text: string; truncated: boolean; totalLength: number };
+    labels: DiagnosticsLabels;
 }

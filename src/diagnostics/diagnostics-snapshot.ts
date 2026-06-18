@@ -1,5 +1,10 @@
 /** Snapshot assembly (with raw-HTML truncation), icon gating, and icon DOM. */
-import { DiagnosticsSnapshot, SanitizerCapture, ConsoleEntry } from './types';
+import {
+    DiagnosticsSnapshot,
+    SanitizerCapture,
+    ConsoleEntry,
+    DiagnosticsLabels
+} from './types';
 import { VisualConstants } from '../visual-constants';
 
 /** The toggle AND host support are both required; absent capability ⇒ hidden. */
@@ -12,6 +17,7 @@ export const buildSnapshot = (input: {
     rawHtml: string;
     sanitizer: SanitizerCapture;
     console: ConsoleEntry[];
+    labels: DiagnosticsLabels;
 }): DiagnosticsSnapshot => {
     const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
     const total = input.rawHtml.length;
@@ -19,6 +25,7 @@ export const buildSnapshot = (input: {
     return {
         sanitizer: input.sanitizer,
         console: input.console,
+        labels: input.labels,
         rawHtml: {
             text: truncated ? input.rawHtml.slice(0, cap) : input.rawHtml,
             truncated,
@@ -27,14 +34,21 @@ export const buildSnapshot = (input: {
     };
 };
 
+/**
+ * Build the diagnostics icon. `title`/`ariaLabel` are passed in already
+ * localized (the visual owns the ILocalizationManager) so this DOM helper stays
+ * pure and free of any powerbi-visuals-api dependency.
+ */
 export const createDiagnosticsIcon = (
-    onClick: () => void
+    onClick: () => void,
+    title: string,
+    ariaLabel: string
 ): HTMLButtonElement => {
     const btn = document.createElement('button');
     btn.id = VisualConstants.diagnostics.iconIdSelector;
     btn.type = 'button';
-    btn.title = 'HTML Content diagnostics';
-    btn.setAttribute('aria-label', 'Open HTML Content diagnostics');
+    btn.title = title;
+    btn.setAttribute('aria-label', ariaLabel);
     btn.textContent = '🐞';
     btn.addEventListener('click', (e) => {
         e.stopPropagation();

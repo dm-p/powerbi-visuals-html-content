@@ -6,12 +6,27 @@ import {
 import { DiagnosticsSnapshot } from '../src/diagnostics/types';
 import { VisualConstants } from '../src/visual-constants';
 
+const labels = {
+    tabSanitizer: 'Sanitizer',
+    tabConsole: 'Console',
+    tabRaw: 'Raw HTML',
+    sanitizerEmpty: 'No removals in the last render.',
+    consoleEmpty: 'No console output captured.',
+    colKind: 'kind',
+    colSubject: 'subject',
+    colRule: 'rule',
+    overflow: '+{0} more removals not shown',
+    truncated: '… truncated — showing first {0} of {1} characters',
+    copy: 'Copy'
+};
+
 const snap = (
     over: Partial<DiagnosticsSnapshot> = {}
 ): DiagnosticsSnapshot => ({
     sanitizer: { entries: [], overflow: 0 },
     console: [],
     rawHtml: { text: '<p>hi</p>', truncated: false, totalLength: 9 },
+    labels,
     ...over
 });
 
@@ -60,6 +75,24 @@ describe('renderPanel', () => {
             })
         );
         expect(el.textContent).toContain('truncated');
+    });
+
+    it('interpolates overflow and truncation counts from the labels', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                sanitizer: {
+                    entries: [{ kind: 'attr', subject: 's', rule: 'r' }],
+                    overflow: 4
+                },
+                rawHtml: { text: 'ab', truncated: true, totalLength: 500 }
+            })
+        );
+        expect(el.textContent).toContain('+4 more removals not shown');
+        expect(el.textContent).toContain('showing first 2 of 500');
+        expect(el.textContent).not.toContain('{0}');
+        expect(el.textContent).not.toContain('{1}');
     });
 
     it('renders the raw tab as colorized DOM nodes (no innerHTML, lossless)', () => {

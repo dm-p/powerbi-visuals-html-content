@@ -55,7 +55,7 @@ import {
     createDiagnosticsIcon,
     setIconVisibility
 } from './diagnostics/diagnostics-snapshot';
-import { SanitizerCapture } from './diagnostics/types';
+import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -145,8 +145,10 @@ export class Visual implements IVisual {
             this.landingContainer,
             this.localisationManager
         );
-        this.diagnosticsIcon = createDiagnosticsIcon(() =>
-            this.openDiagnostics()
+        this.diagnosticsIcon = createDiagnosticsIcon(
+            () => this.openDiagnostics(),
+            this.localisationManager.getDisplayName('Diagnostics_IconTitle'),
+            this.localisationManager.getDisplayName('Diagnostics_IconAriaLabel')
         );
         setIconVisibility(this.diagnosticsIcon, false);
         (this.container.node() as HTMLElement).appendChild(
@@ -430,6 +432,25 @@ export class Visual implements IVisual {
         );
     }
 
+    /** Resolve all dialog UI strings via the localization manager. */
+    private diagnosticsLabels(): DiagnosticsLabels {
+        const t = (key: string): string =>
+            this.localisationManager.getDisplayName(key);
+        return {
+            tabSanitizer: t('Diagnostics_TabSanitizer'),
+            tabConsole: t('Diagnostics_TabConsole'),
+            tabRaw: t('Diagnostics_TabRawHtml'),
+            sanitizerEmpty: t('Diagnostics_SanitizerEmpty'),
+            consoleEmpty: t('Diagnostics_ConsoleEmpty'),
+            colKind: t('Diagnostics_ColKind'),
+            colSubject: t('Diagnostics_ColSubject'),
+            colRule: t('Diagnostics_ColRule'),
+            overflow: t('Diagnostics_Overflow'),
+            truncated: t('Diagnostics_Truncated'),
+            copy: t('Diagnostics_Copy')
+        };
+    }
+
     /** Assemble a bounded snapshot and open the host modal dialog. */
     private openDiagnostics(): void {
         const rawHtml = getDiagnosticsRawHtml(
@@ -440,14 +461,16 @@ export class Visual implements IVisual {
         const snapshot = buildSnapshot({
             rawHtml,
             sanitizer: this.lastSanitizerCapture,
-            console: consoleSnapshot()
+            console: consoleSnapshot(),
+            labels: this.diagnosticsLabels()
         });
-        const d = VisualConstants.diagnostics.dialog;
         void this.host.openModalDialog(
             VisualConstants.diagnostics.dialogId,
             {
-                title: d.title,
-                size: d.size,
+                title: this.localisationManager.getDisplayName(
+                    'Diagnostics_DialogTitle'
+                ),
+                size: VisualConstants.diagnostics.dialog.size,
                 // Literals avoid const-enum inlining ambiguity:
                 position: { type: 0 /* VisualDialogPositionType.Center */ },
                 actionButtons: [0 /* DialogAction.Close */]

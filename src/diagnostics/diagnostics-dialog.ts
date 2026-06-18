@@ -18,14 +18,12 @@ const el = (tag: string, cls?: string, text?: string): HTMLElement => {
 const sanitizerTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-sanitizer');
     if (s.sanitizer.entries.length === 0) {
-        wrap.appendChild(
-            el('p', 'hc-empty', 'No removals in the last render.')
-        );
+        wrap.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
         return wrap;
     }
     const table = el('table', 'hc-table');
     const head = el('tr');
-    ['kind', 'subject', 'rule'].forEach((h) =>
+    [s.labels.colKind, s.labels.colSubject, s.labels.colRule].forEach((h) =>
         head.appendChild(el('th', undefined, h))
     );
     table.appendChild(head);
@@ -48,7 +46,7 @@ const sanitizerTab = (s: DiagnosticsSnapshot): HTMLElement => {
             el(
                 'p',
                 'hc-overflow',
-                `+${s.sanitizer.overflow} more removals not shown`
+                s.labels.overflow.replace('{0}', String(s.sanitizer.overflow))
             )
         );
     }
@@ -68,7 +66,7 @@ const fmtTime = (ts: number): string => {
 const consoleTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-console');
     if (s.console.length === 0) {
-        wrap.appendChild(el('p', 'hc-empty', 'No console output captured.'));
+        wrap.appendChild(el('p', 'hc-empty', s.labels.consoleEmpty));
         return wrap;
     }
     s.console.forEach((c: ConsoleEntry) => {
@@ -111,11 +109,13 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
             el(
                 'p',
                 'hc-overflow',
-                `… truncated — showing first ${s.rawHtml.text.length} of ${s.rawHtml.totalLength} characters`
+                s.labels.truncated
+                    .replace('{0}', String(s.rawHtml.text.length))
+                    .replace('{1}', String(s.rawHtml.totalLength))
             )
         );
     }
-    const copy = el('button', 'hc-copy', 'Copy') as HTMLButtonElement;
+    const copy = el('button', 'hc-copy', s.labels.copy) as HTMLButtonElement;
     copy.type = 'button';
     copy.addEventListener('click', () => copyText(s.rawHtml.text));
     wrap.appendChild(copy);
@@ -135,9 +135,17 @@ export const renderPanel = (
     host.replaceChildren(); // clear without innerHTML (cert-safe)
     host.className = 'hc-diagnostics';
     const tabs = [
-        { id: 'sanitizer', label: 'Sanitizer', body: sanitizerTab(snapshot) },
-        { id: 'console', label: 'Console', body: consoleTab(snapshot) },
-        { id: 'raw', label: 'Raw HTML', body: rawTab(snapshot) }
+        {
+            id: 'sanitizer',
+            label: snapshot.labels.tabSanitizer,
+            body: sanitizerTab(snapshot)
+        },
+        {
+            id: 'console',
+            label: snapshot.labels.tabConsole,
+            body: consoleTab(snapshot)
+        },
+        { id: 'raw', label: snapshot.labels.tabRaw, body: rawTab(snapshot) }
     ];
     const bar = el('div', 'hc-tabbar');
     bar.setAttribute('role', 'tablist');

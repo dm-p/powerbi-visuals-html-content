@@ -265,8 +265,9 @@ export const VisualConstants = {
         // Above this raw length, skip span-colorization and render plain
         // (escaped) text to avoid a token-span node explosion.
         highlightSizeLimit: 200 * 1024,
+        // Dialog title is localized (Diagnostics_DialogTitle), resolved in
+        // visual.ts; only the size lives here.
         dialog: {
-            title: 'HTML Content — Diagnostics',
             size: { width: 900, height: 600 }
         }
     },
