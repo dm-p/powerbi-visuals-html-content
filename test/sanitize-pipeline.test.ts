@@ -827,15 +827,22 @@ describe('getSanitizedCss — edition guard', () => {
 
     // The unsanitized (standalone) edition renders author CSS as-is, matching
     // the raw HTML / <style> / script behaviour — the CSS sanitizer is skipped.
+    // Asserting the SAME input across both arms pins the gate itself, not just
+    // the false-arm output: the default (sanitize:true) edition strips the
+    // dangerous url(); the standalone (sanitize:false) edition returns it verbatim.
     it('returns the custom stylesheet untouched when config.sanitize is false (standalone edition)', async () => {
+        const css = 'p { background: url(javascript:alert(1)); }';
+        // Default edition (sanitize:true) strips it — the other arm of the gate.
+        expect(getSanitizedCss(css)).not.toContain('javascript');
         vi.doMock('../config/visual.json', () => ({ sanitize: false }));
         vi.resetModules();
         try {
             const { getSanitizedCss: cssOff } =
                 await import('../src/sanitize-pipeline');
-            const css = 'p { background: url(javascript:alert(1)); }';
-            // No-op: returned verbatim, dangerous url() and all.
+            // Standalone edition: returned verbatim — the dangerous url() and
+            // all survive untouched.
             expect(cssOff(css)).toBe(css);
+            expect(cssOff(css)).toContain('javascript');
         } finally {
             vi.doUnmock('../config/visual.json');
             vi.resetModules();
