@@ -37,7 +37,7 @@ import {
     reconcileTemplatedEntries,
     TemplateContainer,
     TemplatedRenderOptions,
-    getRawHtml
+    getDiagnosticsRawHtml
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
@@ -432,7 +432,7 @@ export class Visual implements IVisual {
 
     /** Assemble a bounded snapshot and open the host modal dialog. */
     private openDiagnostics(): void {
-        const rawHtml = getRawHtml(
+        const rawHtml = getDiagnosticsRawHtml(
             this.styleSheetContainer,
             this.contentContainer,
             this.formattingSettings.stylesheet

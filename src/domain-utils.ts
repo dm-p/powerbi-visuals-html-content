@@ -403,6 +403,30 @@ export const resolveForRawHtml = (
 };
 
 /**
+ * Raw HTML for the diagnostics dialog. When Show Raw HTML is ON, the content
+ * container has already been replaced by the raw-view <pre> (from
+ * resolveForRawHtml); re-serializing that would recurse — the dialog would show
+ * the raw view's OWN markup. The <pre>'s textContent IS the raw HTML (lossless,
+ * by buildHighlightedFragment's contract), so read it back in that case.
+ * Otherwise serialize the live content. Either way the dialog and the in-canvas
+ * view show the identical pretty-printed output.
+ */
+export const getDiagnosticsRawHtml = (
+    styleSheetContainer: Selection<any, any, any, any>,
+    contentContainer: Selection<any, any, any, any>,
+    stylesheet: StylesheetSettings
+): string => {
+    const node = contentContainer.node() as HTMLElement | null;
+    const rawView =
+        node &&
+        node.querySelector('#' + VisualConstants.dom.rawOutputIdSelector);
+    if (rawView) {
+        return rawView.textContent ?? '';
+    }
+    return getRawHtml(styleSheetContainer, contentContainer, stylesheet);
+};
+
+/**
  * For the specified element, process all hyperlinks so that they are either explicitly denied,
  * or delegated to the Power BI visual host for permission to open.
  *

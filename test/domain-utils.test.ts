@@ -12,7 +12,8 @@ import {
     resolveTemplateContainer,
     renderTemplatedEntries,
     reconcileTemplatedEntries,
-    resolveForRawHtml
+    resolveForRawHtml,
+    getDiagnosticsRawHtml
 } from '../src/domain-utils';
 import type {
     StylesheetSettings,
@@ -587,6 +588,35 @@ describe('Domain Utils - Exported Functions', () => {
             const container = select(dom.window.document).select('#content');
             return { styleSheetContainer, container, dom };
         };
+
+        it('getDiagnosticsRawHtml reads the raw-view <pre> textContent (no recursion when Show Raw HTML is on)', () => {
+            const { styleSheetContainer, container, dom } = buildContainers('');
+            const pre = dom.window.document.createElement('pre');
+            pre.id = VisualConstants.dom.rawOutputIdSelector;
+            pre.textContent = '<div>actual raw</div>';
+            (container.node() as Element).appendChild(pre);
+            const out = getDiagnosticsRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            // Returns the pre's text verbatim — NOT a re-serialization that would
+            // wrap it in <pre id="rawHtmlOutput">...</pre>.
+            expect(out).toBe('<div>actual raw</div>');
+            expect(out).not.toContain('rawHtmlOutput');
+        });
+
+        it('getDiagnosticsRawHtml serializes live content when no raw-view <pre> exists', () => {
+            const { styleSheetContainer, container } =
+                buildContainers('<p>live</p>');
+            const out = getDiagnosticsRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('<p>');
+            expect(out).toContain('live');
+        });
 
         it('emits literal & in iframe src (regression for issue #76)', () => {
             const { styleSheetContainer, container } = buildContainers(

@@ -49,6 +49,11 @@
     word-break: break-word;
     font-family: monospace;
     font-size: 10pt;
+    // Always selectable so the raw HTML can be copied (mouse / Ctrl+A, Ctrl+C),
+    // regardless of the visual's user-select setting (which defaults to none).
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
 }
 
 // Raw-HTML token colors — shared by the diagnostics dialog's Raw HTML tab and
