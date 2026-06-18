@@ -23,11 +23,19 @@ export const beginCapture = (): void => {
 
 export const recordRemoval = (e: SanitizerEntry): void => {
     if (!armed) return;
-    if (entries.length >= VisualConstants.diagnostics.sanitizerEntryCap) {
-        overflow++;
-        return;
+    // Self-guard: recordRemoval is called from inside frozen security
+    // boundaries — the DOMPurify hooks AND the postcss walk callbacks in
+    // css-sanitizer. A throw there could abort a render or drop all sanitized
+    // output, so observation must never throw into them. Best-effort only.
+    try {
+        if (entries.length >= VisualConstants.diagnostics.sanitizerEntryCap) {
+            overflow++;
+            return;
+        }
+        entries.push(e);
+    } catch {
+        /* diagnostics must never break sanitization */
     }
-    entries.push(e);
 };
 
 /**
