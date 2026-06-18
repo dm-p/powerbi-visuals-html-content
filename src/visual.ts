@@ -36,12 +36,26 @@ import {
     renderTemplatedEntries,
     reconcileTemplatedEntries,
     TemplateContainer,
-    TemplatedRenderOptions
+    TemplatedRenderOptions,
+    getRawHtml
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
 import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
+import './diagnostics/diagnostics-dialog'; // registration side-effect — must be imported
+import { beginCapture, endCapture } from './diagnostics/diagnostics-sink';
+import {
+    install as installConsoleCapture,
+    snapshot as consoleSnapshot
+} from './diagnostics/console-capture';
+import {
+    buildSnapshot,
+    shouldShowDiagnosticsIcon,
+    createDiagnosticsIcon,
+    setIconVisibility
+} from './diagnostics/diagnostics-snapshot';
+import { SanitizerCapture } from './diagnostics/types';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -87,6 +101,14 @@ export class Visual implements IVisual {
     // slot anchor). Established on rebuild and reused on reconcile; invalidated
     // on kind change / error so the next populated render re-resolves it.
     private templateContainer: TemplateContainer | undefined;
+    // Diagnostics overlay icon (top-right). Created hidden in the constructor;
+    // its visibility is gated each update by the toggle + host modal support.
+    private diagnosticsIcon!: HTMLButtonElement;
+    // Last armed sanitizer capture, surfaced when the dialog is opened.
+    private lastSanitizerCapture: SanitizerCapture = {
+        entries: [],
+        overflow: 0
+    };
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -123,6 +145,13 @@ export class Visual implements IVisual {
             this.landingContainer,
             this.localisationManager
         );
+        this.diagnosticsIcon = createDiagnosticsIcon(() =>
+            this.openDiagnostics()
+        );
+        setIconVisibility(this.diagnosticsIcon, false);
+        (this.container.node() as HTMLElement).appendChild(
+            this.diagnosticsIcon
+        );
         this.bindFocusEvents();
         this.events = this.host.eventService;
         this.viewModelHandler.reset();
@@ -149,6 +178,20 @@ export class Visual implements IVisual {
                 VisualFormattingSettingsModel,
                 options.dataViews?.[0]
             );
+
+        const diagOn =
+            this.formattingSettings.contentFormatting
+                .contentFormattingCardBehavior.enableDiagnostics.value;
+        if (diagOn) {
+            installConsoleCapture();
+        }
+        setIconVisibility(
+            this.diagnosticsIcon,
+            shouldShowDiagnosticsIcon(
+                diagOn,
+                this.host.hostCapabilities?.allowModalDialog
+            )
+        );
 
         try {
             this.events.renderingStarted(options);
@@ -178,11 +221,13 @@ export class Visual implements IVisual {
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
+            if (diagOn) beginCapture();
             this.orchestrator.render(
                 options,
                 viewModel,
                 this.formattingSettings
             );
+            if (diagOn) this.lastSanitizerCapture = endCapture();
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, e);
@@ -376,6 +421,32 @@ export class Visual implements IVisual {
             this.container,
             settings.contentFormatting.contentFormattingCardBehavior.hyperlinks
                 .value
+        );
+    }
+
+    /** Assemble a bounded snapshot and open the host modal dialog. */
+    private openDiagnostics(): void {
+        const rawHtml = getRawHtml(
+            this.styleSheetContainer,
+            this.contentContainer,
+            this.formattingSettings.stylesheet
+        );
+        const snapshot = buildSnapshot({
+            rawHtml,
+            sanitizer: this.lastSanitizerCapture,
+            console: consoleSnapshot()
+        });
+        const d = VisualConstants.diagnostics.dialog;
+        void this.host.openModalDialog(
+            VisualConstants.diagnostics.dialogId,
+            {
+                title: d.title,
+                size: d.size,
+                // Literals avoid const-enum inlining ambiguity:
+                position: { type: 0 /* VisualDialogPositionType.Center */ },
+                actionButtons: [0 /* DialogAction.Close */]
+            },
+            snapshot
         );
     }
 
