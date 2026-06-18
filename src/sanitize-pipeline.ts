@@ -827,34 +827,42 @@ function withSanitizerHooks<T>(
  * next `sanitize` call.
  */
 const recordCoreRemovals = (purify: DOMPurifyType): void => {
-    const removed = (purify as unknown as { removed?: unknown[] }).removed;
-    if (!Array.isArray(removed)) return;
-    for (const r of removed) {
-        if (r && typeof r === 'object' && 'element' in r) {
-            const el = (r as { element: { nodeName?: string } }).element;
-            const name = el?.nodeName
-                ? `<${String(el.nodeName).toLowerCase()}>`
-                : '<node>';
-            recordRemoval({
-                kind: 'tag',
-                subject: name,
-                rule: 'forbidden-or-unknown-tag'
-            });
-        } else if (r && typeof r === 'object' && 'attribute' in r) {
-            const a = r as {
-                attribute?: { name?: string };
-                from?: { nodeName?: string };
-            };
-            const an = a.attribute?.name ?? 'attr';
-            const fn = a.from?.nodeName
-                ? `<${String(a.from.nodeName).toLowerCase()}>`
-                : '';
-            recordRemoval({
-                kind: 'attr',
-                subject: `${an} on ${fn}`.trim(),
-                rule: 'dompurify-core'
-            });
+    // Defense-in-depth on a frozen security boundary: this runs OUTSIDE the
+    // sanitizer hooks' try/catch, so any unexpected throw here must never be
+    // allowed to abort a render. Diagnostics observation is strictly
+    // best-effort — swallow anything that goes wrong reading `removed`.
+    try {
+        const removed = (purify as unknown as { removed?: unknown[] }).removed;
+        if (!Array.isArray(removed)) return;
+        for (const r of removed) {
+            if (r && typeof r === 'object' && 'element' in r) {
+                const el = (r as { element: { nodeName?: string } }).element;
+                const name = el?.nodeName
+                    ? `<${String(el.nodeName).toLowerCase()}>`
+                    : '<node>';
+                recordRemoval({
+                    kind: 'tag',
+                    subject: name,
+                    rule: 'forbidden-or-unknown-tag'
+                });
+            } else if (r && typeof r === 'object' && 'attribute' in r) {
+                const a = r as {
+                    attribute?: { name?: string };
+                    from?: { nodeName?: string };
+                };
+                const an = a.attribute?.name ?? 'attr';
+                const fn = a.from?.nodeName
+                    ? `<${String(a.from.nodeName).toLowerCase()}>`
+                    : '';
+                recordRemoval({
+                    kind: 'attr',
+                    subject: `${an} on ${fn}`.trim(),
+                    rule: 'dompurify-core'
+                });
+            }
         }
+    } catch {
+        /* diagnostics must never break a render */
     }
 };
 
