@@ -240,10 +240,13 @@ export const resolveTemplateContainer = (
         return { container: rootEl, anchor: null };
     }
     const container = marker.parentNode as HTMLElement;
-    // Anchor position reference: the element immediately before the slot, if
-    // any. Captured pre-sanitize; it remains the same node IF it survives
-    // sanitization (allowed element). The guard below handles removal.
-    const prevEl = marker.previousElementSibling;
+    // Anchor position reference: the node (element OR text) immediately before
+    // the slot, if any. previousSibling, NOT previousElementSibling, so the slot
+    // keeps its position even when bare text precedes it, e.g.
+    // `<div>Caption: {{content}}</div>` (rows render after "Caption: ", not
+    // before it). Captured pre-sanitize; a text node always survives, an element
+    // survives only if allowed — the guard below handles removal.
+    const prevNode = marker.previousSibling;
     marker.remove();
 
     // Sanitize the DETACHED fragment, THEN append to the live rootEl. This
@@ -262,21 +265,21 @@ export const resolveTemplateContainer = (
 
     // Drop a persistent invisible anchor at the slot position. Added AFTER
     // sanitize so it is not stripped. Rows insert before it; static
-    // siblings keep their position. If prevEl survived sanitization and is
+    // siblings keep their position. If prevNode survived sanitization and is
     // still a child of container, place the anchor right after it;
     // otherwise prepend (covers the common "slot is the sole content of its
-    // parent" case AND the case where sanitize removed prevEl).
+    // parent" case AND the case where sanitize removed prevNode).
     //
-    // The survival test is `prevEl.parentNode === container`, NOT
+    // The survival test is `prevNode.parentNode === container`, NOT
     // `isConnected`: `rootEl` (#htmlContent) is not guaranteed to be
     // attached to the live document at this point (and is detached under
-    // test), so `isConnected` would spuriously fail for a surviving prevEl
+    // test), so `isConnected` would spuriously fail for a surviving prevNode
     // and mis-prepend the anchor. parentNode identity is the precise signal
-    // — a sanitizer-removed element has a null parentNode, a survivor is
+    // — a sanitizer-removed node has a null parentNode, a survivor is
     // still a child of container.
     const anchor = document.createComment(SLOT_MARKER);
-    if (prevEl && prevEl.parentNode === container) {
-        prevEl.after(anchor);
+    if (prevNode && prevNode.parentNode === container) {
+        prevNode.after(anchor);
     } else {
         container.prepend(anchor);
     }
@@ -745,6 +748,25 @@ export interface TemplatedRenderOptions {
 export const rowRenderKey = (d: IHtmlEntry): string =>
     `${d.rowTemplate} ${d.content}`;
 
+// A row template with no {{row}} token leaves substitute() with nothing to
+// replace: it returns the template unchanged, so every row renders as an empty
+// wrapper and the row content is silently dropped. Warn once per offending
+// template so a multi-row visual doesn't flood the console on every update.
+const warnedTokenlessRowTemplates = new Set<string>();
+function warnIfRowTemplateHasNoToken(rowTemplate: string): void {
+    const hasToken = ROW_TOKEN.test(rowTemplate);
+    ROW_TOKEN.lastIndex = 0; // ROW_TOKEN is global; .test() advances lastIndex
+    if (hasToken || warnedTokenlessRowTemplates.has(rowTemplate)) {
+        return;
+    }
+    warnedTokenlessRowTemplates.add(rowTemplate);
+    console.warn(
+        'HTML Content: row template has no {{row}} token — row content is ' +
+            'dropped and every row renders empty. Template: ' +
+            JSON.stringify(rowTemplate)
+    );
+}
+
 /**
  * Build the single row-grain root element for one entry from its row template.
  *
@@ -787,6 +809,7 @@ function buildRowRoot(
         opts.format === 'markdown'
             ? marked.parse(d.content).toString()
             : d.content;
+    warnIfRowTemplateHasNoToken(d.rowTemplate);
     const rowHtml = substitute(d.rowTemplate, ROW_TOKEN, contentHtml);
     // Parse the combined row string in the container's content model + sanitize
     // (U4). Pass format 'html' here — content was already markdown-converted

@@ -1110,6 +1110,20 @@ describe('Domain Utils - Exported Functions', () => {
             expect(tc.anchor!.nextSibling?.nodeName).toBe('FOOTER');
         });
 
+        it('anchors after bare text preceding the slot ("Caption: {{content}}")', () => {
+            // previousSibling (not previousElementSibling) keeps the slot's
+            // position when only a text node precedes it — rows render AFTER
+            // "Caption: ", not before it.
+            const root = makeRoot();
+            const tc = resolveTemplateContainer(
+                root,
+                '<div>Caption: {{content}}</div>',
+                {}
+            );
+            expect(tc.anchor!.previousSibling?.nodeType).toBe(Node.TEXT_NODE);
+            expect(tc.anchor!.previousSibling?.textContent).toBe('Caption: ');
+        });
+
         it('anchor is a Comment node carrying the slot marker', () => {
             const root = makeRoot();
             const tc = resolveTemplateContainer(
@@ -1125,7 +1139,7 @@ describe('Domain Utils - Exported Functions', () => {
         });
 
         it('slot as sole child: anchor is the only child of the container', () => {
-            // The common case (e.g. <tbody>{{content}}</tbody>): prevEl is
+            // The common case (e.g. <tbody>{{content}}</tbody>): prevNode is
             // null, so the anchor is prepended and is the only child — Unit
             // 6 inserts rows before it, preserving order.
             const root = makeRoot();
@@ -1396,6 +1410,31 @@ describe('Domain Utils - Exported Functions', () => {
             expect(outer.tagName).toBe('DIV');
             expect(outer.firstElementChild?.tagName).toBe('DIV');
             expect(outer.textContent).toContain('X');
+        });
+
+        it('warns once when the row template has no {{row}} token (content would be dropped)', () => {
+            const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            try {
+                // Unique tokenless template so the once-per-template guard fires
+                // here regardless of other tests sharing the module-level set.
+                const tokenless = '<tr><td>no-row-token-here</td></tr>';
+                renderTemplatedEntries(
+                    {
+                        container: document.createElement('tbody'),
+                        anchor: null
+                    } as any,
+                    [
+                        entry('a', '<td>x</td>', tokenless),
+                        entry('b', '<td>y</td>', tokenless)
+                    ],
+                    OPTS as any
+                );
+                // Once total, not once per row.
+                expect(spy).toHaveBeenCalledTimes(1);
+                expect(spy.mock.calls[0][0]).toContain('{{row}}');
+            } finally {
+                spy.mockRestore();
+            }
         });
 
         it('a <tr> row template yields a real table row (no auto-close, no wrapper div)', () => {
