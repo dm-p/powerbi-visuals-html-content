@@ -26,16 +26,17 @@ import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
 import { ViewModelHandler, IHtmlEntry, IViewModel } from './view-model';
 import {
-    bindVisualDataToDom,
     getParsedHtmlAsDom,
-    reconcileVisualDataToDom,
     resolveForRawHtml,
-    resolveHtmlGroupElement,
     resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
     resolveHover,
-    stampRenderedContent
+    resolveTemplateContainer,
+    renderTemplatedEntries,
+    reconcileTemplatedEntries,
+    TemplateContainer,
+    TemplatedRenderOptions
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
@@ -79,8 +80,13 @@ export class Visual implements IVisual {
     private scrollbars: OverlayScrollbars | undefined;
     // The rendered data element selection, carried from rebuild/reconcile to bindInteractivity.
     // Assigned in rebuild/reconcile before bindInteractivity is ever called; the non-null
-    // assertion (!) tells the compiler the field is set before use.
-    private dataElements!: Selection<HTMLDivElement, IHtmlEntry, any, any>;
+    // assertion (!) tells the compiler the field is set before use. Typed as HTMLElement
+    // (not HTMLDivElement) because a templated row root can be any tag (e.g. <tr>).
+    private dataElements!: Selection<HTMLElement, IHtmlEntry, any, any>;
+    // Cached template join container (the body-resolved render target + content
+    // slot anchor). Established on rebuild and reused on reconcile; invalidated
+    // on kind change / error so the next populated render re-resolves it.
+    private templateContainer: TemplateContainer | undefined;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -187,6 +193,10 @@ export class Visual implements IVisual {
             // and they re-render next reconcile regardless of this wipe.)
             this.contentContainer.selectAll('*').remove();
             this.updateStatus();
+            // Drop the cached template container so the next update rebuilds
+            // against a clean, freshly-resolved container rather than reusing a
+            // stale one whose DOM was just wiped.
+            this.templateContainer = undefined;
             // Reset orchestrator state to match the now-empty container, so the
             // next update rebuilds from scratch rather than skipping a
             // viewport-only render against stale cached state.
@@ -216,9 +226,13 @@ export class Visual implements IVisual {
                     this.scrollbars
                 );
             },
-            // No-data message or raw-HTML textarea. Clears content first (state-kind reset).
+            // No-data message or raw-HTML textarea. Clears content first
+            // (state-kind reset) and invalidates the cached template container
+            // so the next populated render is a fresh rebuild that re-resolves
+            // the body wrapper.
             renderEmptyOrRaw: (viewModel, settings) => {
                 this.contentContainer.selectAll('*').remove();
+                this.templateContainer = undefined;
                 const behavior =
                     settings.contentFormatting.contentFormattingCardBehavior;
                 if (viewModel.isEmpty) {
@@ -228,17 +242,23 @@ export class Visual implements IVisual {
                         behavior.showRawHtml.value
                     );
                 } else {
-                    // populated content but showRawHtml is on: render entries then
-                    // replace with the raw view (resolveForRawHtml wipes+adds textarea)
-                    const dataElements = bindVisualDataToDom(
-                        this.contentContainer,
-                        viewModel.htmlEntries,
-                        viewModel.hasSelection
+                    // Populated content but showRawHtml is on: render entries via
+                    // the template engine (so the raw view reflects the templated
+                    // output) then replace with the raw view (resolveForRawHtml
+                    // wipes the content + adds the textarea).
+                    this.templateContainer = resolveTemplateContainer(
+                        this.contentContainer.node() as HTMLElement,
+                        viewModel.bodyTemplate,
+                        { allowHyperlinks: behavior.hyperlinks.value }
                     );
-                    resolveHtmlGroupElement(
-                        dataElements,
-                        behavior.format.value as RenderFormat,
-                        behavior.hyperlinks.value
+                    renderTemplatedEntries(
+                        this.templateContainer,
+                        viewModel.htmlEntries,
+                        {
+                            format: behavior.format.value as RenderFormat,
+                            allowHyperlinks: behavior.hyperlinks.value,
+                            hasSelection: viewModel.hasSelection
+                        } as TemplatedRenderOptions
                     );
                     resolveForRawHtml(
                         this.styleSheetContainer,
@@ -252,43 +272,36 @@ export class Visual implements IVisual {
                     behavior.hyperlinks.value
                 );
             },
-            // Full rebuild: wipe, bind all, render all, stamp baseline.
+            // Full rebuild: re-resolve the template container (this clears
+            // #htmlContent and re-parses the body — that IS the rebuild wipe),
+            // then render every entry into it.
             rebuild: (viewModel, settings) => {
-                const behavior =
-                    settings.contentFormatting.contentFormattingCardBehavior;
-                this.updateStatus();
-                this.contentContainer.selectAll('*').remove();
-                const merged = bindVisualDataToDom(
-                    this.contentContainer,
-                    viewModel.htmlEntries,
-                    viewModel.hasSelection
-                ) as Selection<HTMLDivElement, IHtmlEntry, any, any>;
-                resolveHtmlGroupElement(
-                    merged,
-                    behavior.format.value as RenderFormat,
-                    behavior.hyperlinks.value
-                );
-                stampRenderedContent(merged);
-                this.finalizePopulatedRender(merged, viewModel, settings);
+                this.rebuildPopulated(viewModel, settings);
             },
-            // Reconcile: keep unchanged nodes, render ONLY the changed/entered subset.
+            // Reconcile: reuse the cached template container and re-render ONLY
+            // the changed/entered rows (unchanged rows keep their exact node so
+            // inline iframes survive). The body wrapper is NOT re-parsed here; a
+            // body change (static OR CF) trips the fingerprint and forces a
+            // rebuild, so the cached container is always body-current.
             reconcile: (viewModel, settings) => {
                 const behavior =
                     settings.contentFormatting.contentFormattingCardBehavior;
                 this.updateStatus();
-                const { merged, toRender } = reconcileVisualDataToDom(
-                    this.contentContainer,
+                if (!this.templateContainer) {
+                    // No baseline (shouldn't happen — rebuild always seeds it).
+                    // Fall back to a full rebuild against a clean container.
+                    this.rebuildPopulated(viewModel, settings);
+                    return;
+                }
+                const { merged } = reconcileTemplatedEntries(
+                    this.templateContainer,
                     viewModel.htmlEntries,
-                    viewModel.hasSelection
+                    {
+                        format: behavior.format.value as RenderFormat,
+                        allowHyperlinks: behavior.hyperlinks.value,
+                        hasSelection: viewModel.hasSelection
+                    } as TemplatedRenderOptions
                 );
-                resolveHtmlGroupElement(
-                    toRender,
-                    behavior.format.value as RenderFormat,
-                    behavior.hyperlinks.value
-                );
-                // Stamp the baseline AFTER rendering, so the stash never
-                // claims a node is up-to-date before its content is in the DOM.
-                stampRenderedContent(toRender);
                 this.finalizePopulatedRender(merged, viewModel, settings);
             },
             bindInteractivity: (viewModel) => {
@@ -308,6 +321,37 @@ export class Visual implements IVisual {
     }
 
     /**
+     * Full populated rebuild: re-resolve the template container against the
+     * resolved body (this clears #htmlContent and re-parses the body wrapper —
+     * the rebuild wipe), then render every entry into the resulting join
+     * container. Shared by the rebuild render step and the reconcile fallback
+     * (which runs only if no cached container exists — i.e. defensively).
+     */
+    private rebuildPopulated(
+        viewModel: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ): void {
+        const behavior =
+            settings.contentFormatting.contentFormattingCardBehavior;
+        this.updateStatus();
+        this.templateContainer = resolveTemplateContainer(
+            this.contentContainer.node() as HTMLElement,
+            viewModel.bodyTemplate,
+            { allowHyperlinks: behavior.hyperlinks.value }
+        );
+        const merged = renderTemplatedEntries(
+            this.templateContainer,
+            viewModel.htmlEntries,
+            {
+                format: behavior.format.value as RenderFormat,
+                allowHyperlinks: behavior.hyperlinks.value,
+                hasSelection: viewModel.hasSelection
+            } as TemplatedRenderOptions
+        );
+        this.finalizePopulatedRender(merged, viewModel, settings);
+    }
+
+    /**
      * Shared finalisation for the populated render paths (rebuild + reconcile):
      * apply the raw-HTML view if enabled, capture the rendered selection for
      * interactivity binding, wire hover/tooltips, and (re)bind hyperlink click
@@ -316,7 +360,7 @@ export class Visual implements IVisual {
      * elements, so newly appended anchors only get their click guard here.
      */
     private finalizePopulatedRender(
-        merged: Selection<HTMLDivElement, IHtmlEntry, any, any>,
+        merged: Selection<HTMLElement, IHtmlEntry, any, any>,
         viewModel: IViewModel,
         settings: VisualFormattingSettingsModel
     ): void {

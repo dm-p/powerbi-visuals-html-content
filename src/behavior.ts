@@ -15,7 +15,7 @@ export interface IHtmlBehaviorOptions<
     SelectableDataPoint extends BaseDataPoint
 > extends IBehaviorOptions<SelectableDataPoint> {
     // Elements denoting a selectable data point in the visual
-    pointSelection: d3.Selection<HTMLDivElement, IHtmlEntry, any, any>;
+    pointSelection: d3.Selection<HTMLElement, IHtmlEntry, any, any>;
     // Element performing the role of clear-catcher (clears selection)
     clearCatcherSelection: d3.Selection<HTMLDivElement, any, any, any>;
     // Visual ViewModel

@@ -207,6 +207,10 @@ export const VisualConstants = {
     stylesheet: {
         stylesheet: ''
     },
+    templates: {
+        body: '{{content}}',
+        row: '<div><div>{{row}}</div></div>'
+    },
     crossFilter: {
         enabled: false,
         useTransparency: true,
@@ -233,7 +237,17 @@ export const VisualConstants = {
         // inside #htmlContent to inherit the body styling instead of their
         // own embedded color/font-family/font-size/text-align values. Closes
         // issue #144 (office-paste residue overriding Default body styling).
-        defaultBodyStylingClass: 'uses-default-body-styling'
+        defaultBodyStylingClass: 'uses-default-body-styling',
+        // Internal sentinel used by resolveTemplateContainer to locate the
+        // body-template content slot during parse. The user's `{{content}}`
+        // token is substituted for an HTML comment carrying this value before
+        // the body template is parsed; a comment is valid in every content
+        // model and is not foster-parented (unlike a bare token or a
+        // context-invalid element), so it reliably marks the slot's position.
+        // A persistent invisible anchor comment with the same value is left at
+        // the slot after sanitization for row insertion. NOT the user-facing
+        // token — purely an implementation detail of slot resolution.
+        contentSlotMarker: 'HC:CONTENT'
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{

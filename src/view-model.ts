@@ -16,6 +16,8 @@ import {
     VisualFormattingSettingsModel
 } from './visual-settings';
 import { mapCategoricalToTable } from './categorical-table';
+import { resolveBodyTemplate, resolveRowTemplate } from './template-engine';
+import { VisualConstants } from './visual-constants';
 
 /**
  * View model structure
@@ -28,11 +30,13 @@ export interface IViewModel {
     hasSelection: boolean;
     contentIndex: number;
     contentFormatting?: ContentFormattingSettings;
+    bodyTemplate: string;
     htmlEntries: IHtmlEntry[];
 }
 
 export interface IHtmlEntry extends SelectableDataPoint {
     content: string;
+    rowTemplate: string;
     tooltips: VisualTooltipDataItem[];
 }
 
@@ -68,6 +72,7 @@ export class ViewModelHandler {
             hasGranularity: false,
             hasSelection: false,
             contentIndex: -1,
+            bodyTemplate: VisualConstants.templates.body,
             htmlEntries: []
         };
     }
@@ -135,12 +140,14 @@ export class ViewModelHandler {
                 ...this.getTooltipColumns('sampling', columns, host),
                 ...this.getTooltipColumns('tooltips', columns, host)
             ];
+            const rowTemplate = resolveRowTemplate(settings);
             const htmlEntries: IHtmlEntry[] =
                 contentIndex > -1
                     ? rows.map((row, index) => {
                           const value = row[contentIndex];
                           return {
                               content: value ? value.toString() : '',
+                              rowTemplate,
                               identity: identities[index],
                               selected:
                                   selectedKeys.size > 0 &&
@@ -156,6 +163,10 @@ export class ViewModelHandler {
             this.viewModel.hasGranularity = hasGranularity;
             this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
+            this.viewModel.bodyTemplate = resolveBodyTemplate(
+                dataViews[0],
+                settings
+            );
             this.viewModel.htmlEntries = htmlEntries;
             this.viewModel.isEmpty = htmlEntries.length === 0;
         }

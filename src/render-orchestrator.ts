@@ -15,9 +15,27 @@ import { IViewModel } from './view-model';
  */
 const DATA_BIT = 1 << 1; // 2
 
-/** Stable string of all parse/render-affecting settings. */
+/**
+ * Stable string of all parse/render-affecting settings.
+ *
+ * The EFFECTIVE body template participates so a body change forces a rebuild:
+ * the body wrapper is parsed once per rebuild and reused (not re-parsed) on
+ * reconcile, so a stale wrapper must be ruled out by the fingerprint. The
+ * resolved body (from the view model, which folds in a CF "apply to all" body)
+ * takes precedence over the static setting; a CF-resolved body change arrives
+ * with a Data bit but would NOT otherwise rebuild in reconcile mode. The row
+ * template's per-row CF variation is caught instead by the per-row content-diff
+ * (rowRenderKey), so only the STATIC row value is included here as a coarse
+ * guard for a global row-template change.
+ *
+ * @param settings              - Parsed visual formatting settings.
+ * @param resolvedBodyTemplate  - The resolved body template from the view model
+ *                                (overrides the static body setting when given).
+ *                                Optional so existing callers/tests degrade.
+ */
 export function computeRenderFingerprint(
-    settings: VisualFormattingSettingsModel
+    settings: VisualFormattingSettingsModel,
+    resolvedBodyTemplate?: string
 ): string {
     const b = settings.contentFormatting.contentFormattingCardBehavior;
     const body =
@@ -33,7 +51,10 @@ export function computeRenderFingerprint(
         body.fontSize.value,
         body.fontColour.value.value,
         body.align.value,
-        body.overrideInlineStyling.value
+        body.overrideInlineStyling.value,
+        resolvedBodyTemplate ??
+            settings.templates.templatesCardMain.bodyTemplate.value,
+        settings.templates.templatesCardMain.rowTemplate.value
     ]);
 }
 
@@ -74,7 +95,10 @@ export class RenderOrchestrator {
         viewModel: IViewModel,
         settings: VisualFormattingSettingsModel
     ): void {
-        const fingerprint = computeRenderFingerprint(settings);
+        const fingerprint = computeRenderFingerprint(
+            settings,
+            viewModel.bodyTemplate
+        );
         const fingerprintChanged = fingerprint !== this.lastFingerprint;
         const entryAffecting = isEntryAffectingUpdate(
             options.type,

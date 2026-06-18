@@ -37,7 +37,15 @@ const settings = (over: Record<string, unknown> = {}) =>
                 overrideInlineStyling: { value: false }
             }
         },
-        stylesheet: { stylesheetCardMain: { stylesheet: { value: '' } } }
+        stylesheet: { stylesheetCardMain: { stylesheet: { value: '' } } },
+        templates: {
+            templatesCardMain: {
+                bodyTemplate: { value: over.bodyTemplate ?? '{{content}}' },
+                rowTemplate: {
+                    value: over.rowTemplate ?? '<div><div>{{row}}</div></div>'
+                }
+            }
+        }
     }) as any;
 
 describe('computeRenderFingerprint', () => {
@@ -64,6 +72,28 @@ describe('computeRenderFingerprint', () => {
         expect(computeRenderFingerprint(withCss)).not.toBe(
             computeRenderFingerprint(base)
         );
+    });
+    it('changes when the static body template changes', () => {
+        expect(
+            computeRenderFingerprint(
+                settings({ bodyTemplate: '<main>{{content}}</main>' })
+            )
+        ).not.toBe(computeRenderFingerprint(settings()));
+    });
+    it('changes when the static row template changes', () => {
+        expect(
+            computeRenderFingerprint(
+                settings({ rowTemplate: '<section>{{row}}</section>' })
+            )
+        ).not.toBe(computeRenderFingerprint(settings()));
+    });
+    it('changes when the resolved body template changes (CF)', () => {
+        // The resolved body (2nd arg) overrides the static body so a
+        // CF-resolved body change still trips the fingerprint and forces a
+        // rebuild (otherwise the cached wrapper would go stale in reconcile).
+        expect(
+            computeRenderFingerprint(settings(), '<aside>{{content}}</aside>')
+        ).not.toBe(computeRenderFingerprint(settings()));
     });
 });
 
@@ -115,7 +145,14 @@ const makeDeps = () => ({
 const populatedViewModel = {
     isValid: true,
     isEmpty: false,
-    htmlEntries: [{ content: 'A', identity: { getKey: () => 'a' } }]
+    bodyTemplate: '{{content}}',
+    htmlEntries: [
+        {
+            content: 'A',
+            rowTemplate: '<div><div>{{row}}</div></div>',
+            identity: { getKey: () => 'a' }
+        }
+    ]
 } as any;
 
 describe('RenderOrchestrator dispatch', () => {
