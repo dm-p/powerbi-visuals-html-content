@@ -30,12 +30,16 @@ const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     return n;
 };
 
-/** Footer of doc links; the visual launches them via launchUrl on a doc key. */
+/**
+ * Top info banner of doc links; styled like the Raw HTML banner (.hc-banner)
+ * for cross-tab consistency. The visual launches the links via launchUrl on a
+ * doc key (the dialog iframe can't call launchUrl itself).
+ */
 const sanitizerDocs = (
     s: DiagnosticsSnapshot,
     callbacks: PanelCallbacks
 ): HTMLElement => {
-    const docs = el('div', 'hc-docs');
+    const docs = el('div', 'hc-banner hc-docs');
     docs.appendChild(el('span', 'hc-docs-heading', s.labels.docsHeading));
     const link = (text: string, key: DiagnosticsDocKey): HTMLButtonElement => {
         const b = el('button', 'hc-doc-link', text) as HTMLButtonElement;
@@ -53,6 +57,8 @@ const sanitizerTab = (
     callbacks: PanelCallbacks
 ): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-sanitizer');
+    // Doc banner at the top, matching the Raw HTML tab's info-label position.
+    wrap.appendChild(sanitizerDocs(s, callbacks));
     if (s.sanitizer.entries.length === 0) {
         wrap.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
     } else {
@@ -89,7 +95,6 @@ const sanitizerTab = (
             );
         }
     }
-    wrap.appendChild(sanitizerDocs(s, callbacks));
     return wrap;
 };
 

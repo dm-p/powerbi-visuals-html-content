@@ -194,20 +194,52 @@
         border-bottom: 1px solid #ddd;
     }
     .hc-tab {
-        padding: 4px 10px;
+        padding: 5px 12px;
         border: none;
         border-bottom: 2px solid transparent;
         background: none;
+        font: inherit;
+        color: #424242;
         cursor: pointer;
+    }
+    .hc-tab:hover {
+        background: #f5f5f5;
     }
     .hc-tab[aria-selected='true'] {
         border-bottom-color: #0078d4;
+        color: #242424;
         font-weight: 600;
+    }
+    // Content sits below the pivot/tab nav with consistent breathing room
+    // across all three tabs.
+    .hc-panels {
+        padding-top: 12px;
+    }
+    // Fluent-style buttons shared by the Raw HTML copy and Console clear
+    // actions so both feel at home in the host UI.
+    .hc-copy,
+    .hc-clear {
+        font: inherit;
+        color: #242424;
+        background: #fff;
+        border: 1px solid #d1d1d1;
+        border-radius: 4px;
+        padding: 3px 12px;
+        min-height: 24px;
+        cursor: pointer;
+    }
+    .hc-copy:hover,
+    .hc-clear:hover {
+        background: #f5f5f5;
+        border-color: #c7c7c7;
+    }
+    .hc-copy:active,
+    .hc-clear:active {
+        background: #ededed;
+        border-color: #b3b3b3;
     }
     .hc-copy {
         float: right;
-        padding: 2px 8px;
-        cursor: pointer;
     }
     .hc-table {
         width: 100%;
@@ -265,24 +297,23 @@
         border-bottom: 1px solid #eee;
         flex-wrap: wrap;
     }
-    .hc-clear {
-        padding: 2px 8px;
-        cursor: pointer;
-    }
     .hc-filter {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
+        gap: 4px;
         cursor: pointer;
         user-select: none;
+    }
+    .hc-filter input {
+        accent-color: #0078d4;
+        margin: 0;
     }
     .hc-console-lines {
         font-family: monospace;
     }
+    // Doc-link banner on the Sanitizer tab: inherits the .hc-banner box (info
+    // bar) and lays the heading + links out horizontally.
     .hc-docs {
-        margin-top: 10px;
-        padding-top: 6px;
-        border-top: 1px solid #eee;
         display: flex;
         align-items: center;
         gap: 10px;
