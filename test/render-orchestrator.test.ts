@@ -26,6 +26,7 @@ const settings = (over: Record<string, unknown> = {}) =>
                 format: { value: over.format ?? 'html' },
                 hyperlinks: { value: over.hyperlinks ?? false },
                 showRawHtml: { value: over.showRawHtml ?? false },
+                enableDiagnostics: { value: over.enableDiagnostics ?? false },
                 userSelect: { value: false },
                 renderMode: { value: over.renderMode ?? 'rebuild' }
             },
@@ -94,6 +95,11 @@ describe('computeRenderFingerprint', () => {
         expect(
             computeRenderFingerprint(settings(), '<aside>{{content}}</aside>')
         ).not.toBe(computeRenderFingerprint(settings()));
+    });
+    it('changes when enableDiagnostics toggles (forces rebuild to arm capture)', () => {
+        expect(
+            computeRenderFingerprint(settings({ enableDiagnostics: true }))
+        ).not.toBe(computeRenderFingerprint(settings({ enableDiagnostics: false })));
     });
 });
 

@@ -332,6 +332,19 @@ describe('VisualFormattingSettingsModel', () => {
     });
 });
 
+describe('ContentFormattingCardBehavior enableDiagnostics', () => {
+    it('exposes enableDiagnostics off by default after showRawHtml', () => {
+        const model = new VisualFormattingSettingsModel();
+        const behavior = model.contentFormatting.contentFormattingCardBehavior;
+        expect(behavior.enableDiagnostics.value).toBe(false);
+        const names = behavior.slices.map((s: any) => s.name);
+        expect(names).toContain('enableDiagnostics');
+        expect(names.indexOf('enableDiagnostics')).toBeGreaterThan(
+            names.indexOf('showRawHtml')
+        );
+    });
+});
+
 describe('TemplatesSettings', () => {
     it('exposes body + row templates with byte-identical defaults', () => {
         const settings = new VisualFormattingSettingsModel();

@@ -44,6 +44,7 @@ export function computeRenderFingerprint(
         b.format.value,
         b.hyperlinks.value,
         b.showRawHtml.value,
+        b.enableDiagnostics.value,
         b.userSelect.value,
         b.renderMode.value,
         settings.stylesheet.stylesheetCardMain.stylesheet.value,
