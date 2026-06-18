@@ -53,16 +53,29 @@ export const install = (): void => {
 
 export const snapshot = (): ConsoleEntry[] => buffer.slice();
 
+/**
+ * Empty the captured buffer. The tee stays installed, so capture continues —
+ * this is the "clear the view, keep listening" semantics a clear affordance
+ * wants. It does NOT uninstall the patch.
+ */
 export const clear = (): void => {
     buffer.length = 0;
-    if (installed) {
-        for (const level of LEVELS) {
-            const orig = originals.get(level);
-            if (orig) {
-                console[level] = orig;
-            }
+};
+
+/**
+ * Test-only: fully reset module state — empty the buffer, restore the original
+ * console methods, and mark uninstalled — so each test starts from a clean
+ * slate. Not used in production (the tee is installed once for the visual's
+ * lifetime).
+ */
+export const resetForTests = (): void => {
+    buffer.length = 0;
+    for (const level of LEVELS) {
+        const orig = originals.get(level);
+        if (orig) {
+            console[level] = orig;
         }
-        originals.clear();
-        installed = false;
     }
+    originals.clear();
+    installed = false;
 };

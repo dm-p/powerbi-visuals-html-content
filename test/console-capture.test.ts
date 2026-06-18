@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { install, snapshot, clear } from '../src/diagnostics/console-capture';
+import {
+    install,
+    snapshot,
+    clear,
+    resetForTests
+} from '../src/diagnostics/console-capture';
 import { VisualConstants } from '../src/visual-constants';
 
 describe('console-capture', () => {
-    beforeEach(() => clear());
+    beforeEach(() => resetForTests());
 
     it('tees through to the original console', () => {
         const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -48,5 +53,15 @@ describe('console-capture', () => {
         install();
         console.log('once');
         expect(snapshot().filter((e) => e.text === 'once').length).toBe(1);
+    });
+
+    it('clear empties the buffer but keeps capturing', () => {
+        install();
+        console.log('before');
+        expect(snapshot().length).toBeGreaterThan(0);
+        clear();
+        expect(snapshot()).toEqual([]);
+        console.log('after');
+        expect(snapshot().map((e) => e.text)).toEqual(['after']);
     });
 });
