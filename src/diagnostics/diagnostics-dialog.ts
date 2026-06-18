@@ -5,7 +5,7 @@
  * packaged config can resolve it by id (no webpack entry needed).
  */
 import { DiagnosticsSnapshot, SanitizerEntry, ConsoleEntry } from './types';
-import { highlightHtml } from './highlight-html';
+import { buildHighlightedFragment } from './highlight-html';
 import { VisualConstants } from '../visual-constants';
 
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {
@@ -92,8 +92,9 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     });
     wrap.appendChild(copy);
     const pre = el('pre', 'hc-pre');
-    // eslint-disable-next-line powerbi-visuals/no-inner-outer-html -- highlightHtml escapes source first; only fixed <span class="hc-*"> wrappers are emitted
-    pre.innerHTML = highlightHtml(s.rawHtml.text);
+    // Built as DOM nodes (not innerHTML) so the certified visual keeps its
+    // no-innerHTML posture; lossless — pre.textContent === s.rawHtml.text.
+    pre.appendChild(buildHighlightedFragment(s.rawHtml.text));
     wrap.appendChild(pre);
     return wrap;
 };
@@ -103,8 +104,7 @@ export const renderPanel = (
     host: HTMLElement,
     snapshot: DiagnosticsSnapshot
 ): void => {
-    // eslint-disable-next-line powerbi-visuals/no-inner-outer-html -- clearing the host container before rebuild
-    host.innerHTML = '';
+    host.replaceChildren(); // clear without innerHTML (cert-safe)
     host.className = 'hc-diagnostics';
     const tabs = [
         { id: 'sanitizer', label: 'Sanitizer', body: sanitizerTab(snapshot) },

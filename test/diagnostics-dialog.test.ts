@@ -61,6 +61,27 @@ describe('renderPanel', () => {
         );
         expect(el.textContent).toContain('truncated');
     });
+
+    it('renders the raw tab as colorized DOM nodes (no innerHTML, lossless)', () => {
+        const el = document.createElement('div');
+        const raw = '<p class="x">hi & bye</p>';
+        renderPanel(
+            el,
+            snap({
+                rawHtml: {
+                    text: raw,
+                    truncated: false,
+                    totalLength: raw.length
+                }
+            })
+        );
+        const pre = el.querySelector('pre.hc-pre') as HTMLElement;
+        expect(pre).not.toBeNull();
+        // Colorized via span nodes...
+        expect(pre.querySelector('.hc-tag')?.textContent).toBe('p');
+        // ...and lossless: the pre's text is exactly the raw source.
+        expect(pre.textContent).toBe(raw);
+    });
 });
 
 describe('DiagnosticsDialog registration', () => {

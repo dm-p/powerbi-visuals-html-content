@@ -1,61 +1,72 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, highlightHtml } from '../src/diagnostics/highlight-html';
+import { buildHighlightedFragment } from '../src/diagnostics/highlight-html';
 import { VisualConstants } from '../src/visual-constants';
 
-const stripSpans = (s: string) => s.replace(/<\/?span[^>]*>/g, '');
+const text = (raw: string): string =>
+    buildHighlightedFragment(raw).textContent ?? '';
 
-describe('highlight-html', () => {
-    it('escapes the raw source', () => {
-        expect(escapeHtml('<a>&"x"')).toBe('&lt;a&gt;&amp;&quot;x&quot;');
+const render = (raw: string): HTMLDivElement => {
+    const host = document.createElement('div');
+    host.appendChild(buildHighlightedFragment(raw));
+    return host;
+};
+
+describe('buildHighlightedFragment', () => {
+    it('is lossless: textContent equals the raw source (incl. < > & ")', () => {
+        const raw = '<div class="x">3 < 4 & "ok"</div>';
+        expect(text(raw)).toBe(raw);
     });
 
-    it('highlighting never alters the (escaped) source', () => {
-        const raw = '<div class="x">3 < 4 & ok</div>';
-        expect(stripSpans(highlightHtml(raw))).toBe(escapeHtml(raw));
+    it('builds DOM nodes, never uses innerHTML (no escaping artifacts)', () => {
+        // A literal & in text stays a single & in textContent (no &amp;).
+        expect(text('a & b')).toBe('a & b');
     });
 
-    it('wraps tags in spans for typical markup', () => {
-        const out = highlightHtml('<div class="x">hi</div>');
-        expect(out).toContain('<span');
-        expect(out).toContain('hi');
+    it('colorizes tag name, attribute, and string', () => {
+        const host = render('<div class="x">hi</div>');
+        expect(host.querySelector('.hc-tag')?.textContent).toBe('div');
+        expect(host.querySelector('.hc-attr')?.textContent).toBe('class');
+        expect(host.querySelector('.hc-str')?.textContent).toBe('"x"');
+        expect(host.textContent).toBe('<div class="x">hi</div>');
     });
 
-    it('bypasses highlighting above the size limit (plain escaped text)', () => {
-        const big = '<b>'.repeat(
-            VisualConstants.diagnostics.highlightSizeLimit
-        );
-        const out = highlightHtml(big);
-        expect(out).not.toContain('<span');
-        expect(out).toBe(escapeHtml(big));
-    });
-
-    it('colorizes a self-closing tag and keeps the lossless invariant', () => {
+    it('colorizes a self-closing tag, lossless', () => {
         const raw = '<br/><img src="data:x" />';
-        const out = highlightHtml(raw);
-        expect(out).toContain('<span class="hc-tag">br</span>');
-        expect(out).toContain('<span class="hc-tag">img</span>');
-        expect(stripSpans(out)).toBe(escapeHtml(raw));
+        const host = render(raw);
+        const tags = Array.from(host.querySelectorAll('.hc-tag')).map(
+            (n) => n.textContent
+        );
+        expect(tags).toEqual(['br', 'img']);
+        expect(host.textContent).toBe(raw);
     });
 
     it('treats a literal "<" in text (not a tag) as plain text', () => {
         const raw = 'if (a < b && c > d) return;';
-        const out = highlightHtml(raw);
-        expect(out).not.toContain('<span');
-        expect(stripSpans(out)).toBe(escapeHtml(raw));
+        const host = render(raw);
+        expect(host.querySelector('.hc-tag')).toBeNull();
+        expect(host.textContent).toBe(raw);
+    });
+
+    it('bypasses colorization above the size limit (single text node)', () => {
+        const big = '<b>'.repeat(
+            VisualConstants.diagnostics.highlightSizeLimit
+        );
+        const host = render(big);
+        expect(host.querySelector('span')).toBeNull();
+        expect(host.childNodes.length).toBe(1);
+        expect(host.childNodes[0].nodeType).toBe(3 /* TEXT_NODE */);
+        expect(host.textContent).toBe(big);
     });
 
     // Regression guard for the O(n^2) tempered-greedy regex this module used to
-    // use: many literal "<word" with no nearby ">" (e.g. unclosed-tag-looking
-    // text). getRawHtml emits text nodes unescaped, so this is realistic author
-    // content. The linear scanner must finish near-instantly; the previous
-    // implementation took several seconds and would exceed the test timeout.
+    // use: many literal "<word" with no nearby ">" (realistic author content,
+    // since getRawHtml emits text nodes unescaped). The linear scanner must
+    // finish near-instantly; the old regex took seconds and would time out.
     it('handles pathological unclosed-tag-like text in linear time', () => {
-        const limit = VisualConstants.diagnostics.highlightSizeLimit;
-        // Stay just under the escaped-length bypass so the scanner actually
-        // runs (raw "<undefined " escapes ~1.36x; 12000 reps ≈ 132KB raw).
-        const raw = '<undefined '.repeat(12000);
-        expect(escapeHtml(raw).length).toBeLessThan(limit);
-        const out = highlightHtml(raw);
-        expect(stripSpans(out)).toBe(escapeHtml(raw));
+        const raw = '<undefined '.repeat(15000); // ~165KB, under the bypass
+        expect(raw.length).toBeLessThan(
+            VisualConstants.diagnostics.highlightSizeLimit
+        );
+        expect(text(raw)).toBe(raw);
     });
 });
