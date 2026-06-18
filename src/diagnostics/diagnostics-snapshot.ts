@@ -44,8 +44,9 @@ export const createDiagnosticsIcon = (
 };
 
 export const setIconVisibility = (btn: HTMLElement, visible: boolean): void => {
-    // inline-block (not block) so the button's hit-area stays content-sized —
-    // it never expands to the container width if U10 positions it without
-    // absolute positioning.
+    // inline-block (not block) keeps the button's hit-area content-sized. The
+    // visual also absolutely-positions the icon via CSS (#htmlDiagnosticsToggle
+    // in visual.less); inline-block is harmless there and safe if that CSS is
+    // ever absent.
     btn.style.display = visible ? 'inline-block' : 'none';
 };
