@@ -181,19 +181,21 @@ export class Visual implements IVisual {
                 options.dataViews?.[0]
             );
 
-        const diagOn =
+        // Diagnostics is active only when the toggle is on, the host supports
+        // modal dialogs, AND the report is being edited (ViewMode.Edit = 1 /
+        // InFocusEdit = 2). View mode never shows the icon or records — keeping
+        // diagnostics out of the consumer experience. `diagActive` gates the
+        // icon, the console install, and the capture brackets alike.
+        const diagActive = shouldShowDiagnosticsIcon(
             this.formattingSettings.contentFormatting
-                .contentFormattingCardBehavior.enableDiagnostics.value;
-        if (diagOn) {
+                .contentFormattingCardBehavior.enableDiagnostics.value,
+            this.host.hostCapabilities?.allowModalDialog,
+            options.viewMode === 1 || options.viewMode === 2
+        );
+        if (diagActive) {
             installConsoleCapture();
         }
-        setIconVisibility(
-            this.diagnosticsIcon,
-            shouldShowDiagnosticsIcon(
-                diagOn,
-                this.host.hostCapabilities?.allowModalDialog
-            )
-        );
+        setIconVisibility(this.diagnosticsIcon, diagActive);
 
         try {
             this.events.renderingStarted(options);
@@ -223,7 +225,7 @@ export class Visual implements IVisual {
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
-            if (diagOn) beginCapture();
+            if (diagActive) beginCapture();
             try {
                 this.orchestrator.render(
                     options,
@@ -234,7 +236,7 @@ export class Visual implements IVisual {
                 // Always disarm the sink, even if render throws: this keeps the
                 // capture up to the failure point (useful for diagnosing the
                 // throw) and prevents the sink staying armed into later renders.
-                if (diagOn) this.lastSanitizerCapture = endCapture();
+                if (diagActive) this.lastSanitizerCapture = endCapture();
             }
             this.events.renderingFinished(options);
         } catch (e) {

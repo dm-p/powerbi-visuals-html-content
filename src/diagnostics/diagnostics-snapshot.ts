@@ -7,11 +7,18 @@ import {
 } from './types';
 import { VisualConstants } from '../visual-constants';
 
-/** The toggle AND host support are both required; absent capability ⇒ hidden. */
+/**
+ * Diagnostics is active only when ALL three hold: the toggle is on, the host
+ * supports modal dialogs (Desktop + Service), AND the report is being edited.
+ * Gating on edit mode keeps diagnostics (icon and recording) out of view mode,
+ * so report consumers are never shown more than necessary. Fail-closed: an
+ * absent capability or non-edit/unknown view mode hides it.
+ */
 export const shouldShowDiagnosticsIcon = (
     enabled: boolean,
-    allowModalDialog: boolean | undefined
-): boolean => enabled && allowModalDialog === true;
+    allowModalDialog: boolean | undefined,
+    isEditMode: boolean
+): boolean => enabled && allowModalDialog === true && isEditMode;
 
 export const buildSnapshot = (input: {
     rawHtml: string;

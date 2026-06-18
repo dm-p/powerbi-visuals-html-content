@@ -8,12 +8,14 @@ import {
 import { VisualConstants } from '../src/visual-constants';
 
 describe('shouldShowDiagnosticsIcon', () => {
-    it('requires both the toggle and allowModalDialog', () => {
-        expect(shouldShowDiagnosticsIcon(true, true)).toBe(true);
-        expect(shouldShowDiagnosticsIcon(true, false)).toBe(false);
-        expect(shouldShowDiagnosticsIcon(false, true)).toBe(false);
-        expect(shouldShowDiagnosticsIcon(true, undefined)).toBe(false);
-        expect(shouldShowDiagnosticsIcon(false, false)).toBe(false);
+    it('requires the toggle, allowModalDialog, AND edit mode', () => {
+        expect(shouldShowDiagnosticsIcon(true, true, true)).toBe(true);
+        // any single gate failing hides it:
+        expect(shouldShowDiagnosticsIcon(true, true, false)).toBe(false); // view mode
+        expect(shouldShowDiagnosticsIcon(true, false, true)).toBe(false); // no host support
+        expect(shouldShowDiagnosticsIcon(false, true, true)).toBe(false); // toggle off
+        expect(shouldShowDiagnosticsIcon(true, undefined, true)).toBe(false);
+        expect(shouldShowDiagnosticsIcon(false, false, false)).toBe(false);
     });
 });
 
