@@ -13,6 +13,7 @@ describe('shouldShowDiagnosticsIcon', () => {
         expect(shouldShowDiagnosticsIcon(true, false)).toBe(false);
         expect(shouldShowDiagnosticsIcon(false, true)).toBe(false);
         expect(shouldShowDiagnosticsIcon(true, undefined)).toBe(false);
+        expect(shouldShowDiagnosticsIcon(false, false)).toBe(false);
     });
 });
 
@@ -37,6 +38,15 @@ describe('buildSnapshot', () => {
         );
         expect(snap.rawHtml.totalLength).toBe(big.length);
     });
+
+    it('does not truncate at exactly the cap boundary', () => {
+        const exact = 'x'.repeat(VisualConstants.diagnostics.rawHtmlCapBytes);
+        const snap = buildSnapshot({ ...base, rawHtml: exact });
+        expect(snap.rawHtml.truncated).toBe(false);
+        expect(snap.rawHtml.text.length).toBe(
+            VisualConstants.diagnostics.rawHtmlCapBytes
+        );
+    });
 });
 
 describe('icon helpers', () => {
@@ -54,5 +64,19 @@ describe('icon helpers', () => {
         expect(btn.style.display).toBe('none');
         setIconVisibility(btn, true);
         expect(btn.style.display).not.toBe('none');
+    });
+
+    it('stops click propagation (does not bubble to the visual)', () => {
+        const btn = createDiagnosticsIcon(() => {});
+        document.body.appendChild(btn);
+        let bubbled = false;
+        const onBody = () => {
+            bubbled = true;
+        };
+        document.body.addEventListener('click', onBody);
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(bubbled).toBe(false);
+        document.body.removeEventListener('click', onBody);
+        btn.remove();
     });
 });

@@ -44,5 +44,8 @@ export const createDiagnosticsIcon = (
 };
 
 export const setIconVisibility = (btn: HTMLElement, visible: boolean): void => {
-    btn.style.display = visible ? 'block' : 'none';
+    // inline-block (not block) so the button's hit-area stays content-sized —
+    // it never expands to the container width if U10 positions it without
+    // absolute positioning.
+    btn.style.display = visible ? 'inline-block' : 'none';
 };
