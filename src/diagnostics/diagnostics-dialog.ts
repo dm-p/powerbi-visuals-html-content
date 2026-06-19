@@ -9,7 +9,10 @@ import {
     SanitizerEntry,
     ConsoleEntry,
     ConsoleLevel,
-    DiagnosticsDocKey
+    DiagnosticsDocKey,
+    HostEvent,
+    HostEventType,
+    DiagnosticsLabels
 } from './types';
 import { buildHighlightedFragment } from './highlight-html';
 import { VisualConstants } from '../visual-constants';
@@ -19,9 +22,17 @@ export interface PanelCallbacks {
     onTabChange?: (tabId: string) => void;
     onClearConsole?: () => void;
     onLaunchDoc?: (key: DiagnosticsDocKey) => void;
+    onClearEvents?: () => void;
 }
 
 const CONSOLE_LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
+
+const EVENT_TYPES: { type: HostEventType; label: keyof DiagnosticsLabels }[] = [
+    { type: 'update', label: 'evtUpdate' },
+    { type: 'cross-filter', label: 'evtCrossFilter' },
+    { type: 'tooltip', label: 'evtTooltip' },
+    { type: 'drill', label: 'evtDrill' }
+];
 
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     const n = document.createElement(tag);
@@ -173,6 +184,75 @@ const consoleTab = (
     return wrap;
 };
 
+const eventsTab = (
+    s: DiagnosticsSnapshot,
+    callbacks: PanelCallbacks
+): HTMLElement => {
+    const wrap = el('div', 'hc-tabpanel hc-events');
+    const rows = el('div', 'hc-console-lines hc-evt-rows');
+
+    const filters: HTMLInputElement[] = [];
+    function applyFilter(): void {
+        const on = new Set(
+            filters.filter((f) => f.checked).map((f) => f.dataset.evt)
+        );
+        rows.querySelectorAll<HTMLElement>('.hc-evt').forEach((r) => {
+            r.style.display = on.has(r.dataset.evt ?? '') ? '' : 'none';
+        });
+    }
+
+    const toolbar = el('div', 'hc-console-toolbar');
+    const clearBtn = el(
+        'button',
+        'hc-clear',
+        s.labels.eventsClear
+    ) as HTMLButtonElement;
+    clearBtn.type = 'button';
+    clearBtn.addEventListener('click', () => {
+        rows.replaceChildren(el('p', 'hc-empty', s.labels.eventsEmpty));
+        callbacks.onClearEvents?.();
+    });
+    toolbar.appendChild(clearBtn);
+    EVENT_TYPES.forEach(({ type, label }) => {
+        const lbl = el('label', 'hc-filter');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.evt = type;
+        cb.addEventListener('change', applyFilter);
+        lbl.appendChild(cb);
+        lbl.appendChild(
+            el('span', `hc-filter-label hc-evt-lbl-${type}`, s.labels[label])
+        );
+        toolbar.appendChild(lbl);
+        filters.push(cb);
+    });
+
+    if (s.events.length === 0) {
+        rows.appendChild(el('p', 'hc-empty', s.labels.eventsEmpty));
+    } else {
+        s.events.forEach((e: HostEvent) => {
+            const row = el('div', `hc-evt hc-evt-${e.type}`);
+            row.dataset.evt = e.type;
+            // The "context" column shows the descriptive detail: the summary,
+            // and the point context appended when present (e.g. update →
+            // "type=Data+Resize, viewMode=Edit · rows=42").
+            const detail = e.context
+                ? `${e.summary} · ${e.context}`
+                : e.summary;
+            row.appendChild(el('span', 'hc-time', fmtTime(e.ts)));
+            row.appendChild(el('span', 'hc-evt-type', e.type));
+            row.appendChild(el('span', 'hc-evt-context', detail));
+            row.title = detail;
+            rows.appendChild(row);
+        });
+    }
+
+    wrap.appendChild(toolbar);
+    wrap.appendChild(rows);
+    return wrap;
+};
+
 /**
  * Copy text to the clipboard. The dialog runs in Power BI's sandboxed iframe,
  * where the async Clipboard API (navigator.clipboard) is blocked, so we use the
@@ -258,6 +338,11 @@ export const renderPanel = (
         label: snapshot.labels.tabConsole,
         body: consoleTab(snapshot, callbacks)
     });
+    tabs.push({
+        id: 'events',
+        label: snapshot.labels.tabEvents,
+        body: eventsTab(snapshot, callbacks)
+    });
 
     // Restore the remembered tab if it's available this render; otherwise
     // default to the first tab (Raw HTML).
@@ -323,9 +408,11 @@ export class DiagnosticsDialog {
         // Accumulate the result the visual reads on close: the last tab (so it
         // can reopen there) and a console-clear request. Doc links close the
         // dialog explicitly, carrying the same state plus the doc key.
-        const result: { lastTab: string; clearConsole?: boolean } = {
-            lastTab: 'raw'
-        };
+        const result: {
+            lastTab: string;
+            clearConsole?: boolean;
+            clearEvents?: boolean;
+        } = { lastTab: 'raw' };
         renderPanel(options.element, initialState as DiagnosticsSnapshot, {
             onTabChange: (tabId) => {
                 result.lastTab = tabId;
@@ -333,6 +420,10 @@ export class DiagnosticsDialog {
             },
             onClearConsole: () => {
                 result.clearConsole = true;
+                host?.setResult?.({ ...result });
+            },
+            onClearEvents: () => {
+                result.clearEvents = true;
                 host?.setResult?.({ ...result });
             },
             onLaunchDoc: (key) =>

@@ -23,7 +23,17 @@ const labels = {
     docsSanitization: 'Sanitization rules',
     docsAcceptedTags: 'Accepted tags',
     rawBanner: 'Processed HTML.',
-    rawBannerSanitized: 'Processed and sanitized HTML.'
+    rawBannerSanitized: 'Processed and sanitized HTML.',
+    tabEvents: 'Events',
+    eventsEmpty: 'No host events captured.',
+    colTime: 'time',
+    colEvent: 'event',
+    colContext: 'context',
+    eventsClear: 'Clear',
+    evtUpdate: 'update',
+    evtCrossFilter: 'cross-filter',
+    evtTooltip: 'tooltip',
+    evtDrill: 'drill'
 };
 
 const snap = (
@@ -31,6 +41,7 @@ const snap = (
 ): DiagnosticsSnapshot => ({
     sanitizer: { entries: [], overflow: 0 },
     console: [],
+    events: [],
     rawHtml: { text: '<p>hi</p>', truncated: false, totalLength: 9 },
     labels,
     sanitizeEnabled: true,
@@ -38,11 +49,11 @@ const snap = (
 });
 
 describe('renderPanel', () => {
-    it('renders three tab buttons when the sanitizer applies', () => {
+    it('renders four tab buttons when the sanitizer applies', () => {
         const el = document.createElement('div');
         renderPanel(el, snap());
         const tabs = el.querySelectorAll('[role="tab"]');
-        expect(tabs.length).toBe(3);
+        expect(tabs.length).toBe(4);
     });
 
     it('puts Raw HTML first as the default active tab', () => {
@@ -59,7 +70,7 @@ describe('renderPanel', () => {
         const tabTexts = Array.from(el.querySelectorAll('[role="tab"]')).map(
             (t) => t.textContent
         );
-        expect(tabTexts).toEqual(['Raw HTML', 'Console']);
+        expect(tabTexts).toEqual(['Raw HTML', 'Console', 'Events']);
     });
 
     it('opens on the remembered initialTab when available', () => {
@@ -252,7 +263,7 @@ describe('renderPanel', () => {
         renderPanel(el, snap());
         const tabs = el.querySelectorAll<HTMLElement>('[role="tab"]');
         const panels = el.querySelectorAll<HTMLElement>('[role="tabpanel"]');
-        expect(panels.length).toBe(3);
+        expect(panels.length).toBe(4);
         // First tab active initially.
         expect(tabs[0].getAttribute('aria-selected')).toBe('true');
         expect(tabs[1].getAttribute('aria-selected')).toBe('false');
@@ -305,6 +316,87 @@ describe('renderPanel', () => {
         );
         expect(line.querySelector('.hc-level')?.textContent).toBe('warn');
         expect(line.querySelector('.hc-text')?.textContent).toBe('careful');
+    });
+
+    it('always renders an Events tab (every edition)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ sanitizeEnabled: false }));
+        const tabTexts = Array.from(el.querySelectorAll('[role="tab"]')).map(
+            (t) => t.textContent
+        );
+        expect(tabTexts).toContain('Events');
+    });
+
+    it('renders host-event rows with time, type, and context', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                events: [
+                    {
+                        ts: 0,
+                        type: 'cross-filter',
+                        summary: 'cross-filter',
+                        context: 'Region="East"'
+                    }
+                ]
+            })
+        );
+        const row = el.querySelector('.hc-evt') as HTMLElement;
+        expect(row.querySelector('.hc-time')?.textContent).toMatch(
+            /^\d{2}:\d{2}:\d{2}\.\d{3}$/
+        );
+        expect(row.querySelector('.hc-evt-type')?.textContent).toBe('cross-filter');
+        // The context cell shows "summary · context" (the detail); assert it carries
+        // the point context.
+        expect(row.querySelector('.hc-evt-context')?.textContent).toContain(
+            'Region="East"'
+        );
+    });
+
+    it('event type filter hides rows of the unchecked type', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'drill', summary: 'd' }
+                ]
+            })
+        );
+        const updateCb = el.querySelector(
+            'input[data-evt="update"]'
+        ) as HTMLInputElement;
+        const updateRow = el.querySelector('.hc-evt.hc-evt-update') as HTMLElement;
+        const drillRow = el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement;
+        expect(updateRow.style.display).not.toBe('none');
+        updateCb.checked = false;
+        updateCb.dispatchEvent(new Event('change'));
+        expect(updateRow.style.display).toBe('none');
+        expect(drillRow.style.display).not.toBe('none');
+    });
+
+    it('events Clear empties the display and reports onClearEvents', () => {
+        const el = document.createElement('div');
+        let cleared = 0;
+        renderPanel(
+            el,
+            snap({ events: [{ ts: 0, type: 'update', summary: 'u' }] }),
+            { onClearEvents: () => cleared++ }
+        );
+        expect(el.querySelector('.hc-evt')).not.toBeNull();
+        (el.querySelector('.hc-events .hc-clear') as HTMLButtonElement).click();
+        expect(el.querySelector('.hc-evt')).toBeNull();
+        expect(cleared).toBe(1);
+    });
+
+    it('events tab shows an empty state when there are no events', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ events: [] }));
+        expect(el.querySelector('.hc-events')?.textContent?.toLowerCase()).toContain(
+            'no host events'
+        );
     });
 });
 
