@@ -20,6 +20,10 @@ export interface IHtmlBehaviorOptions<
     clearCatcherSelection: d3.Selection<HTMLDivElement, any, any, any>;
     // Visual ViewModel
     viewModel: IViewModel;
+    // Dismiss any active host tooltip on an interaction (cross-filter / context
+    // menu). Always-on UX fix — independent of diagnostics. The visual wires it
+    // to host.tooltipService.hide(...).
+    hideTooltip: () => void;
 }
 
 /**
@@ -68,6 +72,7 @@ export class BehaviorManager<
     private handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
         event.preventDefault();
         event.stopPropagation();
+        this.options.hideTooltip();
         this.selectionHandler.handleSelection(d, event.ctrlKey);
     }
 
@@ -80,6 +85,7 @@ export class BehaviorManager<
     handleContextMenu(event: MouseEvent, d: IHtmlEntry) {
         event.preventDefault();
         event.stopPropagation();
+        this.options.hideTooltip();
         event &&
             this.selectionHandler.handleContextMenu(d, {
                 x: event.clientX,
@@ -99,6 +105,7 @@ export class BehaviorManager<
             if (hasCrossFiltering) {
                 event.preventDefault();
                 event.stopPropagation();
+                this.options.hideTooltip();
                 const mouseEvent: MouseEvent = <MouseEvent>event;
                 mouseEvent && this.selectionHandler.handleClearSelection();
             }

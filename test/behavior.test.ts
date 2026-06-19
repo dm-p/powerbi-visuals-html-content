@@ -3,6 +3,36 @@ import { BehaviorManager } from '../src/behavior';
 import { IViewModel, IHtmlEntry } from '../src/view-model';
 import { VisualConstants } from '../src/visual-constants';
 
+const makeOptions = (hideTooltip: () => void) => {
+    const point = {
+        on: vi.fn().mockReturnThis()
+    };
+    const clear = { on: vi.fn().mockReturnThis() };
+    return {
+        options: {
+            pointSelection: point as any,
+            clearCatcherSelection: clear as any,
+            viewModel: { hasCrossFiltering: true } as any,
+            hideTooltip
+        },
+        point,
+        clear
+    };
+};
+
+describe('tooltip dismissal on interaction', () => {
+    it('handleContextMenu calls hideTooltip', () => {
+        const hideTooltip = vi.fn();
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(hideTooltip);
+        const handler = { handleContextMenu: vi.fn(), handleSelection: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 1, clientY: 2 } as any;
+        mgr.handleContextMenu(evt, { tooltips: [] } as any);
+        expect(hideTooltip).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('BehaviorManager', () => {
     let behaviorManager: BehaviorManager<any>;
     let mockSelectionHandler: any;
@@ -45,7 +75,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);
@@ -81,7 +112,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);
@@ -94,7 +126,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);
@@ -112,7 +145,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);
@@ -144,7 +178,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);
@@ -171,7 +206,8 @@ describe('BehaviorManager', () => {
             const options = {
                 pointSelection: mockPointSelection,
                 clearCatcherSelection: mockClearCatcherSelection,
-                viewModel: mockViewModel
+                viewModel: mockViewModel,
+                hideTooltip: vi.fn()
             } as any;
 
             behaviorManager.bindEvents(options, mockSelectionHandler);

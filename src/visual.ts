@@ -386,7 +386,12 @@ export class Visual implements IVisual {
                         dataPoints: viewModel.htmlEntries,
                         clearCatcherSelection: this.container,
                         pointSelection: this.dataElements,
-                        viewModel
+                        viewModel,
+                        hideTooltip: () =>
+                            this.host.tooltipService.hide({
+                                immediately: true,
+                                isTouchEvent: false
+                            })
                     });
                 }
             }
