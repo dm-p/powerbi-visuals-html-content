@@ -29,6 +29,8 @@ export const buildSnapshot = (input: {
     labels: DiagnosticsLabels;
     sanitizeEnabled: boolean;
     initialTab?: string;
+    consoleFilter?: string;
+    eventsFilter?: string;
 }): DiagnosticsSnapshot => {
     const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
     const total = input.rawHtml.length;
@@ -40,6 +42,8 @@ export const buildSnapshot = (input: {
         labels: input.labels,
         sanitizeEnabled: input.sanitizeEnabled,
         initialTab: input.initialTab,
+        consoleFilter: input.consoleFilter,
+        eventsFilter: input.eventsFilter,
         rawHtml: {
             text: truncated ? input.rawHtml.slice(0, cap) : input.rawHtml,
             truncated,

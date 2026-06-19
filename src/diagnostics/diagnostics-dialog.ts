@@ -23,7 +23,44 @@ export interface PanelCallbacks {
     onClearConsole?: () => void;
     onLaunchDoc?: (key: DiagnosticsDocKey) => void;
     onClearEvents?: () => void;
+    /** Console level filter changed ('all' or a single level) — memoized. */
+    onConsoleFilter?: (level: string) => void;
+    /** Events type filter changed ('all' or a single type) — memoized. */
+    onEventsFilter?: (type: string) => void;
 }
+
+/**
+ * A single-select radio filter: an "All" option followed by each individual
+ * option. Single-select (radio, not checkboxes) is less cumbersome to drive
+ * repeatedly when focusing on one level/type. `selected` is the initially-picked
+ * value (memoized across opens); `onChange` fires with the newly picked value.
+ */
+const buildRadioFilter = (
+    groupName: string,
+    options: { value: string; label: string }[],
+    selected: string,
+    allLabel: string,
+    onChange: (value: string) => void
+): HTMLElement => {
+    const group = el('div', 'hc-filter-group');
+    const add = (value: string, label: string): void => {
+        const lbl = el('label', 'hc-filter');
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = groupName;
+        radio.value = value;
+        radio.checked = value === selected;
+        radio.addEventListener('change', () => {
+            if (radio.checked) onChange(value);
+        });
+        lbl.appendChild(radio);
+        lbl.appendChild(el('span', 'hc-filter-label', label));
+        group.appendChild(lbl);
+    };
+    add('all', allLabel);
+    options.forEach((o) => add(o.value, o.label));
+    return group;
+};
 
 const CONSOLE_LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
 
@@ -130,14 +167,13 @@ const consoleTab = (
     const wrap = el('div', 'hc-tabpanel hc-console');
     const lines = el('div', 'hc-console-lines');
 
-    // Level filter (multi-select). Show/hide lines by level; in-dialog only.
-    const filters: HTMLInputElement[] = [];
-    function applyFilter(): void {
-        const on = new Set(
-            filters.filter((f) => f.checked).map((f) => f.dataset.level)
-        );
+    // Level filter (single-select radios: All + each level). Memoized via the
+    // snapshot so the pick is sticky across opens. In-dialog show/hide only.
+    const initialLevel = s.consoleFilter ?? 'all';
+    function applyFilter(level: string): void {
         lines.querySelectorAll<HTMLElement>('.hc-log').forEach((line) => {
-            line.style.display = on.has(line.dataset.level ?? '') ? '' : 'none';
+            line.style.display =
+                level === 'all' || line.dataset.level === level ? '' : 'none';
         });
     }
 
@@ -155,20 +191,18 @@ const consoleTab = (
         callbacks.onClearConsole?.();
     });
     toolbar.appendChild(clearBtn);
-    CONSOLE_LEVELS.forEach((level) => {
-        const lbl = el('label', 'hc-filter');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = true;
-        cb.dataset.level = level;
-        cb.addEventListener('change', applyFilter);
-        lbl.appendChild(cb);
-        // hc-lvl-* (not hc-${level}) so the filter label can't collide with the
-        // console line marker class `.hc-log` when the level is "log".
-        lbl.appendChild(el('span', `hc-filter-label hc-lvl-${level}`, level));
-        toolbar.appendChild(lbl);
-        filters.push(cb);
-    });
+    toolbar.appendChild(
+        buildRadioFilter(
+            'hc-console-filter',
+            CONSOLE_LEVELS.map((level) => ({ value: level, label: level })),
+            initialLevel,
+            s.labels.filterAll,
+            (level) => {
+                applyFilter(level);
+                callbacks.onConsoleFilter?.(level);
+            }
+        )
+    );
 
     if (s.console.length === 0) {
         lines.appendChild(el('p', 'hc-empty', s.labels.consoleEmpty));
@@ -182,6 +216,8 @@ const consoleTab = (
             lines.appendChild(line);
         });
     }
+    // Apply the remembered filter to the freshly-built lines.
+    applyFilter(initialLevel);
 
     // Toolbar stays frozen as the panel header; only the lines body scrolls.
     const body = el('div', 'hc-tab-body');
@@ -198,13 +234,13 @@ const eventsTab = (
     const wrap = el('div', 'hc-tabpanel hc-events');
     const rows = el('div', 'hc-console-lines hc-evt-rows');
 
-    const filters: HTMLInputElement[] = [];
-    function applyFilter(): void {
-        const on = new Set(
-            filters.filter((f) => f.checked).map((f) => f.dataset.evt)
-        );
+    // Type filter (single-select radios: All + each type). Memoized via the
+    // snapshot so the pick is sticky across opens.
+    const initialType = s.eventsFilter ?? 'all';
+    function applyFilter(type: string): void {
         rows.querySelectorAll<HTMLElement>('.hc-evt').forEach((r) => {
-            r.style.display = on.has(r.dataset.evt ?? '') ? '' : 'none';
+            r.style.display =
+                type === 'all' || r.dataset.evt === type ? '' : 'none';
         });
     }
 
@@ -220,20 +256,21 @@ const eventsTab = (
         callbacks.onClearEvents?.();
     });
     toolbar.appendChild(clearBtn);
-    EVENT_TYPES.forEach(({ type, label }) => {
-        const lbl = el('label', 'hc-filter');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = true;
-        cb.dataset.evt = type;
-        cb.addEventListener('change', applyFilter);
-        lbl.appendChild(cb);
-        lbl.appendChild(
-            el('span', `hc-filter-label hc-evt-lbl-${type}`, s.labels[label])
-        );
-        toolbar.appendChild(lbl);
-        filters.push(cb);
-    });
+    toolbar.appendChild(
+        buildRadioFilter(
+            'hc-events-filter',
+            EVENT_TYPES.map(({ type, label }) => ({
+                value: type,
+                label: s.labels[label]
+            })),
+            initialType,
+            s.labels.filterAll,
+            (type) => {
+                applyFilter(type);
+                callbacks.onEventsFilter?.(type);
+            }
+        )
+    );
 
     if (s.events.length === 0) {
         rows.appendChild(el('p', 'hc-empty', s.labels.eventsEmpty));
@@ -254,6 +291,8 @@ const eventsTab = (
             rows.appendChild(row);
         });
     }
+    // Apply the remembered filter to the freshly-built rows.
+    applyFilter(initialType);
 
     // Toolbar stays frozen as the panel header; only the rows body scrolls.
     const body = el('div', 'hc-tab-body');
@@ -426,6 +465,8 @@ export class DiagnosticsDialog {
             lastTab: string;
             clearConsole?: boolean;
             clearEvents?: boolean;
+            consoleFilter?: string;
+            eventsFilter?: string;
         } = { lastTab: 'raw' };
         renderPanel(options.element, initialState as DiagnosticsSnapshot, {
             onTabChange: (tabId) => {
@@ -438,6 +479,14 @@ export class DiagnosticsDialog {
             },
             onClearEvents: () => {
                 result.clearEvents = true;
+                host?.setResult?.({ ...result });
+            },
+            onConsoleFilter: (level) => {
+                result.consoleFilter = level;
+                host?.setResult?.({ ...result });
+            },
+            onEventsFilter: (type) => {
+                result.eventsFilter = type;
                 host?.setResult?.({ ...result });
             },
             onLaunchDoc: (key) =>

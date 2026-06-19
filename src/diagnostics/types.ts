@@ -81,6 +81,8 @@ export interface DiagnosticsLabels {
     evtCrossFilter: string;
     evtTooltip: string;
     evtDrill: string;
+    /** Radio-filter "show everything" option (Console + Events). */
+    filterAll: string;
 }
 
 /** Doc pages the Sanitizer tab links to (launched by the visual via launchUrl). */
@@ -104,4 +106,12 @@ export interface DiagnosticsSnapshot {
     initialTab?: string;
     /** Captured visual host events (update/cross-filter/tooltip/drill). */
     events: HostEvent[];
+    /**
+     * Remembered Console level filter for the session ('all' or a single level),
+     * so the selection is sticky across open/close like the active tab. Defaults
+     * to 'all' when absent.
+     */
+    consoleFilter?: string;
+    /** Remembered Events type filter for the session ('all' or a single type). */
+    eventsFilter?: string;
 }

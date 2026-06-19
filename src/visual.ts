@@ -125,6 +125,11 @@ export class Visual implements IVisual {
     // Remembered diagnostics tab for this visual instance (resets per
     // constructor). Lets the dialog reopen on the last-viewed tab.
     private lastDiagnosticsTab = 'raw';
+    // Remembered Console/Events filter picks for this session, so the radio
+    // filters are sticky across dialog open/close like the active tab. 'all'
+    // shows everything.
+    private lastConsoleFilter = 'all';
+    private lastEventsFilter = 'all';
     // Detaches the document-level Ctrl/Cmd+D keydown listener on destroy(), so a
     // torn-down instance can't react to the hotkey (the handler captures `this`).
     private removeHotkeyListener?: () => void;
@@ -501,7 +506,8 @@ export class Visual implements IVisual {
             evtUpdate: t('Diagnostics_EvtUpdate'),
             evtCrossFilter: t('Diagnostics_EvtCrossFilter'),
             evtTooltip: t('Diagnostics_EvtTooltip'),
-            evtDrill: t('Diagnostics_EvtDrill')
+            evtDrill: t('Diagnostics_EvtDrill'),
+            filterAll: t('Diagnostics_FilterAll')
         };
     }
 
@@ -552,7 +558,9 @@ export class Visual implements IVisual {
             events: eventsSnapshot(),
             labels: this.diagnosticsLabels(),
             sanitizeEnabled: config.sanitize,
-            initialTab: this.lastDiagnosticsTab
+            initialTab: this.lastDiagnosticsTab,
+            consoleFilter: this.lastConsoleFilter,
+            eventsFilter: this.lastEventsFilter
         });
         void this.host
             .openModalDialog(
@@ -580,11 +588,20 @@ export class Visual implements IVisual {
                           lastTab?: string;
                           clearConsole?: boolean;
                           clearEvents?: boolean;
+                          consoleFilter?: string;
+                          eventsFilter?: string;
                           launchDoc?: 'sanitization' | 'acceptedTags';
                       }
                     | undefined;
                 if (rs?.lastTab) {
                     this.lastDiagnosticsTab = rs.lastTab;
+                }
+                // Remember the filter picks so they're sticky on the next open.
+                if (rs?.consoleFilter) {
+                    this.lastConsoleFilter = rs.consoleFilter;
+                }
+                if (rs?.eventsFilter) {
+                    this.lastEventsFilter = rs.eventsFilter;
                 }
                 if (rs?.clearConsole) {
                     clearConsoleBuffer();

@@ -47,7 +47,8 @@ const labels = {
     evtUpdate: 'update',
     evtCrossFilter: 'cross-filter',
     evtTooltip: 'tooltip',
-    evtDrill: 'drill'
+    evtDrill: 'drill',
+    filterAll: 'all'
 };
 
 describe('isDiagnosticsHotkey', () => {
@@ -89,6 +90,17 @@ describe('buildSnapshot', () => {
         const events = [{ ts: 1, type: 'update' as const, summary: 'type=Data' }];
         const snap = buildSnapshot({ ...base, rawHtml: 'x', events });
         expect(snap.events).toBe(events);
+    });
+
+    it('passes the remembered console/events filters through', () => {
+        const snap = buildSnapshot({
+            ...base,
+            rawHtml: 'x',
+            consoleFilter: 'warn',
+            eventsFilter: 'drill'
+        });
+        expect(snap.consoleFilter).toBe('warn');
+        expect(snap.eventsFilter).toBe('drill');
     });
 
     it('passes the labels and sanitizeEnabled through unchanged', () => {

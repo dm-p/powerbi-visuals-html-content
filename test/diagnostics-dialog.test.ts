@@ -33,7 +33,8 @@ const labels = {
     evtUpdate: 'update',
     evtCrossFilter: 'cross-filter',
     evtTooltip: 'tooltip',
-    evtDrill: 'drill'
+    evtDrill: 'drill',
+    filterAll: 'all'
 };
 
 const snap = (
@@ -146,7 +147,7 @@ describe('renderPanel', () => {
         expect(cleared).toBe(1);
     });
 
-    it('console level filter hides lines of the unchecked level', () => {
+    it('console level filter (radio) shows only the selected level', () => {
         const el = document.createElement('div');
         renderPanel(
             el,
@@ -157,16 +158,56 @@ describe('renderPanel', () => {
                 ]
             })
         );
-        const warnCb = el.querySelector(
-            'input[data-level="warn"]'
-        ) as HTMLInputElement;
         const warnLine = el.querySelector('.hc-log.hc-warn') as HTMLElement;
         const errorLine = el.querySelector('.hc-log.hc-error') as HTMLElement;
+        // Default 'all' → both visible.
         expect(warnLine.style.display).not.toBe('none');
-        warnCb.checked = false;
-        warnCb.dispatchEvent(new Event('change'));
-        expect(warnLine.style.display).toBe('none');
         expect(errorLine.style.display).not.toBe('none');
+        // Pick the 'warn' radio → only warn visible.
+        const warnRadio = el.querySelector(
+            'input[name="hc-console-filter"][value="warn"]'
+        ) as HTMLInputElement;
+        warnRadio.checked = true;
+        warnRadio.dispatchEvent(new Event('change'));
+        expect(warnLine.style.display).not.toBe('none');
+        expect(errorLine.style.display).toBe('none');
+    });
+
+    it('console filter restores the remembered pick and reports changes', () => {
+        const el = document.createElement('div');
+        const picks: string[] = [];
+        renderPanel(
+            el,
+            snap({
+                consoleFilter: 'error',
+                console: [
+                    { ts: 0, level: 'warn', text: 'w' },
+                    { ts: 0, level: 'error', text: 'e' }
+                ]
+            }),
+            { onConsoleFilter: (l) => picks.push(l) }
+        );
+        // Remembered 'error' applied on open: warn hidden, error shown, radio set.
+        expect(
+            (el.querySelector('.hc-log.hc-warn') as HTMLElement).style.display
+        ).toBe('none');
+        expect(
+            (el.querySelector('.hc-log.hc-error') as HTMLElement).style.display
+        ).not.toBe('none');
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-console-filter"][value="error"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+        // Switching back to All reports the change.
+        const allRadio = el.querySelector(
+            'input[name="hc-console-filter"][value="all"]'
+        ) as HTMLInputElement;
+        allRadio.checked = true;
+        allRadio.dispatchEvent(new Event('change'));
+        expect(picks).toContain('all');
     });
 
     it('sanitizer doc links report onLaunchDoc with the doc key', () => {
@@ -354,7 +395,7 @@ describe('renderPanel', () => {
         );
     });
 
-    it('event type filter hides rows of the unchecked type', () => {
+    it('event type filter (radio) shows only the selected type', () => {
         const el = document.createElement('div');
         renderPanel(
             el,
@@ -365,16 +406,60 @@ describe('renderPanel', () => {
                 ]
             })
         );
-        const updateCb = el.querySelector(
-            'input[data-evt="update"]'
-        ) as HTMLInputElement;
-        const updateRow = el.querySelector('.hc-evt.hc-evt-update') as HTMLElement;
+        const updateRow = el.querySelector(
+            '.hc-evt.hc-evt-update'
+        ) as HTMLElement;
         const drillRow = el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement;
+        // Default 'all' → both visible.
         expect(updateRow.style.display).not.toBe('none');
-        updateCb.checked = false;
-        updateCb.dispatchEvent(new Event('change'));
+        expect(drillRow.style.display).not.toBe('none');
+        // Pick the 'drill' radio → only drill visible.
+        const drillRadio = el.querySelector(
+            'input[name="hc-events-filter"][value="drill"]'
+        ) as HTMLInputElement;
+        drillRadio.checked = true;
+        drillRadio.dispatchEvent(new Event('change'));
         expect(updateRow.style.display).toBe('none');
         expect(drillRow.style.display).not.toBe('none');
+    });
+
+    it('events filter restores the remembered pick and reports changes', () => {
+        const el = document.createElement('div');
+        const picks: string[] = [];
+        renderPanel(
+            el,
+            snap({
+                eventsFilter: 'drill',
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'drill', summary: 'd' }
+                ]
+            }),
+            { onEventsFilter: (t) => picks.push(t) }
+        );
+        // Remembered 'drill' applied on open.
+        expect(
+            (el.querySelector('.hc-evt.hc-evt-update') as HTMLElement).style
+                .display
+        ).toBe('none');
+        expect(
+            (el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement).style
+                .display
+        ).not.toBe('none');
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-events-filter"][value="drill"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+        // Switching to update reports it.
+        const updateRadio = el.querySelector(
+            'input[name="hc-events-filter"][value="update"]'
+        ) as HTMLInputElement;
+        updateRadio.checked = true;
+        updateRadio.dispatchEvent(new Event('change'));
+        expect(picks).toContain('update');
     });
 
     it('events Clear empties the display and reports onClearEvents', () => {

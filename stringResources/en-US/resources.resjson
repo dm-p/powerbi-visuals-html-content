@@ -55,6 +55,7 @@
     "Diagnostics_EvtCrossFilter": "cross-filter",
     "Diagnostics_EvtTooltip": "tooltip",
     "Diagnostics_EvtDrill": "drill",
+    "Diagnostics_FilterAll": "all",
     "Objects_ContentFormatting_FontFamily": "Font family",
     "Objects_ContentFormatting_FontFamily_Description": "The default font family to apply to the HTML body text.\n\n𝙉𝙤𝙩𝙚 𝘵𝘩𝘢𝘵 𝘢𝘱𝘱𝘭𝘺𝘪𝘯𝘨 𝘪𝘯𝘭𝘪𝘯𝘦 𝘴𝘵𝘺𝘭𝘦𝘴 𝘵𝘰 𝘦𝘭𝘦𝘮𝘦𝘯𝘵𝘴 𝘮𝘢𝘺 𝘰𝘷𝘦𝘳𝘳𝘪𝘥𝘦 𝘵𝘩𝘪𝘴.",
     "Objects_ContentFormatting_FontSize": "Font size",
