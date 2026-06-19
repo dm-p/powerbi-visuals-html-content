@@ -52,6 +52,13 @@ import {
     clear as clearConsoleBuffer
 } from './diagnostics/console-capture';
 import {
+    setArmed as setEventsArmed,
+    snapshot as eventsSnapshot,
+    clear as clearEventsBuffer,
+    recordEvent
+} from './diagnostics/event-recorder';
+import { describeUpdateType } from './diagnostics/host-events';
+import {
     buildSnapshot,
     shouldShowDiagnosticsIcon,
     createDiagnosticsIcon,
@@ -210,8 +217,14 @@ export class Visual implements IVisual {
             options.viewMode === 1 || options.viewMode === 2
         );
         this.diagActive = diagActive;
+        setEventsArmed(diagActive);
         if (diagActive) {
             installConsoleCapture();
+            recordEvent(
+                'update',
+                `type=${describeUpdateType(options.type)}, viewMode=${options.viewMode}`,
+                `rows=${options.dataViews?.[0]?.table?.rows?.length ?? options.dataViews?.[0]?.categorical?.categories?.[0]?.values?.length ?? 0}`
+            );
         }
         setIconVisibility(this.diagnosticsIcon, diagActive);
 
@@ -478,7 +491,17 @@ export class Visual implements IVisual {
             docsSanitization: t('Diagnostics_DocsSanitization'),
             docsAcceptedTags: t('Diagnostics_DocsAcceptedTags'),
             rawBanner: t('Diagnostics_RawBanner'),
-            rawBannerSanitized: t('Diagnostics_RawBannerSanitized')
+            rawBannerSanitized: t('Diagnostics_RawBannerSanitized'),
+            tabEvents: t('Diagnostics_TabEvents'),
+            eventsEmpty: t('Diagnostics_EventsEmpty'),
+            colTime: t('Diagnostics_ColTime'),
+            colEvent: t('Diagnostics_ColEvent'),
+            colContext: t('Diagnostics_ColContext'),
+            eventsClear: t('Diagnostics_EventsClear'),
+            evtUpdate: t('Diagnostics_EvtUpdate'),
+            evtCrossFilter: t('Diagnostics_EvtCrossFilter'),
+            evtTooltip: t('Diagnostics_EvtTooltip'),
+            evtDrill: t('Diagnostics_EvtDrill')
         };
     }
 
@@ -526,6 +549,7 @@ export class Visual implements IVisual {
             rawHtml,
             sanitizer: this.lastSanitizerCapture,
             console: consoleSnapshot(),
+            events: eventsSnapshot(),
             labels: this.diagnosticsLabels(),
             sanitizeEnabled: config.sanitize,
             initialTab: this.lastDiagnosticsTab
@@ -555,6 +579,7 @@ export class Visual implements IVisual {
                     | {
                           lastTab?: string;
                           clearConsole?: boolean;
+                          clearEvents?: boolean;
                           launchDoc?: 'sanitization' | 'acceptedTags';
                       }
                     | undefined;
@@ -563,6 +588,9 @@ export class Visual implements IVisual {
                 }
                 if (rs?.clearConsole) {
                     clearConsoleBuffer();
+                }
+                if (rs?.clearEvents) {
+                    clearEventsBuffer();
                 }
                 if (rs?.launchDoc) {
                     // Map the doc KEY to our own constant URL — launchUrl can
