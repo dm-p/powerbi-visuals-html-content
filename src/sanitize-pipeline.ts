@@ -17,6 +17,7 @@ import {
     isSafeImageDataUri,
     SAFE_IMAGE_MIME_TYPES
 } from './svg-payload-scan';
+import { recordRemoval } from './diagnostics/diagnostics-sink';
 
 /**
  * Per-tag attribute allowlist enforced by the DOMPurify
@@ -382,6 +383,16 @@ function withSanitizerHooks<T>(
 
                     const isSvgTag = SVG_TAGS.has(tagName);
 
+                    const snip = (v: string) =>
+                        v.length > 80 ? v.slice(0, 80) + '…' : v;
+                    const dropAttr = (rule: string) =>
+                        recordRemoval({
+                            kind: 'attr',
+                            subject: `${attrName} on <${tagName}>`,
+                            rule,
+                            snippet: snip(value)
+                        });
+
                     // NFKC normalize URL-bearing attribute values to defeat Unicode
                     // obfuscation of dangerous schemes, and strip control characters
                     // (browsers ignore C0 controls when parsing URLs, so e.g.
@@ -457,6 +468,7 @@ function withSanitizerHooks<T>(
                         tagName === 'a' &&
                         (attrName === 'href' || attrName === 'xlink:href')
                     ) {
+                        dropAttr('hyperlinks-disabled');
                         hookEvent.keepAttr = false;
                         return;
                     }
@@ -477,6 +489,7 @@ function withSanitizerHooks<T>(
                             return pattern === attrName;
                         });
                         if (!isAllowed) {
+                            dropAttr('attr-not-allowed');
                             hookEvent.keepAttr = false;
                             return;
                         }
@@ -484,6 +497,7 @@ function withSanitizerHooks<T>(
                         /^on[a-z]+$/i.test(attrName) ||
                         SVG_ATTRIBUTE_DENYLIST.has(attrName)
                     ) {
+                        dropAttr('svg-attr-denied');
                         hookEvent.keepAttr = false;
                         return;
                     }
@@ -518,11 +532,13 @@ function withSanitizerHooks<T>(
                                 ? schemeMatch[1].toLowerCase()
                                 : '';
                             if (!schemesByTag.includes(scheme)) {
+                                dropAttr('disallowed-url-scheme');
                                 hookEvent.keepAttr = false;
                                 return;
                             }
                         } else if (isSvgTag) {
                             // Default-deny: SVG tag without an allowedSchemesByTag entry.
+                            dropAttr('svg-url-scheme-default-deny');
                             hookEvent.keepAttr = false;
                             return;
                         }
@@ -575,6 +591,7 @@ function withSanitizerHooks<T>(
                             if (!schemeMatch) continue;
                             const scheme = schemeMatch[1].toLowerCase();
                             if (scheme !== 'data') {
+                                dropAttr('svg-funciri-scheme');
                                 hookEvent.keepAttr = false;
                                 return;
                             }
@@ -589,6 +606,7 @@ function withSanitizerHooks<T>(
                             // values (isSafeImageDataUri via
                             // hasUnsafeFunction).
                             if (!isSafeImageDataUri(fullUrl)) {
+                                dropAttr('svg-funciri-unsafe-data');
                                 hookEvent.keepAttr = false;
                                 return;
                             }
@@ -620,6 +638,7 @@ function withSanitizerHooks<T>(
                             value.trim().toLowerCase()
                         )
                     ) {
+                        dropAttr('smil-attributename');
                         hookEvent.keepAttr = false;
                         return;
                     }
@@ -639,6 +658,7 @@ function withSanitizerHooks<T>(
                     ) {
                         const sanitized = getSanitizedDataUri(value);
                         if (sanitized === 'data:,' || sanitized === '') {
+                            dropAttr('data-uri');
                             hookEvent.keepAttr = false;
                             return;
                         }
@@ -655,6 +675,7 @@ function withSanitizerHooks<T>(
                             'declaration-list'
                         );
                         if (sanitizedStyle === '') {
+                            dropAttr('inline-style');
                             hookEvent.keepAttr = false;
                             return;
                         }
@@ -679,6 +700,7 @@ function withSanitizerHooks<T>(
                         attrName === 'xlink:href' &&
                         /^javascript\s*:/i.test(value)
                     ) {
+                        dropAttr('xlink-javascript');
                         hookEvent.keepAttr = false;
                         return;
                     }
@@ -689,6 +711,7 @@ function withSanitizerHooks<T>(
                         (p) => lowerValue.includes(p.toLowerCase())
                     );
                     if (hasDangerous) {
+                        dropAttr('dangerous-pattern');
                         hookEvent.keepAttr = false;
                         return;
                     }
@@ -699,6 +722,12 @@ function withSanitizerHooks<T>(
                         hookEvent.forceKeepAttr = true;
                     }
                 } catch (err) {
+                    recordRemoval({
+                        kind: 'attr',
+                        subject: 'attribute',
+                        rule: 'hook-error',
+                        snippet: String(err).slice(0, 80)
+                    });
                     // Fail-closed: any unexpected throw inside the
                     // attribute hook drops the attribute rather than
                     // letting DOMPurify fall back to its default
@@ -756,6 +785,11 @@ function withSanitizerHooks<T>(
                 for (let i = 0; i < element.attributes.length; i++) {
                     const attr = element.attributes[i];
                     if (/^on[a-z]+$/i.test(attr.name)) {
+                        recordRemoval({
+                            kind: 'element',
+                            subject: `<${element.nodeName.toLowerCase()}> (${attr.name})`,
+                            rule: 'event-handler'
+                        });
                         if (element.parentNode) {
                             element.parentNode.removeChild(element);
                         }
@@ -784,6 +818,55 @@ function withSanitizerHooks<T>(
 }
 
 /**
+ * Read DOMPurify's own `removed` log (forbidden/unknown tags and any
+ * attributes its core dropped) and forward each entry to the passive
+ * diagnostics sink. No-op when `removed` is absent or empty, and every
+ * `recordRemoval` is itself a no-op unless capture is armed — so this
+ * never changes sanitizer output. Must be called while still inside
+ * `withSanitizerHooks`' `run`, since `purify.removed` is reset on the
+ * next `sanitize` call.
+ */
+const recordCoreRemovals = (purify: DOMPurifyType): void => {
+    // Defense-in-depth on a frozen security boundary: this runs OUTSIDE the
+    // sanitizer hooks' try/catch, so any unexpected throw here must never be
+    // allowed to abort a render. Diagnostics observation is strictly
+    // best-effort — swallow anything that goes wrong reading `removed`.
+    try {
+        const removed = (purify as unknown as { removed?: unknown[] }).removed;
+        if (!Array.isArray(removed)) return;
+        for (const r of removed) {
+            if (r && typeof r === 'object' && 'element' in r) {
+                const el = (r as { element: { nodeName?: string } }).element;
+                const name = el?.nodeName
+                    ? `<${String(el.nodeName).toLowerCase()}>`
+                    : '<node>';
+                recordRemoval({
+                    kind: 'tag',
+                    subject: name,
+                    rule: 'forbidden-or-unknown-tag'
+                });
+            } else if (r && typeof r === 'object' && 'attribute' in r) {
+                const a = r as {
+                    attribute?: { name?: string };
+                    from?: { nodeName?: string };
+                };
+                const an = a.attribute?.name ?? 'attr';
+                const fn = a.from?.nodeName
+                    ? `<${String(a.from.nodeName).toLowerCase()}>`
+                    : '';
+                recordRemoval({
+                    kind: 'attr',
+                    subject: `${an} on ${fn}`.trim(),
+                    rule: 'dompurify-core'
+                });
+            }
+        }
+    } catch {
+        /* diagnostics must never break a render */
+    }
+};
+
+/**
  * Sanitize the supplied HTML string using DOMPurify.
  */
 export const getSanitizedContent = (
@@ -791,10 +874,11 @@ export const getSanitizedContent = (
     options?: SanitizeOptions
 ): string => {
     const preprocessed = preprocessStyleTags(content);
-    return withSanitizerHooks(
-        (purify) => purify.sanitize(preprocessed, dpConfig),
-        options
-    );
+    return withSanitizerHooks((purify) => {
+        const result = purify.sanitize(preprocessed, dpConfig);
+        recordCoreRemovals(purify);
+        return result;
+    }, options);
 };
 
 /**
@@ -862,6 +946,7 @@ export const sanitizeFragmentInPlace = (
             const el = n as Element;
             if (isInPlaceSanitizableRoot(el)) {
                 purify.sanitize(el, { ...dpConfig, IN_PLACE: true });
+                recordCoreRemovals(purify);
             } else {
                 el.remove();
             }

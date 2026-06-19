@@ -27,6 +27,7 @@ import {
     SanitizeOptions
 } from './sanitize-pipeline';
 import { CONTENT_TOKEN, ROW_TOKEN, substitute } from './template-engine';
+import { buildHighlightedFragment } from './diagnostics/highlight-html';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
@@ -368,8 +369,14 @@ export const domSerialize = (node: Node): string => {
 
 /**
  * For the supplied stylesheet container, settings and body container (could be standard content, or the
- * "no data" message container), ensure that the content is resolved, and the correct element (readonly
- * textarea) is added to the DOM, as well as caretaking any existing elements.
+ * "no data" message container), ensure that the content is resolved, and the raw-HTML view is added to
+ * the DOM, as well as caretaking any existing elements.
+ *
+ * Rendered into a read-only `<pre>` (not a `<textarea>`) so it reuses the same
+ * `buildHighlightedFragment` colorizer as the diagnostics dialog's Raw HTML
+ * tab — one shared serialization core (`getRawHtml`) AND one shared colorizer.
+ * Built as DOM nodes (never innerHTML), preserving the visual's no-innerHTML
+ * certification posture. The block stays read-only, scrollable, and selectable.
  */
 export const resolveForRawHtml = (
     styleSheetContainer: Selection<any, any, any, any>,
@@ -386,12 +393,37 @@ export const resolveForRawHtml = (
             settings.stylesheet
         );
         contentContainer.selectAll('*').remove();
-        contentContainer
-            .append('textarea')
+        const pre = contentContainer
+            .append('pre')
             .attr('id', VisualConstants.dom.rawOutputIdSelector)
-            .attr('readonly', true)
-            .text(output);
+            .attr('tabindex', 0)
+            .node() as HTMLElement;
+        pre.appendChild(buildHighlightedFragment(output));
     }
+};
+
+/**
+ * Raw HTML for the diagnostics dialog. When Show Raw HTML is ON, the content
+ * container has already been replaced by the raw-view <pre> (from
+ * resolveForRawHtml); re-serializing that would recurse — the dialog would show
+ * the raw view's OWN markup. The <pre>'s textContent IS the raw HTML (lossless,
+ * by buildHighlightedFragment's contract), so read it back in that case.
+ * Otherwise serialize the live content. Either way the dialog and the in-canvas
+ * view show the identical pretty-printed output.
+ */
+export const getDiagnosticsRawHtml = (
+    styleSheetContainer: Selection<any, any, any, any>,
+    contentContainer: Selection<any, any, any, any>,
+    stylesheet: StylesheetSettings
+): string => {
+    const node = contentContainer.node() as HTMLElement | null;
+    const rawView =
+        node &&
+        node.querySelector('#' + VisualConstants.dom.rawOutputIdSelector);
+    if (rawView) {
+        return rawView.textContent ?? '';
+    }
+    return getRawHtml(styleSheetContainer, contentContainer, stylesheet);
 };
 
 /**

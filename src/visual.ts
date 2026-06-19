@@ -2,6 +2,7 @@
 import './../style/visual.less';
 import 'overlayscrollbars/css/OverlayScrollbars.css';
 import 'w3-css/w3.css';
+import * as config from '../config/visual.json';
 import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
@@ -36,12 +37,28 @@ import {
     renderTemplatedEntries,
     reconcileTemplatedEntries,
     TemplateContainer,
-    TemplatedRenderOptions
+    TemplatedRenderOptions,
+    getDiagnosticsRawHtml
 } from './domain-utils';
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
 import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
+import './diagnostics/diagnostics-dialog'; // registration side-effect — must be imported
+import { beginCapture, endCapture } from './diagnostics/diagnostics-sink';
+import {
+    install as installConsoleCapture,
+    snapshot as consoleSnapshot,
+    clear as clearConsoleBuffer
+} from './diagnostics/console-capture';
+import {
+    buildSnapshot,
+    shouldShowDiagnosticsIcon,
+    createDiagnosticsIcon,
+    setIconVisibility,
+    isDiagnosticsHotkey
+} from './diagnostics/diagnostics-snapshot';
+import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
 export class Visual implements IVisual {
     // The root element for the entire visual
@@ -87,6 +104,27 @@ export class Visual implements IVisual {
     // slot anchor). Established on rebuild and reused on reconcile; invalidated
     // on kind change / error so the next populated render re-resolves it.
     private templateContainer: TemplateContainer | undefined;
+    // Diagnostics overlay icon (top-right). Created hidden in the constructor;
+    // its visibility is gated each update by the toggle + host modal support.
+    private diagnosticsIcon!: HTMLButtonElement;
+    // Last armed sanitizer capture, surfaced when the dialog is opened.
+    private lastSanitizerCapture: SanitizerCapture = {
+        entries: [],
+        overflow: 0
+    };
+    // Whether diagnostics is active (toggle + host support + edit mode), kept in
+    // sync each update so the Ctrl/Cmd+D hotkey can honour the same gate.
+    private diagActive = false;
+    // Remembered diagnostics tab for this visual instance (resets per
+    // constructor). Lets the dialog reopen on the last-viewed tab.
+    private lastDiagnosticsTab = 'raw';
+    // Detaches the document-level Ctrl/Cmd+D keydown listener on destroy(), so a
+    // torn-down instance can't react to the hotkey (the handler captures `this`).
+    private removeHotkeyListener?: () => void;
+    // Re-entrancy guard: true while a modal dialog open is in flight, so a
+    // double Ctrl/Cmd+D (or icon click mid-open) can't fire two openModalDialog
+    // calls with the same snapshot.
+    private diagOpening = false;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -123,7 +161,17 @@ export class Visual implements IVisual {
             this.landingContainer,
             this.localisationManager
         );
+        this.diagnosticsIcon = createDiagnosticsIcon(
+            () => this.openDiagnostics(),
+            this.localisationManager.getDisplayName('Diagnostics_IconTitle'),
+            this.localisationManager.getDisplayName('Diagnostics_IconAriaLabel')
+        );
+        setIconVisibility(this.diagnosticsIcon, false);
+        (this.container.node() as HTMLElement).appendChild(
+            this.diagnosticsIcon
+        );
         this.bindFocusEvents();
+        this.bindDiagnosticsHotkey();
         this.events = this.host.eventService;
         this.viewModelHandler.reset();
         this.orchestrator = new RenderOrchestrator(this.buildRenderSteps());
@@ -149,6 +197,23 @@ export class Visual implements IVisual {
                 VisualFormattingSettingsModel,
                 options.dataViews?.[0]
             );
+
+        // Diagnostics is active only when the toggle is on, the host supports
+        // modal dialogs, AND the report is being edited (ViewMode.Edit = 1 /
+        // InFocusEdit = 2). View mode never shows the icon or records — keeping
+        // diagnostics out of the consumer experience. `diagActive` gates the
+        // icon, the console install, and the capture brackets alike.
+        const diagActive = shouldShowDiagnosticsIcon(
+            this.formattingSettings.contentFormatting
+                .contentFormattingCardBehavior.enableDiagnostics.value,
+            this.host.hostCapabilities?.allowModalDialog,
+            options.viewMode === 1 || options.viewMode === 2
+        );
+        this.diagActive = diagActive;
+        if (diagActive) {
+            installConsoleCapture();
+        }
+        setIconVisibility(this.diagnosticsIcon, diagActive);
 
         try {
             this.events.renderingStarted(options);
@@ -178,11 +243,19 @@ export class Visual implements IVisual {
             if (!viewModel.isValid) {
                 throw new Error('View model mapping error');
             }
-            this.orchestrator.render(
-                options,
-                viewModel,
-                this.formattingSettings
-            );
+            if (diagActive) beginCapture();
+            try {
+                this.orchestrator.render(
+                    options,
+                    viewModel,
+                    this.formattingSettings
+                );
+            } finally {
+                // Always disarm the sink, even if render throws: this keeps the
+                // capture up to the failure point (useful for diagnosing the
+                // throw) and prevents the sink staying armed into later renders.
+                if (diagActive) this.lastSanitizerCapture = endCapture();
+            }
             this.events.renderingFinished(options);
         } catch (e) {
             this.events.renderingFailed(options, e);
@@ -377,6 +450,128 @@ export class Visual implements IVisual {
             settings.contentFormatting.contentFormattingCardBehavior.hyperlinks
                 .value
         );
+    }
+
+    /** Resolve all dialog UI strings via the localization manager. */
+    private diagnosticsLabels(): DiagnosticsLabels {
+        const t = (key: string): string =>
+            this.localisationManager.getDisplayName(key);
+        return {
+            tabSanitizer: t('Diagnostics_TabSanitizer'),
+            tabConsole: t('Diagnostics_TabConsole'),
+            tabRaw: t('Diagnostics_TabRawHtml'),
+            sanitizerEmpty: t('Diagnostics_SanitizerEmpty'),
+            consoleEmpty: t('Diagnostics_ConsoleEmpty'),
+            colKind: t('Diagnostics_ColKind'),
+            colSubject: t('Diagnostics_ColSubject'),
+            colRule: t('Diagnostics_ColRule'),
+            overflow: t('Diagnostics_Overflow'),
+            truncated: t('Diagnostics_Truncated'),
+            copy: t('Diagnostics_Copy'),
+            consoleClear: t('Diagnostics_ConsoleClear'),
+            docsHeading: t('Diagnostics_DocsHeading'),
+            docsSanitization: t('Diagnostics_DocsSanitization'),
+            docsAcceptedTags: t('Diagnostics_DocsAcceptedTags'),
+            rawBanner: t('Diagnostics_RawBanner'),
+            rawBannerSanitized: t('Diagnostics_RawBannerSanitized')
+        };
+    }
+
+    /**
+     * Open diagnostics via Ctrl+D (Windows/Linux) / Cmd+D (Mac) when active.
+     * Same gate as the icon (`this.diagActive`). The default Ctrl/Cmd+D
+     * (bookmark) is suppressed only when we actually open the dialog.
+     */
+    private bindDiagnosticsHotkey(): void {
+        const handler = (e: KeyboardEvent): void => {
+            if (this.diagActive && isDiagnosticsHotkey(e)) {
+                e.preventDefault();
+                this.openDiagnostics();
+            }
+        };
+        document.addEventListener('keydown', handler);
+        this.removeHotkeyListener = () =>
+            document.removeEventListener('keydown', handler);
+    }
+
+    /**
+     * Power BI calls destroy() when the visual instance is torn down. Detach the
+     * document-level keydown listener so a disposed instance can't react to
+     * Ctrl/Cmd+D (the handler closes over `this`).
+     */
+    public destroy(): void {
+        this.removeHotkeyListener?.();
+    }
+
+    /** Assemble a bounded snapshot and open the host modal dialog. */
+    private openDiagnostics(): void {
+        // Re-entrancy guard: one dialog open at a time. A double Ctrl/Cmd+D or an
+        // icon click while the open is in flight would otherwise fire two
+        // concurrent openModalDialog calls. Cleared in both .then and .catch.
+        if (this.diagOpening) {
+            return;
+        }
+        this.diagOpening = true;
+        const rawHtml = getDiagnosticsRawHtml(
+            this.styleSheetContainer,
+            this.contentContainer,
+            this.formattingSettings.stylesheet
+        );
+        const snapshot = buildSnapshot({
+            rawHtml,
+            sanitizer: this.lastSanitizerCapture,
+            console: consoleSnapshot(),
+            labels: this.diagnosticsLabels(),
+            sanitizeEnabled: config.sanitize,
+            initialTab: this.lastDiagnosticsTab
+        });
+        void this.host
+            .openModalDialog(
+                VisualConstants.diagnostics.dialogId,
+                {
+                    title: this.localisationManager.getDisplayName(
+                        'Diagnostics_DialogTitle'
+                    ),
+                    size: VisualConstants.diagnostics.dialog.size,
+                    // Literals avoid const-enum inlining ambiguity:
+                    position: {
+                        type: 0 /* VisualDialogPositionType.Center */
+                    },
+                    actionButtons: [0 /* DialogAction.Close */]
+                },
+                snapshot
+            )
+            .then((result) => {
+                this.diagOpening = false;
+                // The dialog reports its state via setResult / close →
+                // resultState: the last tab (so we reopen there), a console
+                // clear request, and a doc-link launch (mapped to our own URL).
+                const rs = result?.resultState as
+                    | {
+                          lastTab?: string;
+                          clearConsole?: boolean;
+                          launchDoc?: 'sanitization' | 'acceptedTags';
+                      }
+                    | undefined;
+                if (rs?.lastTab) {
+                    this.lastDiagnosticsTab = rs.lastTab;
+                }
+                if (rs?.clearConsole) {
+                    clearConsoleBuffer();
+                }
+                if (rs?.launchDoc) {
+                    // Map the doc KEY to our own constant URL — launchUrl can
+                    // only ever open one of our documented pages.
+                    const url = VisualConstants.diagnostics.docs[rs.launchDoc];
+                    if (url) {
+                        this.host.launchUrl(url);
+                    }
+                }
+            })
+            .catch(() => {
+                this.diagOpening = false;
+                /* dialog dismissed / unsupported; keep the current state */
+            });
     }
 
     /**

@@ -11,9 +11,14 @@ import {
     stampRenderedContent,
     resolveTemplateContainer,
     renderTemplatedEntries,
-    reconcileTemplatedEntries
+    reconcileTemplatedEntries,
+    resolveForRawHtml,
+    getDiagnosticsRawHtml
 } from '../src/domain-utils';
-import type { StylesheetSettings } from '../src/visual-settings';
+import type {
+    StylesheetSettings,
+    VisualFormattingSettingsModel
+} from '../src/visual-settings';
 import { VisualConstants } from '../src/visual-constants';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
@@ -583,6 +588,35 @@ describe('Domain Utils - Exported Functions', () => {
             const container = select(dom.window.document).select('#content');
             return { styleSheetContainer, container, dom };
         };
+
+        it('getDiagnosticsRawHtml reads the raw-view <pre> textContent (no recursion when Show Raw HTML is on)', () => {
+            const { styleSheetContainer, container, dom } = buildContainers('');
+            const pre = dom.window.document.createElement('pre');
+            pre.id = VisualConstants.dom.rawOutputIdSelector;
+            pre.textContent = '<div>actual raw</div>';
+            (container.node() as Element).appendChild(pre);
+            const out = getDiagnosticsRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            // Returns the pre's text verbatim — NOT a re-serialization that would
+            // wrap it in <pre id="rawHtmlOutput">...</pre>.
+            expect(out).toBe('<div>actual raw</div>');
+            expect(out).not.toContain('rawHtmlOutput');
+        });
+
+        it('getDiagnosticsRawHtml serializes live content when no raw-view <pre> exists', () => {
+            const { styleSheetContainer, container } =
+                buildContainers('<p>live</p>');
+            const out = getDiagnosticsRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out).toContain('<p>');
+            expect(out).toContain('live');
+        });
 
         it('emits literal & in iframe src (regression for issue #76)', () => {
             const { styleSheetContainer, container } = buildContainers(
@@ -1735,5 +1769,37 @@ describe('Domain Utils - Exported Functions', () => {
             expect(container.contains(footer)).toBe(true);
             expect(container.contains(anchor)).toBe(true);
         });
+    });
+});
+
+describe('resolveForRawHtml — colorized in-canvas raw view (DRY)', () => {
+    const settingsStub = (css = ''): VisualFormattingSettingsModel =>
+        ({
+            contentFormatting: {
+                contentFormattingCardBehavior: { showRawHtml: { value: true } }
+            },
+            stylesheet: { stylesheetCardMain: { stylesheet: { value: css } } }
+        }) as unknown as VisualFormattingSettingsModel;
+
+    it('renders a colorized <pre> (not a <textarea>) via the shared highlighter', () => {
+        // Use the global jsdom document so buildHighlightedFragment's nodes and
+        // the container share one document.
+        const content = document.createElement('div');
+        const p = document.createElement('p');
+        p.textContent = 'hi';
+        content.appendChild(p);
+        const styleEl = document.createElement('style');
+
+        resolveForRawHtml(select(styleEl), select(content), settingsStub());
+
+        const pre = content.querySelector('#rawHtmlOutput') as HTMLElement;
+        expect(pre).not.toBeNull();
+        expect(pre.tagName).toBe('PRE');
+        expect(content.querySelector('textarea')).toBeNull();
+        // Colorized via the same buildHighlightedFragment the dialog uses...
+        expect(pre.querySelectorAll('.hc-tag').length).toBeGreaterThan(0);
+        // ...and shows the serialized raw markup (lossless text).
+        expect(pre.textContent).toContain('hi');
+        expect(pre.textContent).toContain('<p>');
     });
 });

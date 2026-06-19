@@ -84,6 +84,16 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
         descriptionKey: 'Objects_ContentFormatting_ShowRawHTML_Description',
         value: false
     });
+    // Developer diagnostics: surfaces an icon (Desktop+Service) that opens a
+    // modal dialog with sanitizer/console/raw-HTML tabs. Off by default; the
+    // only author-facing gate. Does not change rendered output.
+    enableDiagnostics = new formattingSettings.ToggleSwitch({
+        name: 'enableDiagnostics',
+        displayNameKey: 'Objects_ContentFormatting_EnableDiagnostics',
+        descriptionKey:
+            'Objects_ContentFormatting_EnableDiagnostics_Description',
+        value: VisualConstants.contentFormatting.enableDiagnostics
+    });
     // Allow hyperlinks to be opened using the visual host
     hyperlinks = new formattingSettings.ToggleSwitch({
         name: 'hyperlinks',
@@ -102,6 +112,7 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
         this.format,
         this.renderMode,
         this.showRawHtml,
+        this.enableDiagnostics,
         this.hyperlinks,
         this.userSelect
     ];

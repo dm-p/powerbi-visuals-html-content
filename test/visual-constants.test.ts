@@ -271,3 +271,20 @@ describe('VisualConstants', () => {
         });
     });
 });
+
+describe('diagnostics constants', () => {
+    it('defaults enableDiagnostics off', () => {
+        expect(VisualConstants.contentFormatting.enableDiagnostics).toBe(false);
+    });
+    it('exposes tunable caps and dialog config', () => {
+        const d = VisualConstants.diagnostics;
+        expect(d.dialogId).toBe('DiagnosticsDialog');
+        expect(d.rawHtmlCapBytes).toBeGreaterThan(0);
+        expect(d.sanitizerEntryCap).toBeGreaterThan(0);
+        expect(d.consoleBufferCap).toBeGreaterThan(0);
+        expect(d.consoleLineCap).toBeGreaterThan(0);
+        expect(d.highlightSizeLimit).toBeGreaterThan(0);
+        expect(d.iconIdSelector).toBe('htmlDiagnosticsToggle');
+        expect(d.dialog.size.width).toBeGreaterThan(0);
+    });
+});
