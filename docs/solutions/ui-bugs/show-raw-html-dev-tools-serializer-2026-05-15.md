@@ -32,7 +32,7 @@ tags:
 
 ## Problem
 
-The "Show Raw HTML" toggle in the Power BI visual's format pane is a debug surface for report authors inside Power BI Desktop, since Desktop has no developer tools. Authors use this textarea to introspect what the visual actually rendered after the sanitizer ran — to confirm their HTML/CSS arrived intact, or to see what was stripped. (A later **diagnostics dialog** adds a richer Raw HTML / Sanitizer / Console surface that reuses this same serializer — see [Related Issues](#related-issues).)
+The "Show Raw HTML" toggle in the Power BI visual's format pane is a debug surface for report authors inside Power BI Desktop, since Desktop has no developer tools. Authors use this textarea to introspect what the visual actually rendered after the sanitizer ran — to confirm their HTML/CSS arrived intact, or to see what was stripped. (The **diagnostics dialog** shipped in [#165](https://github.com/dm-p/powerbi-visuals-html-content/pull/165) reuses this same serializer for its Raw HTML tab, alongside Sanitizer and Console tabs — see [Related Issues](#related-issues).)
 
 The previous implementation in `src/domain-utils.ts` used `container.node().outerHTML` to populate that textarea. `.outerHTML` is the HTML-spec serializer: it produces a string that re-parses identically, which means it entity-encodes special characters inside attribute values and text nodes. Authors looking at the textarea saw `&amp;`, `&lt;`, and `&quot;` instead of the literal characters they had typed, and reasonably concluded the visual had mangled their input. The DOM was fine; only the debug display was misleading.
 
