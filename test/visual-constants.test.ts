@@ -287,4 +287,10 @@ describe('diagnostics constants', () => {
         expect(d.iconIdSelector).toBe('htmlDiagnosticsToggle');
         expect(d.dialog.size.width).toBeGreaterThan(0);
     });
+    it('exposes bounded host-event caps', () => {
+        const d = VisualConstants.diagnostics;
+        expect(d.eventBufferCap).toBeGreaterThan(0);
+        expect(d.eventContextItems).toBeGreaterThan(0);
+        expect(d.eventContextCap).toBeGreaterThan(0);
+    });
 });

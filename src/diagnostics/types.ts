@@ -2,6 +2,21 @@
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error';
 
+export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'drill';
+export type TooltipPhase = 'show' | 'hide';
+export type TooltipSource = 'standard' | 'manual';
+
+/** One captured visual-host event for the diagnostics Events tab. */
+export interface HostEvent {
+    /** Unix epoch ms (Date.now()). */
+    ts: number;
+    type: HostEventType;
+    /** Short headline, e.g. "type=Data+Resize, viewMode=Edit" or "show · standard". */
+    summary: string;
+    /** Optional bounded detail, e.g. 'Employee[FullName]="A. Smith" (+1 more)'. */
+    context?: string;
+}
+
 /** One sanitizer removal: a stripped attribute, element, CSS declaration, or core tag. */
 export interface SanitizerEntry {
     kind: 'attr' | 'element' | 'css' | 'tag';
@@ -54,6 +69,18 @@ export interface DiagnosticsLabels {
     rawBanner: string;
     /** Raw HTML banner — sanitized (lite) edition. */
     rawBannerSanitized: string;
+    // Events tab.
+    tabEvents: string;
+    eventsEmpty: string;
+    colTime: string;
+    colEvent: string;
+    colContext: string;
+    eventsClear: string;
+    /** Per-type filter labels. */
+    evtUpdate: string;
+    evtCrossFilter: string;
+    evtTooltip: string;
+    evtDrill: string;
 }
 
 /** Doc pages the Sanitizer tab links to (launched by the visual via launchUrl). */
@@ -75,4 +102,6 @@ export interface DiagnosticsSnapshot {
      * dialog falls back to the first tab when this is absent or unavailable.
      */
     initialTab?: string;
+    /** Captured visual host events (update/cross-filter/tooltip/drill). */
+    events: HostEvent[];
 }
