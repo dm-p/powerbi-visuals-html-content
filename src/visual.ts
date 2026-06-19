@@ -118,6 +118,13 @@ export class Visual implements IVisual {
     // Remembered diagnostics tab for this visual instance (resets per
     // constructor). Lets the dialog reopen on the last-viewed tab.
     private lastDiagnosticsTab = 'raw';
+    // Detaches the document-level Ctrl/Cmd+D keydown listener on destroy(), so a
+    // torn-down instance can't react to the hotkey (the handler captures `this`).
+    private removeHotkeyListener?: () => void;
+    // Re-entrancy guard: true while a modal dialog open is in flight, so a
+    // double Ctrl/Cmd+D (or icon click mid-open) can't fire two openModalDialog
+    // calls with the same snapshot.
+    private diagOpening = false;
 
     // Runs when the visual is initialised
     constructor(options: VisualConstructorOptions) {
@@ -476,16 +483,35 @@ export class Visual implements IVisual {
      * (bookmark) is suppressed only when we actually open the dialog.
      */
     private bindDiagnosticsHotkey(): void {
-        document.addEventListener('keydown', (e: KeyboardEvent) => {
+        const handler = (e: KeyboardEvent): void => {
             if (this.diagActive && isDiagnosticsHotkey(e)) {
                 e.preventDefault();
                 this.openDiagnostics();
             }
-        });
+        };
+        document.addEventListener('keydown', handler);
+        this.removeHotkeyListener = () =>
+            document.removeEventListener('keydown', handler);
+    }
+
+    /**
+     * Power BI calls destroy() when the visual instance is torn down. Detach the
+     * document-level keydown listener so a disposed instance can't react to
+     * Ctrl/Cmd+D (the handler closes over `this`).
+     */
+    public destroy(): void {
+        this.removeHotkeyListener?.();
     }
 
     /** Assemble a bounded snapshot and open the host modal dialog. */
     private openDiagnostics(): void {
+        // Re-entrancy guard: one dialog open at a time. A double Ctrl/Cmd+D or an
+        // icon click while the open is in flight would otherwise fire two
+        // concurrent openModalDialog calls. Cleared in both .then and .catch.
+        if (this.diagOpening) {
+            return;
+        }
+        this.diagOpening = true;
         const rawHtml = getDiagnosticsRawHtml(
             this.styleSheetContainer,
             this.contentContainer,
@@ -516,6 +542,7 @@ export class Visual implements IVisual {
                 snapshot
             )
             .then((result) => {
+                this.diagOpening = false;
                 // The dialog reports its state via setResult / close →
                 // resultState: the last tab (so we reopen there), a console
                 // clear request, and a doc-link launch (mapped to our own URL).
@@ -542,6 +569,7 @@ export class Visual implements IVisual {
                 }
             })
             .catch(() => {
+                this.diagOpening = false;
                 /* dialog dismissed / unsupported; keep the current state */
             });
     }

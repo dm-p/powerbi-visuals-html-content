@@ -51,6 +51,27 @@ const appendBody = (parent: Node, body: string): void => {
     }
 };
 
+/**
+ * Index of the '>' that closes the tag starting at `from`, skipping any '>'
+ * that sits inside a quoted attribute value (e.g. `<div data-cond="x>0">`).
+ * Single forward scan — no backtracking, so runtime stays linear. Returns -1
+ * if no unquoted '>' appears before end-of-input.
+ */
+const findTagEnd = (raw: string, from: number): number => {
+    let quote: string | undefined;
+    for (let j = from; j < raw.length; j += 1) {
+        const c = raw[j];
+        if (quote !== undefined) {
+            if (c === quote) quote = undefined;
+        } else if (c === '"' || c === "'") {
+            quote = c;
+        } else if (c === '>') {
+            return j;
+        }
+    }
+    return -1;
+};
+
 /** Append one full tag token `< [/] name [body] [/] >` as colored nodes. */
 const appendTag = (parent: Node, tag: string): void => {
     let p = 1; // after the leading '<'
@@ -106,7 +127,7 @@ export const buildHighlightedFragment = (raw: string): DocumentFragment => {
             i = lt + 1;
             continue;
         }
-        const gt = raw.indexOf('>', nameStart);
+        const gt = findTagEnd(raw, nameStart);
         if (gt === -1) {
             // No closing delimiter — the remainder is plain text.
             frag.appendChild(document.createTextNode(raw.slice(lt)));

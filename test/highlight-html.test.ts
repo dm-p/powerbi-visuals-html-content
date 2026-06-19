@@ -38,6 +38,17 @@ describe('buildHighlightedFragment', () => {
         expect(host.textContent).toBe(raw);
     });
 
+    it('does not end the tag at a ">" inside a quoted attribute value', () => {
+        // The "x>0" value contains a literal ">"; the tag must not close there.
+        const raw = '<div data-cond="x>0">hi</div>';
+        const host = render(raw);
+        expect(host.querySelector('.hc-tag')?.textContent).toBe('div');
+        expect(host.querySelector('.hc-attr')?.textContent).toBe('data-cond');
+        // The whole quoted value (including the inner ">") is one string token.
+        expect(host.querySelector('.hc-str')?.textContent).toBe('"x>0"');
+        expect(host.textContent).toBe(raw);
+    });
+
     it('colorizes a self-closing tag, lossless', () => {
         const raw = '<br/><img src="data:x" />';
         const host = render(raw);

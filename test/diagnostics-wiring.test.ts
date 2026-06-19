@@ -22,7 +22,9 @@ vi.mock('powerbi-visuals-utils-interactivityutils', () => ({
 
 import { Visual } from '../src/visual';
 
-const buildVisual = (): { root: HTMLElement } => {
+const buildVisual = (
+    hostOverrides: Record<string, any> = {}
+): { root: HTMLElement; visual: any } => {
     const root = document.createElement('div');
     const host: any = {
         createLocalizationManager: () => ({
@@ -33,11 +35,18 @@ const buildVisual = (): { root: HTMLElement } => {
             renderingFinished: () => undefined,
             renderingFailed: () => undefined
         },
-        hostCapabilities: { allowModalDialog: false, allowInteractions: false }
+        hostCapabilities: { allowModalDialog: false, allowInteractions: false },
+        ...hostOverrides
     };
-    new Visual({ element: root, host } as any);
-    return { root };
+    const visual = new Visual({ element: root, host } as any);
+    return { root, visual };
 };
+
+// Drive the document-level Ctrl+D hotkey the visual binds in its constructor.
+const pressHotkey = (): void =>
+    document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'd', ctrlKey: true })
+    );
 
 describe('diagnostics wiring', () => {
     it('appends a hidden diagnostics icon on construction', () => {
@@ -47,5 +56,46 @@ describe('diagnostics wiring', () => {
         ) as HTMLElement;
         expect(icon).toBeTruthy();
         expect(icon.style.display).toBe('none');
+    });
+
+    it('openDiagnostics is single-flight: a second hotkey press mid-open does not open a second dialog', () => {
+        // A promise that never resolves keeps the open "in flight" so the
+        // re-entrancy guard is what must block the second press.
+        const openModalDialog = vi.fn(() => new Promise<never>(() => {}));
+        const { visual } = buildVisual({
+            hostCapabilities: {
+                allowModalDialog: true,
+                allowInteractions: false
+            },
+            openModalDialog,
+            launchUrl: vi.fn()
+        });
+        // update() sets these; force the minimum the hotkey → openDiagnostics
+        // path needs (an empty stylesheet value skips stylesheet serialization).
+        visual.formattingSettings = {
+            stylesheet: { stylesheetCardMain: { stylesheet: { value: '' } } }
+        };
+        visual.diagActive = true;
+        pressHotkey();
+        pressHotkey();
+        expect(openModalDialog).toHaveBeenCalledTimes(1);
+        // Detach this instance's listener so it can't leak into later tests.
+        visual.destroy();
+    });
+
+    it('destroy() detaches the keydown hotkey so a torn-down instance ignores Ctrl/Cmd+D', () => {
+        const openModalDialog = vi.fn(() => new Promise<never>(() => {}));
+        const { visual } = buildVisual({
+            hostCapabilities: {
+                allowModalDialog: true,
+                allowInteractions: false
+            },
+            openModalDialog,
+            launchUrl: vi.fn()
+        });
+        visual.diagActive = true;
+        visual.destroy();
+        pressHotkey();
+        expect(openModalDialog).not.toHaveBeenCalled();
     });
 });
