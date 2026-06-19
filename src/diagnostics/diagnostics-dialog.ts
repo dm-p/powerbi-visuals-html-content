@@ -68,10 +68,13 @@ const sanitizerTab = (
     callbacks: PanelCallbacks
 ): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-sanitizer');
-    // Doc banner at the top, matching the Raw HTML tab's info-label position.
+    // Doc banner at the top (frozen header), matching the Raw HTML tab's
+    // info-label position.
     wrap.appendChild(sanitizerDocs(s, callbacks));
+    // Only the table/overflow body scrolls beneath the frozen banner.
+    const body = el('div', 'hc-tab-body');
     if (s.sanitizer.entries.length === 0) {
-        wrap.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
+        body.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
     } else {
         const table = el('table', 'hc-table');
         const head = el('tr');
@@ -92,9 +95,9 @@ const sanitizerTab = (
             tr.appendChild(el('td', undefined, e.rule));
             table.appendChild(tr);
         });
-        wrap.appendChild(table);
+        body.appendChild(table);
         if (s.sanitizer.overflow > 0) {
-            wrap.appendChild(
+            body.appendChild(
                 el(
                     'p',
                     'hc-overflow',
@@ -106,6 +109,7 @@ const sanitizerTab = (
             );
         }
     }
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -179,8 +183,11 @@ const consoleTab = (
         });
     }
 
+    // Toolbar stays frozen as the panel header; only the lines body scrolls.
+    const body = el('div', 'hc-tab-body');
+    body.appendChild(lines);
     wrap.appendChild(toolbar);
-    wrap.appendChild(lines);
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -248,8 +255,11 @@ const eventsTab = (
         });
     }
 
+    // Toolbar stays frozen as the panel header; only the rows body scrolls.
+    const body = el('div', 'hc-tab-body');
+    body.appendChild(rows);
     wrap.appendChild(toolbar);
-    wrap.appendChild(rows);
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -300,11 +310,15 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     copy.type = 'button';
     copy.addEventListener('click', () => copyText(s.rawHtml.text));
     wrap.appendChild(copy);
+    // Banner, truncation note, and Copy button stay frozen as the header; only
+    // the highlighted source body scrolls.
+    const body = el('div', 'hc-tab-body');
     const pre = el('pre', 'hc-pre');
     // Built as DOM nodes (not innerHTML) so the certified visual keeps its
     // no-innerHTML posture; lossless — pre.textContent === s.rawHtml.text.
     pre.appendChild(buildHighlightedFragment(s.rawHtml.text));
-    wrap.appendChild(pre);
+    body.appendChild(pre);
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -358,7 +372,7 @@ export const renderPanel = (
     const activate = (id: string): void => {
         tabs.forEach((o, j) => {
             const on = o.id === id;
-            o.body.style.display = on ? 'block' : 'none';
+            o.body.style.display = on ? 'flex' : 'none';
             buttons[j].setAttribute('aria-selected', String(on));
         });
         callbacks.onTabChange?.(id);
@@ -379,7 +393,7 @@ export const renderPanel = (
         t.body.id = panelId;
         t.body.setAttribute('role', 'tabpanel');
         t.body.setAttribute('aria-labelledby', tabId);
-        t.body.style.display = t.id === activeId ? 'block' : 'none';
+        t.body.style.display = t.id === activeId ? 'flex' : 'none';
         btn.addEventListener('click', () => activate(t.id));
         buttons.push(btn);
         bar.appendChild(btn);

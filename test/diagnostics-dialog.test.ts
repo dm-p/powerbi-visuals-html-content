@@ -267,7 +267,7 @@ describe('renderPanel', () => {
         // First tab active initially.
         expect(tabs[0].getAttribute('aria-selected')).toBe('true');
         expect(tabs[1].getAttribute('aria-selected')).toBe('false');
-        expect(panels[0].style.display).toBe('block');
+        expect(panels[0].style.display).toBe('flex');
         expect(panels[1].style.display).toBe('none');
         // Each tab controls/labels its panel.
         expect(tabs[1].getAttribute('aria-controls')).toBe(panels[1].id);
@@ -277,7 +277,7 @@ describe('renderPanel', () => {
         expect(tabs[0].getAttribute('aria-selected')).toBe('false');
         expect(tabs[1].getAttribute('aria-selected')).toBe('true');
         expect(panels[0].style.display).toBe('none');
-        expect(panels[1].style.display).toBe('block');
+        expect(panels[1].style.display).toBe('flex');
     });
 
     it('copy button uses execCommand (Clipboard API is blocked in the dialog iframe)', () => {
@@ -397,6 +397,22 @@ describe('renderPanel', () => {
         expect(el.querySelector('.hc-events')?.textContent?.toLowerCase()).toContain(
             'no host events'
         );
+    });
+
+    it('activates the selected panel with display:flex (frozen-header layout)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const raw = el.querySelector('#hc-panel-raw') as HTMLElement;
+        expect(raw.style.display).toBe('flex');
+    });
+
+    it('wraps each tab body in a scrollable .hc-tab-body under a header sibling', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const consolePanel = el.querySelector('#hc-panel-console') as HTMLElement;
+        // toolbar (header) and the scrollable body are siblings; body carries .hc-tab-body
+        expect(consolePanel.querySelector(':scope > .hc-console-toolbar')).not.toBeNull();
+        expect(consolePanel.querySelector(':scope > .hc-tab-body')).not.toBeNull();
     });
 });
 
