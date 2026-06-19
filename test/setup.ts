@@ -76,6 +76,15 @@ vi.mock('powerbi-visuals-api', async (importOriginal) => {
                 Rule: 2,
                 ConstantOrRule: 3 // Constant(1) | Rule(2)
             },
+            // VisualUpdateType is a const enum — not inlined by esbuild/vitest.
+            // Values match the declaration: Data = 1<<1, Resize = 1<<2, etc.
+            VisualUpdateType: {
+                Data: 1 << 1,     // 2
+                Resize: 1 << 2,   // 4
+                ViewMode: 1 << 3, // 8
+                Style: 1 << 4,    // 16
+                ResizeEnd: 1 << 5 // 32
+            },
             visuals: {
                 ...(real.visuals ?? {}),
                 ValidatorType: { Min: 0, Max: 1 },
