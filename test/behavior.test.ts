@@ -256,7 +256,29 @@ describe('host-event instrumentation in behavior', () => {
         const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: false } as any;
         mgr.handleSelectionClick(evt, { tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
         const s = snapshot();
-        expect(s.some((e) => e.type === 'cross-filter' && e.context === 'Region="East"')).toBe(true);
+        expect(s.some((e) => e.type === 'cross-filter' && e.summary === 'select' && e.context === 'Region="East"')).toBe(true);
+    });
+
+    it('records "add" for a Ctrl+click on an unselected point', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: true } as any;
+        mgr.handleSelectionClick(evt, { selected: false, tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
+        expect(snapshot().some((e) => e.type === 'cross-filter' && e.summary === 'add')).toBe(true);
+    });
+
+    it('records "remove" for a Ctrl+click on an already-selected point', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: true } as any;
+        mgr.handleSelectionClick(evt, { selected: true, tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
+        expect(snapshot().some((e) => e.type === 'cross-filter' && e.summary === 'remove')).toBe(true);
     });
 
     it('records a drill event with x,y on context menu', () => {

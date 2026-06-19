@@ -87,11 +87,12 @@ export class BehaviorManager<
         event.preventDefault();
         event.stopPropagation();
         this.options.hideTooltip();
-        recordEvent(
-            'cross-filter',
-            event.ctrlKey ? 'select (multi)' : 'select',
-            this.pointContext(d) || undefined
-        );
+        // `d.selected` is the PRE-toggle state, so a Ctrl+click on an already-
+        // selected point removes it from the selection, otherwise it adds it; a
+        // plain click replaces the selection. Surfacing add/remove makes it
+        // clear how each click changes the multi-select context.
+        const op = event.ctrlKey ? (d.selected ? 'remove' : 'add') : 'select';
+        recordEvent('cross-filter', op, this.pointContext(d) || undefined);
         this.selectionHandler.handleSelection(d, event.ctrlKey);
     }
 
