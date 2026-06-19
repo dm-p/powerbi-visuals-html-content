@@ -512,4 +512,35 @@ describe('DiagnosticsDialog registration', () => {
             DiagnosticsDialog
         );
     });
+
+    it('fills the height chain so only the tab body scrolls (frozen header)', () => {
+        // Save/restore the shared jsdom document styles this mutates.
+        const prevHtmlH = document.documentElement.style.height;
+        const prevBodyH = document.body.style.height;
+        const prevBodyM = document.body.style.margin;
+
+        const host = document.createElement('div');
+        const inner = document.createElement('div'); // nested host element
+        host.appendChild(inner);
+        document.body.appendChild(host);
+        new DiagnosticsDialog(
+            {
+                element: inner,
+                host: { setResult() {}, close() {} }
+            },
+            snap()
+        );
+        // The chain from <html>/<body> down through the host ancestors gets a
+        // definite height so .hc-diagnostics { height: 100% } resolves.
+        expect(document.documentElement.style.height).toBe('100%');
+        expect(document.body.style.height).toBe('100%');
+        expect(document.body.style.margin).not.toBe('');
+        expect(host.style.height).toBe('100%');
+        expect(inner.style.height).toBe('100%');
+
+        document.body.removeChild(host);
+        document.documentElement.style.height = prevHtmlH;
+        document.body.style.height = prevBodyH;
+        document.body.style.margin = prevBodyM;
+    });
 });

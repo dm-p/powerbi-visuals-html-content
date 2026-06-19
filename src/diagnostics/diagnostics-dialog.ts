@@ -79,6 +79,35 @@ const el = (tag: string, cls?: string, text?: string): HTMLElement => {
 };
 
 /**
+ * Establish a definite height from the dialog viewport down to the host
+ * element, so the frozen-header flex layout (`.hc-tab-body { overflow:auto }`)
+ * has a fixed height to size against. Without this the host element and its
+ * ancestors default to content height, the flex chain collapses, and the WHOLE
+ * panel scrolls instead of just each tab's body. This runs in the dialog's own
+ * sandboxed iframe, so styling its <html>/<body> is scoped to the dialog alone.
+ * Best-effort — guarded so a missing document can't throw.
+ */
+const fillDialogHeight = (element: HTMLElement): void => {
+    const doc = element.ownerDocument;
+    if (!doc) return;
+    if (doc.documentElement) doc.documentElement.style.height = '100%';
+    if (doc.body) {
+        doc.body.style.height = '100%';
+        doc.body.style.margin = '0';
+    }
+    // Walk the host element and its ancestors up to <body>, giving each a
+    // definite height so `.hc-diagnostics { height: 100% }` can resolve no
+    // matter how deeply Power BI nests the host element.
+    for (
+        let node: HTMLElement | null = element;
+        node && node !== doc.body;
+        node = node.parentElement
+    ) {
+        node.style.height = '100%';
+    }
+};
+
+/**
  * Top info banner of doc links; styled like the Raw HTML banner (.hc-banner)
  * for cross-tab consistency. The visual launches the links via launchUrl on a
  * doc key (the dialog iframe can't call launchUrl itself).
@@ -468,6 +497,9 @@ export class DiagnosticsDialog {
             consoleFilter?: string;
             eventsFilter?: string;
         } = { lastTab: 'raw' };
+        // Give the frozen-header flex layout a definite height to size against,
+        // otherwise the whole panel scrolls instead of each tab's body.
+        fillDialogHeight(options.element);
         renderPanel(options.element, initialState as DiagnosticsSnapshot, {
             onTabChange: (tabId) => {
                 result.lastTab = tabId;
