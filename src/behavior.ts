@@ -8,7 +8,7 @@ import { IHtmlEntry, IViewModel } from './view-model';
 import { VisualConstants } from './visual-constants';
 import { shouldDimPoint } from './domain-utils';
 import { recordEvent } from './diagnostics/event-recorder';
-import { formatTooltipItems } from './diagnostics/host-events';
+import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 /**
  * Behavior options for interactivity.
@@ -69,12 +69,7 @@ export class BehaviorManager<
      * Bounded tooltip context string for a datum.
      */
     private pointContext(d: IHtmlEntry | null): string {
-        if (!d) return '';
-        return formatTooltipItems(
-            d.tooltips ?? [],
-            VisualConstants.diagnostics.eventContextItems,
-            VisualConstants.diagnostics.eventContextCap
-        );
+        return d ? tooltipContext(d.tooltips as TooltipItem[]) : '';
     }
 
     /**

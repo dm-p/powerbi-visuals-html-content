@@ -29,7 +29,7 @@ import {
 import { CONTENT_TOKEN, ROW_TOKEN, substitute } from './template-engine';
 import { buildHighlightedFragment } from './diagnostics/highlight-html';
 import { recordTooltipEvent } from './diagnostics/event-recorder';
-import { formatTooltipItems, TooltipItem } from './diagnostics/host-events';
+import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
@@ -544,19 +544,6 @@ export function resolveHover(
     bindStandardTooltips(dataElements, host, hasGranularity);
     bindManualTooltips(dataElements, host);
 }
-
-/**
- * Format a list of tooltip items into the bounded "field=value, …" context
- * string recorded into the passive host-event recorder.
- *
- * @param items - The tooltip items to format.
- */
-const tooltipContext = (items: TooltipItem[]): string =>
-    formatTooltipItems(
-        items ?? [],
-        VisualConstants.diagnostics.eventContextItems,
-        VisualConstants.diagnostics.eventContextCap
-    );
 
 /**
  * If we don't have any granularity, we will look for elements that have

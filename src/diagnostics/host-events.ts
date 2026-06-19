@@ -3,6 +3,7 @@
  * services — just value-in/string-out so they're trivially testable.
  */
 import powerbi from 'powerbi-visuals-api';
+import { VisualConstants } from '../visual-constants';
 
 /** A {displayName, value} pair, as carried by IHtmlEntry.tooltips. */
 export interface TooltipItem {
@@ -42,5 +43,15 @@ export const formatTooltipItems = (
         return `${i.displayName}="${v}"`;
     });
     const extra = items.length - maxItems;
-    return extra > 0 ? `${shown.join(', ')} (+${extra} more)` : shown.join(', ');
+    return extra > 0
+        ? `${shown.join(', ')} (+${extra} more)`
+        : shown.join(', ');
 };
+
+/** formatTooltipItems with the visual's default event-context caps applied. */
+export const tooltipContext = (items: TooltipItem[]): string =>
+    formatTooltipItems(
+        items ?? [],
+        VisualConstants.diagnostics.eventContextItems,
+        VisualConstants.diagnostics.eventContextCap
+    );
