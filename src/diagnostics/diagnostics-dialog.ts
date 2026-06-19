@@ -356,13 +356,22 @@ const copyText = (text: string): void => {
 
 const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-raw');
-    wrap.appendChild(
+    // Frozen header row: the info banner grows to fill the width and the Copy
+    // button shrinks to its right (a simple flex row), instead of Copy
+    // stretching full width below the banner.
+    const header = el('div', 'hc-raw-header');
+    header.appendChild(
         el(
             'p',
             'hc-banner',
             s.sanitizeEnabled ? s.labels.rawBannerSanitized : s.labels.rawBanner
         )
     );
+    const copy = el('button', 'hc-copy', s.labels.copy) as HTMLButtonElement;
+    copy.type = 'button';
+    copy.addEventListener('click', () => copyText(s.rawHtml.text));
+    header.appendChild(copy);
+    wrap.appendChild(header);
     if (s.rawHtml.truncated) {
         wrap.appendChild(
             el(
@@ -374,12 +383,8 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
             )
         );
     }
-    const copy = el('button', 'hc-copy', s.labels.copy) as HTMLButtonElement;
-    copy.type = 'button';
-    copy.addEventListener('click', () => copyText(s.rawHtml.text));
-    wrap.appendChild(copy);
-    // Banner, truncation note, and Copy button stay frozen as the header; only
-    // the highlighted source body scrolls.
+    // The header (and truncation note) stay frozen; only the highlighted source
+    // body scrolls.
     const body = el('div', 'hc-tab-body');
     const pre = el('pre', 'hc-pre');
     // Built as DOM nodes (not innerHTML) so the certified visual keeps its

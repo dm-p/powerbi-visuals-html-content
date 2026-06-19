@@ -321,6 +321,17 @@ describe('renderPanel', () => {
         expect(panels[1].style.display).toBe('flex');
     });
 
+    it('places Copy beside the banner in the Raw HTML header row', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const header = el.querySelector('.hc-raw .hc-raw-header') as HTMLElement;
+        expect(header).not.toBeNull();
+        // Banner and Copy are siblings in the header row (Copy shrinks to the
+        // right rather than stretching full width below the banner).
+        expect(header.querySelector(':scope > .hc-banner')).not.toBeNull();
+        expect(header.querySelector(':scope > .hc-copy')).not.toBeNull();
+    });
+
     it('copy button uses execCommand (Clipboard API is blocked in the dialog iframe)', () => {
         const exec = vi.fn().mockReturnValue(true);
         const original = (document as unknown as { execCommand?: unknown })
