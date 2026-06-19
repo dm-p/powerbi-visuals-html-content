@@ -49,10 +49,22 @@ export const recordTooltipEvent = (
     context: string
 ): void => {
     if (!armed) return;
-    const key = `${phase}|${source}|${context}`;
-    if (key === lastTooltipKey) return;
-    lastTooltipKey = key;
-    recordEvent('tooltip', `${phase} · ${source}`, context || undefined);
+    // Self-guarded: this runs in the d3 mousemove handler; a throw must never
+    // break tooltip rendering. (recordEvent is also guarded, but the dedup-key
+    // work happens here, before it.)
+    try {
+        const key = `${phase}|${source}|${context}`;
+        if (key === lastTooltipKey) return;
+        lastTooltipKey = key;
+        push({
+            ts: Date.now(),
+            type: 'tooltip',
+            summary: `${phase} · ${source}`,
+            context: context || undefined
+        });
+    } catch {
+        /* diagnostics must never break the visual */
+    }
 };
 
 export const snapshot = (): HostEvent[] => buffer.slice();
