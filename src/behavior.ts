@@ -7,6 +7,8 @@ import ISelectionHandler = interactivityBaseService.ISelectionHandler;
 import { IHtmlEntry, IViewModel } from './view-model';
 import { VisualConstants } from './visual-constants';
 import { shouldDimPoint } from './domain-utils';
+import { recordEvent } from './diagnostics/event-recorder';
+import { formatTooltipItems } from './diagnostics/host-events';
 
 /**
  * Behavior options for interactivity.
@@ -64,15 +66,32 @@ export class BehaviorManager<
     }
 
     /**
+     * Bounded tooltip context string for a datum.
+     */
+    private pointContext(d: IHtmlEntry | null): string {
+        if (!d) return '';
+        return formatTooltipItems(
+            d.tooltips ?? [],
+            VisualConstants.diagnostics.eventContextItems,
+            VisualConstants.diagnostics.eventContextCap
+        );
+    }
+
+    /**
      * Abstraction of common click event handling for a `SelectableDataPoint`
      *
      * @param event - click event
      * @param d     - datum from selection
      */
-    private handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
+    handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
         event.preventDefault();
         event.stopPropagation();
         this.options.hideTooltip();
+        recordEvent(
+            'cross-filter',
+            event.ctrlKey ? 'select (multi)' : 'select',
+            this.pointContext(d) || undefined
+        );
         this.selectionHandler.handleSelection(d, event.ctrlKey);
     }
 
@@ -86,6 +105,11 @@ export class BehaviorManager<
         event.preventDefault();
         event.stopPropagation();
         this.options.hideTooltip();
+        recordEvent(
+            'drill',
+            `context-menu @ (${event.clientX},${event.clientY})`,
+            d ? this.pointContext(d) || undefined : 'background'
+        );
         event &&
             this.selectionHandler.handleContextMenu(d, {
                 x: event.clientX,
@@ -106,6 +130,7 @@ export class BehaviorManager<
                 event.preventDefault();
                 event.stopPropagation();
                 this.options.hideTooltip();
+                recordEvent('cross-filter', 'cleared');
                 const mouseEvent: MouseEvent = <MouseEvent>event;
                 mouseEvent && this.selectionHandler.handleClearSelection();
             }

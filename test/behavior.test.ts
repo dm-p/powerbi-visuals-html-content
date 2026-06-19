@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorManager } from '../src/behavior';
 import { IViewModel, IHtmlEntry } from '../src/view-model';
 import { VisualConstants } from '../src/visual-constants';
+import { setArmed, snapshot, resetForTests } from '../src/diagnostics/event-recorder';
 
 const makeOptions = (hideTooltip: () => void) => {
     const point = {
@@ -29,6 +30,20 @@ describe('tooltip dismissal on interaction', () => {
         mgr.bindEvents(options as any, handler as any);
         const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 1, clientY: 2 } as any;
         mgr.handleContextMenu(evt, { tooltips: [] } as any);
+        expect(hideTooltip).toHaveBeenCalledTimes(1);
+    });
+
+    it('clear-catcher click calls hideTooltip', () => {
+        const hideTooltip = vi.fn();
+        const mgr = new BehaviorManager<any>();
+        const { options, clear } = makeOptions(hideTooltip);
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        // find the 'click' handler registered on the clear-catcher selection
+        const clickCall = (clear.on as any).mock.calls.find((c: any[]) => c[0] === 'click');
+        expect(clickCall).toBeTruthy();
+        const cb = clickCall[1];
+        cb({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
         expect(hideTooltip).toHaveBeenCalledTimes(1);
     });
 });
@@ -226,5 +241,58 @@ describe('BehaviorManager', () => {
             // Selection handler should not be called when cross-filtering is disabled
             expect(mockSelectionHandler.handleSelection).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('host-event instrumentation in behavior', () => {
+    beforeEach(() => resetForTests());
+
+    it('records a cross-filter event with tooltip context on selection click', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: false } as any;
+        mgr.handleSelectionClick(evt, { tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
+        const s = snapshot();
+        expect(s.some((e) => e.type === 'cross-filter' && e.context === 'Region="East"')).toBe(true);
+    });
+
+    it('records a drill event with x,y on context menu', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 320, clientY: 140 } as any;
+        mgr.handleContextMenu(evt, { tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
+        const s = snapshot();
+        expect(s.some((e) => e.type === 'drill' && e.summary.includes('320'))).toBe(true);
+    });
+
+    it('records a background drill when the datum is null', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 1, clientY: 2 } as any;
+        mgr.handleContextMenu(evt, null as any);
+        expect(snapshot().some((e) => e.type === 'drill' && e.context === 'background')).toBe(true);
+    });
+
+    it('records a cross-filter cleared event on clear-catcher click', () => {
+        setArmed(true);
+        const mgr = new BehaviorManager<any>();
+        const { options, clear } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+        const clickCall = (clear.on as any).mock.calls.find((c: any[]) => c[0] === 'click');
+        expect(clickCall).toBeTruthy();
+        clickCall[1]({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
+        expect(
+            snapshot().some((e) => e.type === 'cross-filter' && e.summary === 'cleared')
+        ).toBe(true);
     });
 });
