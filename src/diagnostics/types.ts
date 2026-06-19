@@ -4,14 +4,14 @@ export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error';
 
 export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'drill';
 export type TooltipPhase = 'show' | 'hide';
-export type TooltipSource = 'standard' | 'manual';
+export type TooltipSource = 'contextual' | 'manual';
 
 /** One captured visual-host event for the diagnostics Events tab. */
 export interface HostEvent {
     /** Unix epoch ms (Date.now()). */
     ts: number;
     type: HostEventType;
-    /** Short headline, e.g. "type=Data+Resize, viewMode=Edit" or "show · standard". */
+    /** Short headline, e.g. "type=Data+Resize, viewMode=Edit" or "show · contextual". */
     summary: string;
     /** Optional bounded detail, e.g. 'Employee[FullName]="A. Smith" (+1 more)'. */
     context?: string;

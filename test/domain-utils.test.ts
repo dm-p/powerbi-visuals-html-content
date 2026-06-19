@@ -1825,7 +1825,7 @@ describe('tooltip host-event instrumentation', () => {
 
     beforeEach(() => resetEvents());
 
-    it('records a standard tooltip show with source and context', () => {
+    it('records a contextual tooltip show with source and context', () => {
         setArmed(true);
         const { container, dom } = buildContainers('');
         const node = container.node() as Element;
@@ -1845,13 +1845,13 @@ describe('tooltip host-event instrumentation', () => {
             s.some(
                 (e) =>
                     e.type === 'tooltip' &&
-                    e.summary === 'show · standard' &&
+                    e.summary === 'show · contextual' &&
                     e.context === 'Region="East"'
             )
         ).toBe(true);
     });
 
-    it('records a standard tooltip hide on mouseout', () => {
+    it('records a contextual tooltip hide on mouseout', () => {
         setArmed(true);
         const { container, dom } = buildContainers('');
         const node = container.node() as Element;
@@ -1868,7 +1868,7 @@ describe('tooltip host-event instrumentation', () => {
         sel.dispatch('mouseout');
         expect(
             evtSnapshot().some(
-                (e) => e.type === 'tooltip' && e.summary === 'hide · standard'
+                (e) => e.type === 'tooltip' && e.summary === 'hide · contextual'
             )
         ).toBe(true);
     });

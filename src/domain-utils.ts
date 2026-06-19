@@ -640,7 +640,7 @@ function bindStandardTooltips(
             tooltipService.show(options);
             recordTooltipEvent(
                 'show',
-                'standard',
+                'contextual',
                 tooltipContext(d.tooltips as TooltipItem[])
             );
         }
@@ -651,7 +651,7 @@ function bindStandardTooltips(
             false
         );
         tooltipService.hide({ immediately: true, isTouchEvent: true });
-        recordTooltipEvent('hide', 'standard', '');
+        recordTooltipEvent('hide', 'contextual', '');
     });
 }
 

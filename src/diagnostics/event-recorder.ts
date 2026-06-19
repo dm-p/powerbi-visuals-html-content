@@ -42,7 +42,7 @@ export const recordEvent = (
 };
 
 /** Record a tooltip event with Decision 9/10 de-duplication. No-op unless
- *  armed. The dedup key includes source so standard/manual never collapse. */
+ *  armed. The dedup key includes source so contextual/manual never collapse. */
 export const recordTooltipEvent = (
     phase: TooltipPhase,
     source: TooltipSource,

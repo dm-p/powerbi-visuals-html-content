@@ -33,12 +33,12 @@ describe('event recorder arming', () => {
     });
     it('recordTooltipEvent is a no-op when disarmed and does not poison the dedup key', () => {
         // Disarmed: nothing recorded, and lastTooltipKey must NOT be set.
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         expect(snapshot()).toEqual([]);
         // After arming, the SAME show must still record — proving the dedup key
         // was not written during the disarmed call.
         setArmed(true);
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
 });
@@ -66,38 +66,38 @@ describe('tooltip de-duplication (Decision 9/10)', () => {
     const sums = () => snapshot().map((e) => e.summary + '|' + (e.context ?? ''));
 
     it('collapses consecutive identical shows', () => {
-        recordTooltipEvent('show', 'standard', 'A');
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
     it('re-enables an identical show after an intervening hide', () => {
-        recordTooltipEvent('show', 'standard', 'A');
-        recordTooltipEvent('hide', 'standard', '');
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent('hide', 'contextual', '');
+        recordTooltipEvent('show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(3);
     });
     it('records a show over different data', () => {
-        recordTooltipEvent('show', 'standard', 'A');
-        recordTooltipEvent('show', 'standard', 'B');
+        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent('show', 'contextual', 'B');
         expect(snapshot()).toHaveLength(2);
     });
     it('does NOT re-enable across an intervening non-tooltip event', () => {
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         recordEvent('update', 'type=Resize');
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         // update recorded; the second identical show suppressed → 2 total
         expect(snapshot()).toHaveLength(2);
-        expect(sums()).toEqual(['show · standard|A', 'type=Resize|']);
+        expect(sums()).toEqual(['show · contextual|A', 'type=Resize|']);
     });
-    it('does NOT dedup standard vs manual with the same context', () => {
-        recordTooltipEvent('show', 'standard', 'A');
+    it('does NOT dedup contextual vs manual with the same context', () => {
+        recordTooltipEvent('show', 'contextual', 'A');
         recordTooltipEvent('show', 'manual', 'A');
         expect(snapshot()).toHaveLength(2);
     });
     it('clear resets the dedup key so the next show logs', () => {
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         clear();
-        recordTooltipEvent('show', 'standard', 'A');
+        recordTooltipEvent('show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
 });
