@@ -16,9 +16,14 @@ Only the **certified** edition (`sanitize: true`) runs the sanitizer, and it is
 the only edition Microsoft audits. It stays the committed default so a plain
 `pbiviz package` always builds the real, auditable sanitizer.
 
-Estimated win: ~100KB+ minified out of the base bundles (`dompurify` +
-`postcss` + `postcss-value-parser`), measurable in the existing Statoscope
-reports (`webpack.statistics.*.html`).
+**Measured win** (production `pbiviz package`, v2.0.0.0): the base `visual.js`
+drops from **456,688 B (certified) to 363,623 B (standalone) — ~93 KB / 20%**,
+with `dompurify` / `postcss` / `postcss-value-parser` gone from the base module
+graph entirely. The packaged `.pbiviz` shrinks ~27 KB compressed (176 KB →
+150 KB). The `standard` edition matches standalone (363,603 B). The
+anti-regression guard (`scripts/check-no-sanitizer.mjs`) confirms no sanitizer
+fingerprint in either base bundle and still finds `dompurify` in the certified
+build. Cross-check via the Statoscope reports (`webpack.statistics.*.html`).
 
 ## Why the current approach can't tree-shake
 
