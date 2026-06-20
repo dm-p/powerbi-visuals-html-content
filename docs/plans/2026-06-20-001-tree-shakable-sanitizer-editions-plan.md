@@ -66,13 +66,14 @@ export type SanitizeOptions = {
 git mv src/sanitize-pipeline.ts src/sanitize/backend.certified.ts
 ```
 
-- [ ] **Step 3: Fix imports in the moved file (deeper path; drop now-unused deps)**
+- [ ] **Step 3: Fix imports in the moved file (deeper path; drop config)**
 
 In `src/sanitize/backend.certified.ts`:
 
 - Internal imports move from `./` to `../`.
-- `marked` and `RenderFormat` are dropped — they were used only by the three light wrappers (`getParsedHtmlAsDom`, `parseAndSanitizeInContext`) that move to `index.ts` in Step 4. Leaving them would fail eslint.
-- The `config` import and the local `SanitizeOptions` definition are replaced by the relocated type.
+- Remove `import * as config from '../config/visual.json';` (no longer read).
+- The local `SanitizeOptions` definition is replaced by the relocated type.
+- KEEP `marked` and `RenderFormat` — they are still used by `getSanitizedHtmlForTesting`, which stays in this file (see Step 6a). `marked` (markdown) is not a sanitizer dependency, so retaining it does not affect the base-edition tree-shake.
 
 Make the top-of-file external + internal import block read:
 
@@ -84,9 +85,11 @@ import type {
     Config,
     UponSanitizeAttributeHookEvent
 } from 'dompurify';
+import { marked } from 'marked';
 
 // Internal dependencies
 import { VisualConstants } from '../visual-constants';
+import { RenderFormat } from '../types';
 import { sanitizeCss } from '../css-sanitizer';
 import {
     hasDangerousSvgPayload,
@@ -97,7 +100,7 @@ import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
 ```
 
-This removes the former `import { marked } from 'marked';`, `import { RenderFormat } from './types';`, and `import * as config from '../config/visual.json';` lines. Then delete the local `export type SanitizeOptions = { allowHyperlinks?: boolean; };` block (now imported from `./options`).
+This removes only the former `import * as config from '../config/visual.json';` line. Then delete the local `export type SanitizeOptions = { allowHyperlinks?: boolean; };` block (now imported from `./options`).
 
 - [ ] **Step 4: Remove the light wrappers from the certified backend (they move to index.ts)**
 
@@ -141,6 +144,27 @@ export const enabled = true;
 ```
 
 Note: `preprocessStyleTags` is currently a non-exported `function` (`src/sanitize/backend.certified.ts:174`). Add `export` to its declaration: `export function preprocessStyleTags(input: string): string {`.
+
+- [ ] **Step 6a: Re-point `getSanitizedHtmlForTesting` off the moved wrapper**
+
+`getSanitizedHtmlForTesting` stays in `backend.certified.ts` but currently calls `getParsedHtmlAsDom`, which moved to `index.ts` in Step 4. Rewrite it to inline the certified parse path (markdown → sanitize → parse → serialize) so the test helper does not depend on the edition-agnostic seam:
+
+```ts
+export const getSanitizedHtmlForTesting = (
+    content: string,
+    format: RenderFormat,
+    options?: SanitizeOptions
+): string => {
+    const converted =
+        format === 'markdown' ? marked.parse(content).toString() : content;
+    const parse = Range.prototype.createContextualFragment.bind(
+        document.createRange()
+    );
+    const container = document.createElement('div');
+    container.appendChild(parse(getSanitizedContent(converted, options)));
+    return container.innerHTML;
+};
+```
 
 - [ ] **Step 7: Create the passthrough backend (dependency-free)**
 
@@ -309,12 +333,16 @@ In `src/diagnostics/types.ts` (~line 97) the doc comment references `config.sani
 - `test/sanitize-pipeline.test.ts:2-6` → `getSanitizedHtmlForTesting` from `'../src/sanitize/backend.certified'`; `getSanitizedCss` and `parseAndSanitizeInContext` from `'../src/sanitize'`.
 - `test/stylesheet-rendering.test.ts` → `getSanitizedCss` from `'../src/sanitize'` (and any `getSanitizedHtmlForTesting` from `'../src/sanitize/backend.certified'`).
 
-Run `grep -rn "src/sanitize-pipeline" test/` afterward; expect **no** matches.
+Also note: `test/sanitize-pipeline.test.ts` has dynamic `await import('../src/sanitize-pipeline')` calls (not just top-level imports) — `grep -n "sanitize-pipeline" test/sanitize-pipeline.test.ts` to find them all. Two of these belong to **obsolete runtime-flag-edition tests** that `vi.doMock('../config/visual.json', () => ({ sanitize: false }))` — that file is deleted and the runtime flag no longer exists, so these cannot work. **Delete** the `sanitize:false` arms (the `sanitizeFragmentInPlace` no-op test and the `getSanitizedCss` verbatim test); their passthrough coverage moves to Task 2's `test/sanitize-passthrough.test.ts`. **Keep** the `sanitize:true` (certified-default) arms, retargeting their dynamic import to `'../src/sanitize'`. Remove the now-unused `vi` from the file's `vitest` import.
+
+Run `grep -rn "sanitize-pipeline'" src/ test/` and `grep -rn "config/visual.json" src/ test/` afterward; expect **no** matches in either.
 
 - [ ] **Step 14: Delete the runtime flag file**
 
+The agent that first attempted this step found `config/visual.json` had a stray edit, so a plain `git rm` is rejected; use `-f`:
+
 ```bash
-git rm config/visual.json
+git rm -f config/visual.json
 ```
 
 - [ ] **Step 15: Run the full suite**
@@ -324,8 +352,14 @@ Expected: all suites PASS (same count as before the refactor — the certified b
 
 - [ ] **Step 16: Commit**
 
+**Do NOT `git add -A`** — the working tree has unrelated changes (`test-uat/.../expressions.tmdl`, untracked `.github/hooks/`, `docs/v2/`) that must stay out of this commit. Stage only Task 1 files explicitly, and run `git status` to confirm those three are NOT staged before committing:
+
 ```bash
-git add -A
+git add src/sanitize/ src/domain-utils.ts src/visual.ts src/diagnostics/types.ts \
+  test/body-styling.test.ts test/diagnostics-sink-instrumentation.test.ts \
+  test/hyperlinks-rendering.test.ts test/lorem-rendering.test.ts \
+  test/sanitize-pipeline-svg.test.ts test/sanitize-pipeline.test.ts \
+  test/stylesheet-rendering.test.ts
 git commit -m "refactor: split sanitizer into a build-selectable seam (certified default)"
 ```
 
