@@ -38,7 +38,7 @@ Default to `npm test` for fast feedback during edits.
 
 ### Definition of done — sanitizer changes
 
-Before declaring any change to `sanitize-pipeline.ts`, `css-sanitizer.ts`, `svg-payload-scan.ts`, `visual-constants.ts`, or `domain-utils.ts` (the click-handler / URL-delegation boundary that depends on sanitizer output) complete:
+Before declaring any change to `sanitize/backend.certified.ts` (the sanitizer seam's certified backend), `css-sanitizer.ts`, `svg-payload-scan.ts`, `visual-constants.ts`, or `domain-utils.ts` (the click-handler / URL-delegation boundary that depends on sanitizer output) complete:
 
 1. **Run `npm run test:all`** (unit + integration + `docs:check`). If `docs:check` fails, run `npm run docs:generate` and commit the regenerated `docs/sanitization-rules.md` alongside the source change.
 2. **Run `npm run uat:generate` if the sanitizer's output for any existing input could have shifted.** This applies whenever you change what the sanitizer emits — not just what it accepts. Examples that trigger this: new options that change default emitted output (e.g. `allowHyperlinks`), tighter allowlists, scheme rule edits, attribute-hook reordering. The `test-uat/*.csv` files contain a `sanitizedOutput` column derived from running each input through the production sanitizer at script time; **there is no CI drift check for these CSVs**, so this step is on you. Stage the regenerated CSVs (`test-uat/corpus.csv`, `test-uat/lorem.csv`, `test-uat/stylesheet.csv`) in the same commit as the source change.
@@ -54,7 +54,10 @@ src/                   # TypeScript source
   categorical-table.ts # categorical dataview → simulated table + selection identities
   render-orchestrator.ts # update classification + rebuild/reconcile render dispatch
   behavior.ts          # DOM behaviors (selection, scroll, links)
-  sanitize-pipeline.ts # core HTML/CSS sanitization (DOMPurify wrapper + hooks)
+  sanitize/            # sanitizer seam: index.ts (edition-agnostic parse + delegate),
+                       #   backend.certified.ts (DOMPurify wrapper + hooks),
+                       #   backend.passthrough.ts (dep-free no-op), backend.ts (generated
+                       #   selector, git-ignored), options.ts (SanitizeOptions type)
   css-sanitizer.ts     # CSS parsing/sanitization (postcss)
   svg-payload-scan.ts  # SVG data: URI inspection (fail-closed scanner)
   domain-utils.ts      # styling resolution, jsdom bootstrap
