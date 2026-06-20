@@ -97,7 +97,7 @@ export class BehaviorManager<
      * @param event - click event
      * @param d     - datum from selection
      */
-    handleContextMenu(event: MouseEvent, d: IHtmlEntry) {
+    handleContextMenu(event: MouseEvent, d: IHtmlEntry | null) {
         event.preventDefault();
         event.stopPropagation();
         this.options.hideTooltip();
