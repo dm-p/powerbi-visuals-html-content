@@ -1,0 +1,249 @@
+{
+    "privileges": [
+        {
+            "name": "WebAccess",
+            "parameters": [
+                "*"
+            ]
+        }
+    ],
+    "dataRoles": [
+        {
+            "displayNameKey": "Roles_Values",
+            "descriptionKey": "Roles_Values_Description",
+            "displayName": "Values",
+            "description": "Values description.",
+            "name": "content",
+            "kind": "GroupingOrMeasure"
+        },
+        {
+            "displayNameKey": "Roles_Sampling",
+            "descriptionKey": "Roles_Sampling_Description",
+            "displayName": "Sampling",
+            "description": "Sampling description.",
+            "name": "sampling",
+            "kind": "GroupingOrMeasure"
+        },
+        {
+            "displayNameKey": "Roles_Tooltips",
+            "descriptionKey": "Roles_Tooltips_Description",
+            "displayName": "Tooltips",
+            "description": "Tooltips description.",
+            "name": "tooltips",
+            "kind": "Measure"
+        }
+    ],
+    "objects": {
+        "contentFormatting": {
+            "properties": {
+                "showRawHtml": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "enableDiagnostics": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "format": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayNameKey": "Enum_RenderFormat_HTML",
+                                "displayName": "HTML",
+                                "value": "html"
+                            },
+                            {
+                                "displayNameKey": "Enum_RenderFormat_Mardown",
+                                "displayName": "Markdown",
+                                "value": "markdown"
+                            }
+                        ]
+                    }
+                },
+                "renderMode": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayNameKey": "Enum_RenderMode_Rebuild",
+                                "displayName": "Rebuild content",
+                                "value": "rebuild"
+                            },
+                            {
+                                "displayNameKey": "Enum_RenderMode_Reconcile",
+                                "displayName": "Preserve unchanged content",
+                                "value": "reconcile"
+                            }
+                        ]
+                    }
+                },
+                "fontFamily": {
+                    "type": {
+                        "formatting": {
+                            "fontFamily": true
+                        }
+                    }
+                },
+                "fontSize": {
+                    "type": {
+                        "formatting": {
+                            "fontSize": true
+                        }
+                    }
+                },
+                "fontColour": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "align": {
+                    "type": {
+                        "formatting": {
+                            "alignment": true
+                        }
+                    }
+                },
+                "overrideInlineStyling": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "hyperlinks": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "userSelect": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "noDataMessage": {
+                    "type": {
+                        "text": true
+                    }
+                }
+            }
+        },
+        "stylesheet": {
+            "properties": {
+                "stylesheet": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "test": {
+                    "type": {
+                        "text": true
+                    }
+                }
+            }
+        },
+        "templates": {
+            "properties": {
+                "bodyTemplate": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "rowTemplate": {
+                    "type": {
+                        "text": true
+                    }
+                }
+            }
+        },
+        "crossFilter": {
+            "properties": {
+                "enabled": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "useTransparency": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "transparencyPercent": {
+                    "type": {
+                        "integer": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "content": {
+                        "max": 1
+                    }
+                }
+            ],
+            "categorical": {
+                "categories": {
+                    "select": [
+                        {
+                            "for": {
+                                "in": "sampling"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "content"
+                            }
+                        }
+                    ],
+                    "dataReductionAlgorithm": {
+                        "top": {
+                            "count": 30000
+                        }
+                    }
+                },
+                "values": {
+                    "select": [
+                        {
+                            "for": {
+                                "in": "content"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "sampling"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "tooltips"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "sorting": {
+        "default": {}
+    },
+    "supportsLandingPage": true,
+    "suppressDefaultTitle": true,
+    "supportsKeyboardFocus": true,
+    "tooltips": {
+        "supportedTypes": {
+            "default": true,
+            "canvas": true
+        },
+        "supportEnhancedTooltips": true,
+        "roles": [
+            "tooltips"
+        ]
+    },
+    "supportsMultiVisualSelection": true
+}
