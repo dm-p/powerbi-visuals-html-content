@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 import { select } from 'd3-selection';
 
 import { resolveStyling } from '../src/domain-utils';
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 import { VisualConstants } from '../src/visual-constants';
 import type { VisualFormattingSettingsModel } from '../src/visual-settings';
 import { LOREM_PAYLOADS } from './fixtures/lorem';

@@ -25,7 +25,7 @@ import {
     parseAndSanitizeInContext,
     sanitizeFragmentInPlace,
     SanitizeOptions
-} from './sanitize-pipeline';
+} from './sanitize';
 import { CONTENT_TOKEN, ROW_TOKEN, substitute } from './template-engine';
 import { buildHighlightedFragment } from './diagnostics/highlight-html';
 import { recordTooltipEvent } from './diagnostics/event-recorder';
@@ -33,7 +33,7 @@ import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
-export { getParsedHtmlAsDom } from './sanitize-pipeline';
+export { getParsedHtmlAsDom } from './sanitize';
 
 // The sanitization functions previously defined inline here (getSanitizedContent,
 // getStrippedAttributes, getSanitizedCss, getSanitizedDataUri, and the original
