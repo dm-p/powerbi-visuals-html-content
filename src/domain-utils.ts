@@ -28,6 +28,8 @@ import {
 } from './sanitize-pipeline';
 import { CONTENT_TOKEN, ROW_TOKEN, substitute } from './template-engine';
 import { buildHighlightedFragment } from './diagnostics/highlight-html';
+import { recordTooltipEvent } from './diagnostics/event-recorder';
+import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
@@ -596,11 +598,17 @@ function bindManualTooltips(
                 identities: []
             };
             tooltipService.show(options);
+            recordTooltipEvent(
+                'show',
+                'manual',
+                tooltipContext(dataItems as TooltipItem[])
+            );
         }
     });
-    manualTooltipElements.on('mouseout', () =>
-        tooltipService.hide({ immediately: true, isTouchEvent: true })
-    );
+    manualTooltipElements.on('mouseout', () => {
+        tooltipService.hide({ immediately: true, isTouchEvent: true });
+        recordTooltipEvent('hide', 'manual', '');
+    });
 }
 
 /**
@@ -630,6 +638,11 @@ function bindStandardTooltips(
                 identities: [d.identity]
             };
             tooltipService.show(options);
+            recordTooltipEvent(
+                'show',
+                'contextual',
+                tooltipContext(d.tooltips as TooltipItem[])
+            );
         }
     });
     dataElements.on('mouseout', (event) => {
@@ -638,6 +651,7 @@ function bindStandardTooltips(
             false
         );
         tooltipService.hide({ immediately: true, isTouchEvent: true });
+        recordTooltipEvent('hide', 'contextual', '');
     });
 }
 

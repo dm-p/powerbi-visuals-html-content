@@ -188,7 +188,11 @@
 .hc-diagnostics {
     font-family: 'Segoe UI', sans-serif;
     font-size: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     .hc-tabbar {
+        flex: none;
         display: flex;
         gap: 4px;
         border-bottom: 1px solid #ddd;
@@ -211,9 +215,24 @@
         font-weight: 600;
     }
     // Content sits below the pivot/tab nav with consistent breathing room
-    // across all three tabs.
+    // across all three tabs. Fills the remaining height so the tab body can
+    // scroll instead of growing the dialog.
     .hc-panels {
+        flex: 1;
+        min-height: 0;
         padding-top: 12px;
+    }
+    // Each tab is a column: a frozen header (banner/toolbar) plus the
+    // scrolling .hc-tab-body. display is toggled to flex/none by activate().
+    .hc-tabpanel {
+        height: 100%;
+        flex-direction: column;
+    }
+    // The only scrolling region: the frozen pivot + per-tab header stay put.
+    .hc-tab-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
     }
     // Fluent-style buttons shared by the Raw HTML copy and Console clear
     // actions so both feel at home in the host UI.
@@ -238,8 +257,19 @@
         background: #ededed;
         border-color: #b3b3b3;
     }
+    // Raw HTML header: banner grows, Copy shrinks to its right.
+    .hc-raw-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .hc-raw-header .hc-banner {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
     .hc-copy {
-        float: right;
+        flex: none;
     }
     .hc-table {
         width: 100%;
@@ -297,6 +327,13 @@
         border-bottom: 1px solid #eee;
         flex-wrap: wrap;
     }
+    // Radio-filter group (All + each level/type) within the toolbar.
+    .hc-filter-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
     .hc-filter {
         display: inline-flex;
         align-items: center;
@@ -333,6 +370,16 @@
     }
     // Token colors (.hc-punc/.hc-tag/.hc-attr/.hc-str) are defined at top level
     // so they apply to both this tab and the in-canvas Show Raw HTML <pre>.
+    .hc-evt {
+        display: flex;
+        gap: 8px;
+        font-family: monospace;
+        white-space: pre-wrap;
+    }
+    .hc-evt-type {
+        min-width: 90px;
+        color: #0078d4;
+    }
 }
 
 #htmlDiagnosticsToggle {

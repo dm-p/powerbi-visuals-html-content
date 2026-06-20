@@ -9,7 +9,10 @@ import {
     SanitizerEntry,
     ConsoleEntry,
     ConsoleLevel,
-    DiagnosticsDocKey
+    DiagnosticsDocKey,
+    HostEvent,
+    HostEventType,
+    DiagnosticsLabels
 } from './types';
 import { buildHighlightedFragment } from './highlight-html';
 import { VisualConstants } from '../visual-constants';
@@ -19,15 +22,89 @@ export interface PanelCallbacks {
     onTabChange?: (tabId: string) => void;
     onClearConsole?: () => void;
     onLaunchDoc?: (key: DiagnosticsDocKey) => void;
+    onClearEvents?: () => void;
+    /** Console level filter changed ('all' or a single level) — memoized. */
+    onConsoleFilter?: (level: string) => void;
+    /** Events type filter changed ('all' or a single type) — memoized. */
+    onEventsFilter?: (type: string) => void;
 }
 
+/**
+ * A single-select radio filter: an "All" option followed by each individual
+ * option. Single-select (radio, not checkboxes) is less cumbersome to drive
+ * repeatedly when focusing on one level/type. `selected` is the initially-picked
+ * value (memoized across opens); `onChange` fires with the newly picked value.
+ */
+const buildRadioFilter = (
+    groupName: string,
+    options: { value: string; label: string }[],
+    selected: string,
+    allLabel: string,
+    onChange: (value: string) => void
+): HTMLElement => {
+    const group = el('div', 'hc-filter-group');
+    const add = (value: string, label: string): void => {
+        const lbl = el('label', 'hc-filter');
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = groupName;
+        radio.value = value;
+        radio.checked = value === selected;
+        radio.addEventListener('change', () => {
+            if (radio.checked) onChange(value);
+        });
+        lbl.appendChild(radio);
+        lbl.appendChild(el('span', 'hc-filter-label', label));
+        group.appendChild(lbl);
+    };
+    add('all', allLabel);
+    options.forEach((o) => add(o.value, o.label));
+    return group;
+};
+
 const CONSOLE_LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
+
+const EVENT_TYPES: { type: HostEventType; label: keyof DiagnosticsLabels }[] = [
+    { type: 'update', label: 'evtUpdate' },
+    { type: 'cross-filter', label: 'evtCrossFilter' },
+    { type: 'tooltip', label: 'evtTooltip' },
+    { type: 'drill', label: 'evtDrill' }
+];
 
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text !== undefined) n.textContent = text;
     return n;
+};
+
+/**
+ * Establish a definite height from the dialog viewport down to the host
+ * element, so the frozen-header flex layout (`.hc-tab-body { overflow:auto }`)
+ * has a fixed height to size against. Without this the host element and its
+ * ancestors default to content height, the flex chain collapses, and the WHOLE
+ * panel scrolls instead of just each tab's body. This runs in the dialog's own
+ * sandboxed iframe, so styling its <html>/<body> is scoped to the dialog alone.
+ * Best-effort — guarded so a missing document can't throw.
+ */
+const fillDialogHeight = (element: HTMLElement): void => {
+    const doc = element.ownerDocument;
+    if (!doc) return;
+    if (doc.documentElement) doc.documentElement.style.height = '100%';
+    if (doc.body) {
+        doc.body.style.height = '100%';
+        doc.body.style.margin = '0';
+    }
+    // Walk the host element and its ancestors up to <body>, giving each a
+    // definite height so `.hc-diagnostics { height: 100% }` can resolve no
+    // matter how deeply Power BI nests the host element.
+    for (
+        let node: HTMLElement | null = element;
+        node && node !== doc.body;
+        node = node.parentElement
+    ) {
+        node.style.height = '100%';
+    }
 };
 
 /**
@@ -57,10 +134,13 @@ const sanitizerTab = (
     callbacks: PanelCallbacks
 ): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-sanitizer');
-    // Doc banner at the top, matching the Raw HTML tab's info-label position.
+    // Doc banner at the top (frozen header), matching the Raw HTML tab's
+    // info-label position.
     wrap.appendChild(sanitizerDocs(s, callbacks));
+    // Only the table/overflow body scrolls beneath the frozen banner.
+    const body = el('div', 'hc-tab-body');
     if (s.sanitizer.entries.length === 0) {
-        wrap.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
+        body.appendChild(el('p', 'hc-empty', s.labels.sanitizerEmpty));
     } else {
         const table = el('table', 'hc-table');
         const head = el('tr');
@@ -81,9 +161,9 @@ const sanitizerTab = (
             tr.appendChild(el('td', undefined, e.rule));
             table.appendChild(tr);
         });
-        wrap.appendChild(table);
+        body.appendChild(table);
         if (s.sanitizer.overflow > 0) {
-            wrap.appendChild(
+            body.appendChild(
                 el(
                     'p',
                     'hc-overflow',
@@ -95,6 +175,7 @@ const sanitizerTab = (
             );
         }
     }
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -115,14 +196,13 @@ const consoleTab = (
     const wrap = el('div', 'hc-tabpanel hc-console');
     const lines = el('div', 'hc-console-lines');
 
-    // Level filter (multi-select). Show/hide lines by level; in-dialog only.
-    const filters: HTMLInputElement[] = [];
-    function applyFilter(): void {
-        const on = new Set(
-            filters.filter((f) => f.checked).map((f) => f.dataset.level)
-        );
+    // Level filter (single-select radios: All + each level). Memoized via the
+    // snapshot so the pick is sticky across opens. In-dialog show/hide only.
+    const initialLevel = s.consoleFilter ?? 'all';
+    function applyFilter(level: string): void {
         lines.querySelectorAll<HTMLElement>('.hc-log').forEach((line) => {
-            line.style.display = on.has(line.dataset.level ?? '') ? '' : 'none';
+            line.style.display =
+                level === 'all' || line.dataset.level === level ? '' : 'none';
         });
     }
 
@@ -140,20 +220,18 @@ const consoleTab = (
         callbacks.onClearConsole?.();
     });
     toolbar.appendChild(clearBtn);
-    CONSOLE_LEVELS.forEach((level) => {
-        const lbl = el('label', 'hc-filter');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = true;
-        cb.dataset.level = level;
-        cb.addEventListener('change', applyFilter);
-        lbl.appendChild(cb);
-        // hc-lvl-* (not hc-${level}) so the filter label can't collide with the
-        // console line marker class `.hc-log` when the level is "log".
-        lbl.appendChild(el('span', `hc-filter-label hc-lvl-${level}`, level));
-        toolbar.appendChild(lbl);
-        filters.push(cb);
-    });
+    toolbar.appendChild(
+        buildRadioFilter(
+            'hc-console-filter',
+            CONSOLE_LEVELS.map((level) => ({ value: level, label: level })),
+            initialLevel,
+            s.labels.filterAll,
+            (level) => {
+                applyFilter(level);
+                callbacks.onConsoleFilter?.(level);
+            }
+        )
+    );
 
     if (s.console.length === 0) {
         lines.appendChild(el('p', 'hc-empty', s.labels.consoleEmpty));
@@ -167,9 +245,89 @@ const consoleTab = (
             lines.appendChild(line);
         });
     }
+    // Apply the remembered filter to the freshly-built lines.
+    applyFilter(initialLevel);
 
+    // Toolbar stays frozen as the panel header; only the lines body scrolls.
+    const body = el('div', 'hc-tab-body');
+    body.appendChild(lines);
     wrap.appendChild(toolbar);
-    wrap.appendChild(lines);
+    wrap.appendChild(body);
+    return wrap;
+};
+
+const eventsTab = (
+    s: DiagnosticsSnapshot,
+    callbacks: PanelCallbacks
+): HTMLElement => {
+    const wrap = el('div', 'hc-tabpanel hc-events');
+    const rows = el('div', 'hc-console-lines hc-evt-rows');
+
+    // Type filter (single-select radios: All + each type). Memoized via the
+    // snapshot so the pick is sticky across opens.
+    const initialType = s.eventsFilter ?? 'all';
+    function applyFilter(type: string): void {
+        rows.querySelectorAll<HTMLElement>('.hc-evt').forEach((r) => {
+            r.style.display =
+                type === 'all' || r.dataset.evt === type ? '' : 'none';
+        });
+    }
+
+    const toolbar = el('div', 'hc-console-toolbar');
+    const clearBtn = el(
+        'button',
+        'hc-clear',
+        s.labels.eventsClear
+    ) as HTMLButtonElement;
+    clearBtn.type = 'button';
+    clearBtn.addEventListener('click', () => {
+        rows.replaceChildren(el('p', 'hc-empty', s.labels.eventsEmpty));
+        callbacks.onClearEvents?.();
+    });
+    toolbar.appendChild(clearBtn);
+    toolbar.appendChild(
+        buildRadioFilter(
+            'hc-events-filter',
+            EVENT_TYPES.map(({ type, label }) => ({
+                value: type,
+                label: s.labels[label]
+            })),
+            initialType,
+            s.labels.filterAll,
+            (type) => {
+                applyFilter(type);
+                callbacks.onEventsFilter?.(type);
+            }
+        )
+    );
+
+    if (s.events.length === 0) {
+        rows.appendChild(el('p', 'hc-empty', s.labels.eventsEmpty));
+    } else {
+        s.events.forEach((e: HostEvent) => {
+            const row = el('div', `hc-evt hc-evt-${e.type}`);
+            row.dataset.evt = e.type;
+            // The "context" column shows the descriptive detail: the summary,
+            // and the point context appended when present (e.g. update →
+            // "type=Data+Resize, viewMode=Edit · rows=42").
+            const detail = e.context
+                ? `${e.summary} · ${e.context}`
+                : e.summary;
+            row.appendChild(el('span', 'hc-time', fmtTime(e.ts)));
+            row.appendChild(el('span', 'hc-evt-type', e.type));
+            row.appendChild(el('span', 'hc-evt-context', detail));
+            row.title = detail;
+            rows.appendChild(row);
+        });
+    }
+    // Apply the remembered filter to the freshly-built rows.
+    applyFilter(initialType);
+
+    // Toolbar stays frozen as the panel header; only the rows body scrolls.
+    const body = el('div', 'hc-tab-body');
+    body.appendChild(rows);
+    wrap.appendChild(toolbar);
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -198,13 +356,22 @@ const copyText = (text: string): void => {
 
 const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-raw');
-    wrap.appendChild(
+    // Frozen header row: the info banner grows to fill the width and the Copy
+    // button shrinks to its right (a simple flex row), instead of Copy
+    // stretching full width below the banner.
+    const header = el('div', 'hc-raw-header');
+    header.appendChild(
         el(
             'p',
             'hc-banner',
             s.sanitizeEnabled ? s.labels.rawBannerSanitized : s.labels.rawBanner
         )
     );
+    const copy = el('button', 'hc-copy', s.labels.copy) as HTMLButtonElement;
+    copy.type = 'button';
+    copy.addEventListener('click', () => copyText(s.rawHtml.text));
+    header.appendChild(copy);
+    wrap.appendChild(header);
     if (s.rawHtml.truncated) {
         wrap.appendChild(
             el(
@@ -216,15 +383,15 @@ const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
             )
         );
     }
-    const copy = el('button', 'hc-copy', s.labels.copy) as HTMLButtonElement;
-    copy.type = 'button';
-    copy.addEventListener('click', () => copyText(s.rawHtml.text));
-    wrap.appendChild(copy);
+    // The header (and truncation note) stay frozen; only the highlighted source
+    // body scrolls.
+    const body = el('div', 'hc-tab-body');
     const pre = el('pre', 'hc-pre');
     // Built as DOM nodes (not innerHTML) so the certified visual keeps its
     // no-innerHTML posture; lossless — pre.textContent === s.rawHtml.text.
     pre.appendChild(buildHighlightedFragment(s.rawHtml.text));
-    wrap.appendChild(pre);
+    body.appendChild(pre);
+    wrap.appendChild(body);
     return wrap;
 };
 
@@ -258,6 +425,11 @@ export const renderPanel = (
         label: snapshot.labels.tabConsole,
         body: consoleTab(snapshot, callbacks)
     });
+    tabs.push({
+        id: 'events',
+        label: snapshot.labels.tabEvents,
+        body: eventsTab(snapshot, callbacks)
+    });
 
     // Restore the remembered tab if it's available this render; otherwise
     // default to the first tab (Raw HTML).
@@ -273,7 +445,7 @@ export const renderPanel = (
     const activate = (id: string): void => {
         tabs.forEach((o, j) => {
             const on = o.id === id;
-            o.body.style.display = on ? 'block' : 'none';
+            o.body.style.display = on ? 'flex' : 'none';
             buttons[j].setAttribute('aria-selected', String(on));
         });
         callbacks.onTabChange?.(id);
@@ -294,7 +466,7 @@ export const renderPanel = (
         t.body.id = panelId;
         t.body.setAttribute('role', 'tabpanel');
         t.body.setAttribute('aria-labelledby', tabId);
-        t.body.style.display = t.id === activeId ? 'block' : 'none';
+        t.body.style.display = t.id === activeId ? 'flex' : 'none';
         btn.addEventListener('click', () => activate(t.id));
         buttons.push(btn);
         bar.appendChild(btn);
@@ -323,9 +495,16 @@ export class DiagnosticsDialog {
         // Accumulate the result the visual reads on close: the last tab (so it
         // can reopen there) and a console-clear request. Doc links close the
         // dialog explicitly, carrying the same state plus the doc key.
-        const result: { lastTab: string; clearConsole?: boolean } = {
-            lastTab: 'raw'
-        };
+        const result: {
+            lastTab: string;
+            clearConsole?: boolean;
+            clearEvents?: boolean;
+            consoleFilter?: string;
+            eventsFilter?: string;
+        } = { lastTab: 'raw' };
+        // Give the frozen-header flex layout a definite height to size against,
+        // otherwise the whole panel scrolls instead of each tab's body.
+        fillDialogHeight(options.element);
         renderPanel(options.element, initialState as DiagnosticsSnapshot, {
             onTabChange: (tabId) => {
                 result.lastTab = tabId;
@@ -333,6 +512,18 @@ export class DiagnosticsDialog {
             },
             onClearConsole: () => {
                 result.clearConsole = true;
+                host?.setResult?.({ ...result });
+            },
+            onClearEvents: () => {
+                result.clearEvents = true;
+                host?.setResult?.({ ...result });
+            },
+            onConsoleFilter: (level) => {
+                result.consoleFilter = level;
+                host?.setResult?.({ ...result });
+            },
+            onEventsFilter: (type) => {
+                result.eventsFilter = type;
                 host?.setResult?.({ ...result });
             },
             onLaunchDoc: (key) =>

@@ -265,6 +265,11 @@ export const VisualConstants = {
         // Above this raw length, skip span-colorization and render plain
         // (escaped) text to avoid a token-span node explosion.
         highlightSizeLimit: 200 * 1024,
+        // Host-event log (Events tab): ring-buffer size, and per-event context
+        // bounds (first N tooltip items, each value capped to eventContextCap).
+        eventBufferCap: 200,
+        eventContextItems: 3,
+        eventContextCap: 80,
         // Dialog title is localized (Diagnostics_DialogTitle), resolved in
         // visual.ts; only the size lives here.
         dialog: {

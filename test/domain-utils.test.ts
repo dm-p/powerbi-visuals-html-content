@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     shouldUseStylesheet,
     shouldDimPoint,
@@ -13,8 +13,14 @@ import {
     renderTemplatedEntries,
     reconcileTemplatedEntries,
     resolveForRawHtml,
-    getDiagnosticsRawHtml
+    getDiagnosticsRawHtml,
+    resolveHover
 } from '../src/domain-utils';
+import {
+    setArmed,
+    snapshot as evtSnapshot,
+    resetForTests as resetEvents
+} from '../src/diagnostics/event-recorder';
 import type {
     StylesheetSettings,
     VisualFormattingSettingsModel
@@ -1801,5 +1807,98 @@ describe('resolveForRawHtml — colorized in-canvas raw view (DRY)', () => {
         // ...and shows the serialized raw markup (lossless text).
         expect(pre.textContent).toContain('hi');
         expect(pre.textContent).toContain('<p>');
+    });
+});
+
+describe('tooltip host-event instrumentation', () => {
+    // Self-contained container builder (the getRawHtml describe's helper is
+    // scoped to that block and not visible here).
+    const buildContainers = (contentHtml: string) => {
+        const dom = new JSDOM(
+            `<!DOCTYPE html><html><body>` +
+                `<div id="content">${contentHtml}</div>` +
+                `</body></html>`
+        );
+        const container = select(dom.window.document).select('#content');
+        return { container, dom };
+    };
+
+    beforeEach(() => resetEvents());
+
+    it('records a contextual tooltip show with source and context', () => {
+        setArmed(true);
+        const { container, dom } = buildContainers('');
+        const node = container.node() as Element;
+        const row = dom.window.document.createElement('div');
+        node.appendChild(row);
+        const sel = select(row).datum({
+            tooltips: [{ displayName: 'Region', value: 'East' }],
+            identity: {}
+        } as any) as any;
+        const host: any = {
+            tooltipService: { show: () => {}, hide: () => {} }
+        };
+        resolveHover(sel, host, true);
+        sel.dispatch('mouseover');
+        const s = evtSnapshot();
+        expect(
+            s.some(
+                (e) =>
+                    e.type === 'tooltip' &&
+                    e.summary === 'show · contextual' &&
+                    e.context === 'Region="East"'
+            )
+        ).toBe(true);
+    });
+
+    it('records a contextual tooltip hide on mouseout', () => {
+        setArmed(true);
+        const { container, dom } = buildContainers('');
+        const node = container.node() as Element;
+        const row = dom.window.document.createElement('div');
+        node.appendChild(row);
+        const sel = select(row).datum({
+            tooltips: [{ displayName: 'Region', value: 'East' }],
+            identity: {}
+        } as any) as any;
+        const host: any = {
+            tooltipService: { show: () => {}, hide: () => {} }
+        };
+        resolveHover(sel, host, true);
+        sel.dispatch('mouseout');
+        expect(
+            evtSnapshot().some(
+                (e) => e.type === 'tooltip' && e.summary === 'hide · contextual'
+            )
+        ).toBe(true);
+    });
+
+    it('records a manual-path tooltip show on mouseover', () => {
+        setArmed(true);
+        const { container, dom } = buildContainers('');
+        const node = container.node() as Element;
+        // dataElements is the #content selection; bindManualTooltips wires
+        // descendants matching `.tooltipEnabled`. The HTML data API camel-cases
+        // data-tooltip-title0 -> dataset.tooltipTitle0 (and -value0), which
+        // bindManualTooltips strips back to a single key "0", resolving one
+        // { displayName: 'Manual', value: 'X' } dataItem -> context 'Manual="X"'.
+        const manual = dom.window.document.createElement('div');
+        manual.classList.add('tooltipEnabled');
+        manual.setAttribute('data-tooltip-title0', 'Manual');
+        manual.setAttribute('data-tooltip-value0', 'X');
+        node.appendChild(manual);
+        const host: any = {
+            tooltipService: { show: () => {}, hide: () => {} }
+        };
+        resolveHover(container as any, host, false);
+        select(manual).dispatch('mouseover');
+        expect(
+            evtSnapshot().some(
+                (e) =>
+                    e.type === 'tooltip' &&
+                    e.summary === 'show · manual' &&
+                    e.context === 'Manual="X"'
+            )
+        ).toBe(true);
     });
 });

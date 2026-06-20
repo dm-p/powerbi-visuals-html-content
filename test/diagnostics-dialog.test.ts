@@ -23,7 +23,18 @@ const labels = {
     docsSanitization: 'Sanitization rules',
     docsAcceptedTags: 'Accepted tags',
     rawBanner: 'Processed HTML.',
-    rawBannerSanitized: 'Processed and sanitized HTML.'
+    rawBannerSanitized: 'Processed and sanitized HTML.',
+    tabEvents: 'Events',
+    eventsEmpty: 'No host events captured.',
+    colTime: 'time',
+    colEvent: 'event',
+    colContext: 'context',
+    eventsClear: 'Clear',
+    evtUpdate: 'update',
+    evtCrossFilter: 'cross-filter',
+    evtTooltip: 'tooltip',
+    evtDrill: 'drill',
+    filterAll: 'all'
 };
 
 const snap = (
@@ -31,6 +42,7 @@ const snap = (
 ): DiagnosticsSnapshot => ({
     sanitizer: { entries: [], overflow: 0 },
     console: [],
+    events: [],
     rawHtml: { text: '<p>hi</p>', truncated: false, totalLength: 9 },
     labels,
     sanitizeEnabled: true,
@@ -38,11 +50,11 @@ const snap = (
 });
 
 describe('renderPanel', () => {
-    it('renders three tab buttons when the sanitizer applies', () => {
+    it('renders four tab buttons when the sanitizer applies', () => {
         const el = document.createElement('div');
         renderPanel(el, snap());
         const tabs = el.querySelectorAll('[role="tab"]');
-        expect(tabs.length).toBe(3);
+        expect(tabs.length).toBe(4);
     });
 
     it('puts Raw HTML first as the default active tab', () => {
@@ -59,7 +71,7 @@ describe('renderPanel', () => {
         const tabTexts = Array.from(el.querySelectorAll('[role="tab"]')).map(
             (t) => t.textContent
         );
-        expect(tabTexts).toEqual(['Raw HTML', 'Console']);
+        expect(tabTexts).toEqual(['Raw HTML', 'Console', 'Events']);
     });
 
     it('opens on the remembered initialTab when available', () => {
@@ -135,7 +147,7 @@ describe('renderPanel', () => {
         expect(cleared).toBe(1);
     });
 
-    it('console level filter hides lines of the unchecked level', () => {
+    it('console level filter (radio) shows only the selected level', () => {
         const el = document.createElement('div');
         renderPanel(
             el,
@@ -146,16 +158,56 @@ describe('renderPanel', () => {
                 ]
             })
         );
-        const warnCb = el.querySelector(
-            'input[data-level="warn"]'
-        ) as HTMLInputElement;
         const warnLine = el.querySelector('.hc-log.hc-warn') as HTMLElement;
         const errorLine = el.querySelector('.hc-log.hc-error') as HTMLElement;
+        // Default 'all' → both visible.
         expect(warnLine.style.display).not.toBe('none');
-        warnCb.checked = false;
-        warnCb.dispatchEvent(new Event('change'));
-        expect(warnLine.style.display).toBe('none');
         expect(errorLine.style.display).not.toBe('none');
+        // Pick the 'warn' radio → only warn visible.
+        const warnRadio = el.querySelector(
+            'input[name="hc-console-filter"][value="warn"]'
+        ) as HTMLInputElement;
+        warnRadio.checked = true;
+        warnRadio.dispatchEvent(new Event('change'));
+        expect(warnLine.style.display).not.toBe('none');
+        expect(errorLine.style.display).toBe('none');
+    });
+
+    it('console filter restores the remembered pick and reports changes', () => {
+        const el = document.createElement('div');
+        const picks: string[] = [];
+        renderPanel(
+            el,
+            snap({
+                consoleFilter: 'error',
+                console: [
+                    { ts: 0, level: 'warn', text: 'w' },
+                    { ts: 0, level: 'error', text: 'e' }
+                ]
+            }),
+            { onConsoleFilter: (l) => picks.push(l) }
+        );
+        // Remembered 'error' applied on open: warn hidden, error shown, radio set.
+        expect(
+            (el.querySelector('.hc-log.hc-warn') as HTMLElement).style.display
+        ).toBe('none');
+        expect(
+            (el.querySelector('.hc-log.hc-error') as HTMLElement).style.display
+        ).not.toBe('none');
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-console-filter"][value="error"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+        // Switching back to All reports the change.
+        const allRadio = el.querySelector(
+            'input[name="hc-console-filter"][value="all"]'
+        ) as HTMLInputElement;
+        allRadio.checked = true;
+        allRadio.dispatchEvent(new Event('change'));
+        expect(picks).toContain('all');
     });
 
     it('sanitizer doc links report onLaunchDoc with the doc key', () => {
@@ -252,11 +304,11 @@ describe('renderPanel', () => {
         renderPanel(el, snap());
         const tabs = el.querySelectorAll<HTMLElement>('[role="tab"]');
         const panels = el.querySelectorAll<HTMLElement>('[role="tabpanel"]');
-        expect(panels.length).toBe(3);
+        expect(panels.length).toBe(4);
         // First tab active initially.
         expect(tabs[0].getAttribute('aria-selected')).toBe('true');
         expect(tabs[1].getAttribute('aria-selected')).toBe('false');
-        expect(panels[0].style.display).toBe('block');
+        expect(panels[0].style.display).toBe('flex');
         expect(panels[1].style.display).toBe('none');
         // Each tab controls/labels its panel.
         expect(tabs[1].getAttribute('aria-controls')).toBe(panels[1].id);
@@ -266,7 +318,18 @@ describe('renderPanel', () => {
         expect(tabs[0].getAttribute('aria-selected')).toBe('false');
         expect(tabs[1].getAttribute('aria-selected')).toBe('true');
         expect(panels[0].style.display).toBe('none');
-        expect(panels[1].style.display).toBe('block');
+        expect(panels[1].style.display).toBe('flex');
+    });
+
+    it('places Copy beside the banner in the Raw HTML header row', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const header = el.querySelector('.hc-raw .hc-raw-header') as HTMLElement;
+        expect(header).not.toBeNull();
+        // Banner and Copy are siblings in the header row (Copy shrinks to the
+        // right rather than stretching full width below the banner).
+        expect(header.querySelector(':scope > .hc-banner')).not.toBeNull();
+        expect(header.querySelector(':scope > .hc-copy')).not.toBeNull();
     });
 
     it('copy button uses execCommand (Clipboard API is blocked in the dialog iframe)', () => {
@@ -306,6 +369,147 @@ describe('renderPanel', () => {
         expect(line.querySelector('.hc-level')?.textContent).toBe('warn');
         expect(line.querySelector('.hc-text')?.textContent).toBe('careful');
     });
+
+    it('always renders an Events tab (every edition)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ sanitizeEnabled: false }));
+        const tabTexts = Array.from(el.querySelectorAll('[role="tab"]')).map(
+            (t) => t.textContent
+        );
+        expect(tabTexts).toContain('Events');
+    });
+
+    it('renders host-event rows with time, type, and context', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                events: [
+                    {
+                        ts: 0,
+                        type: 'cross-filter',
+                        summary: 'cross-filter',
+                        context: 'Region="East"'
+                    }
+                ]
+            })
+        );
+        const row = el.querySelector('.hc-evt') as HTMLElement;
+        expect(row.querySelector('.hc-time')?.textContent).toMatch(
+            /^\d{2}:\d{2}:\d{2}\.\d{3}$/
+        );
+        expect(row.querySelector('.hc-evt-type')?.textContent).toBe('cross-filter');
+        // The context cell shows "summary · context" (the detail); assert it carries
+        // the point context.
+        expect(row.querySelector('.hc-evt-context')?.textContent).toContain(
+            'Region="East"'
+        );
+    });
+
+    it('event type filter (radio) shows only the selected type', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            snap({
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'drill', summary: 'd' }
+                ]
+            })
+        );
+        const updateRow = el.querySelector(
+            '.hc-evt.hc-evt-update'
+        ) as HTMLElement;
+        const drillRow = el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement;
+        // Default 'all' → both visible.
+        expect(updateRow.style.display).not.toBe('none');
+        expect(drillRow.style.display).not.toBe('none');
+        // Pick the 'drill' radio → only drill visible.
+        const drillRadio = el.querySelector(
+            'input[name="hc-events-filter"][value="drill"]'
+        ) as HTMLInputElement;
+        drillRadio.checked = true;
+        drillRadio.dispatchEvent(new Event('change'));
+        expect(updateRow.style.display).toBe('none');
+        expect(drillRow.style.display).not.toBe('none');
+    });
+
+    it('events filter restores the remembered pick and reports changes', () => {
+        const el = document.createElement('div');
+        const picks: string[] = [];
+        renderPanel(
+            el,
+            snap({
+                eventsFilter: 'drill',
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'drill', summary: 'd' }
+                ]
+            }),
+            { onEventsFilter: (t) => picks.push(t) }
+        );
+        // Remembered 'drill' applied on open.
+        expect(
+            (el.querySelector('.hc-evt.hc-evt-update') as HTMLElement).style
+                .display
+        ).toBe('none');
+        expect(
+            (el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement).style
+                .display
+        ).not.toBe('none');
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-events-filter"][value="drill"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+        // Switching to update reports it.
+        const updateRadio = el.querySelector(
+            'input[name="hc-events-filter"][value="update"]'
+        ) as HTMLInputElement;
+        updateRadio.checked = true;
+        updateRadio.dispatchEvent(new Event('change'));
+        expect(picks).toContain('update');
+    });
+
+    it('events Clear empties the display and reports onClearEvents', () => {
+        const el = document.createElement('div');
+        let cleared = 0;
+        renderPanel(
+            el,
+            snap({ events: [{ ts: 0, type: 'update', summary: 'u' }] }),
+            { onClearEvents: () => cleared++ }
+        );
+        expect(el.querySelector('.hc-evt')).not.toBeNull();
+        (el.querySelector('.hc-events .hc-clear') as HTMLButtonElement).click();
+        expect(el.querySelector('.hc-evt')).toBeNull();
+        expect(cleared).toBe(1);
+    });
+
+    it('events tab shows an empty state when there are no events', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap({ events: [] }));
+        expect(el.querySelector('.hc-events')?.textContent?.toLowerCase()).toContain(
+            'no host events'
+        );
+    });
+
+    it('activates the selected panel with display:flex (frozen-header layout)', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const raw = el.querySelector('#hc-panel-raw') as HTMLElement;
+        expect(raw.style.display).toBe('flex');
+    });
+
+    it('wraps each tab body in a scrollable .hc-tab-body under a header sibling', () => {
+        const el = document.createElement('div');
+        renderPanel(el, snap());
+        const consolePanel = el.querySelector('#hc-panel-console') as HTMLElement;
+        // toolbar (header) and the scrollable body are siblings; body carries .hc-tab-body
+        expect(consolePanel.querySelector(':scope > .hc-console-toolbar')).not.toBeNull();
+        expect(consolePanel.querySelector(':scope > .hc-tab-body')).not.toBeNull();
+    });
 });
 
 describe('DiagnosticsDialog registration', () => {
@@ -318,5 +522,36 @@ describe('DiagnosticsDialog registration', () => {
         expect(reg?.[VisualConstants.diagnostics.dialogId]).toBe(
             DiagnosticsDialog
         );
+    });
+
+    it('fills the height chain so only the tab body scrolls (frozen header)', () => {
+        // Save/restore the shared jsdom document styles this mutates.
+        const prevHtmlH = document.documentElement.style.height;
+        const prevBodyH = document.body.style.height;
+        const prevBodyM = document.body.style.margin;
+
+        const host = document.createElement('div');
+        const inner = document.createElement('div'); // nested host element
+        host.appendChild(inner);
+        document.body.appendChild(host);
+        new DiagnosticsDialog(
+            {
+                element: inner,
+                host: { setResult() {}, close() {} }
+            },
+            snap()
+        );
+        // The chain from <html>/<body> down through the host ancestors gets a
+        // definite height so .hc-diagnostics { height: 100% } resolves.
+        expect(document.documentElement.style.height).toBe('100%');
+        expect(document.body.style.height).toBe('100%');
+        expect(document.body.style.margin).not.toBe('');
+        expect(host.style.height).toBe('100%');
+        expect(inner.style.height).toBe('100%');
+
+        document.body.removeChild(host);
+        document.documentElement.style.height = prevHtmlH;
+        document.body.style.height = prevBodyH;
+        document.body.style.margin = prevBodyM;
     });
 });

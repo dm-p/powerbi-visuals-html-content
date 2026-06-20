@@ -3,7 +3,8 @@ import {
     DiagnosticsSnapshot,
     SanitizerCapture,
     ConsoleEntry,
-    DiagnosticsLabels
+    DiagnosticsLabels,
+    HostEvent
 } from './types';
 import { VisualConstants } from '../visual-constants';
 
@@ -24,9 +25,12 @@ export const buildSnapshot = (input: {
     rawHtml: string;
     sanitizer: SanitizerCapture;
     console: ConsoleEntry[];
+    events: HostEvent[];
     labels: DiagnosticsLabels;
     sanitizeEnabled: boolean;
     initialTab?: string;
+    consoleFilter?: string;
+    eventsFilter?: string;
 }): DiagnosticsSnapshot => {
     const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
     const total = input.rawHtml.length;
@@ -34,9 +38,12 @@ export const buildSnapshot = (input: {
     return {
         sanitizer: input.sanitizer,
         console: input.console,
+        events: input.events,
         labels: input.labels,
         sanitizeEnabled: input.sanitizeEnabled,
         initialTab: input.initialTab,
+        consoleFilter: input.consoleFilter,
+        eventsFilter: input.eventsFilter,
         rawHtml: {
             text: truncated ? input.rawHtml.slice(0, cap) : input.rawHtml,
             truncated,

@@ -37,7 +37,18 @@ const labels = {
     docsSanitization: 'Sanitization rules',
     docsAcceptedTags: 'Accepted tags',
     rawBanner: 'Processed HTML.',
-    rawBannerSanitized: 'Processed and sanitized HTML.'
+    rawBannerSanitized: 'Processed and sanitized HTML.',
+    tabEvents: 'Events',
+    eventsEmpty: 'No host events captured.',
+    colTime: 'time',
+    colEvent: 'event',
+    colContext: 'context',
+    eventsClear: 'Clear',
+    evtUpdate: 'update',
+    evtCrossFilter: 'cross-filter',
+    evtTooltip: 'tooltip',
+    evtDrill: 'drill',
+    filterAll: 'all'
 };
 
 describe('isDiagnosticsHotkey', () => {
@@ -70,9 +81,27 @@ describe('buildSnapshot', () => {
     const base = {
         sanitizer: { entries: [], overflow: 0 },
         console: [],
+        events: [],
         labels,
         sanitizeEnabled: true
     };
+
+    it('passes host events through into the snapshot', () => {
+        const events = [{ ts: 1, type: 'update' as const, summary: 'type=Data' }];
+        const snap = buildSnapshot({ ...base, rawHtml: 'x', events });
+        expect(snap.events).toBe(events);
+    });
+
+    it('passes the remembered console/events filters through', () => {
+        const snap = buildSnapshot({
+            ...base,
+            rawHtml: 'x',
+            consoleFilter: 'warn',
+            eventsFilter: 'drill'
+        });
+        expect(snap.consoleFilter).toBe('warn');
+        expect(snap.eventsFilter).toBe('drill');
+    });
 
     it('passes the labels and sanitizeEnabled through unchanged', () => {
         const snap = buildSnapshot({ ...base, rawHtml: 'x' });

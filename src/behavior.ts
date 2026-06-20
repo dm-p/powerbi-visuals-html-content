@@ -7,6 +7,8 @@ import ISelectionHandler = interactivityBaseService.ISelectionHandler;
 import { IHtmlEntry, IViewModel } from './view-model';
 import { VisualConstants } from './visual-constants';
 import { shouldDimPoint } from './domain-utils';
+import { recordEvent } from './diagnostics/event-recorder';
+import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 /**
  * Behavior options for interactivity.
@@ -20,6 +22,10 @@ export interface IHtmlBehaviorOptions<
     clearCatcherSelection: d3.Selection<HTMLDivElement, any, any, any>;
     // Visual ViewModel
     viewModel: IViewModel;
+    // Dismiss any active host tooltip on an interaction (cross-filter / context
+    // menu). Always-on UX fix — independent of diagnostics. The visual wires it
+    // to host.tooltipService.hide(...).
+    hideTooltip: () => void;
 }
 
 /**
@@ -60,14 +66,28 @@ export class BehaviorManager<
     }
 
     /**
+     * Bounded tooltip context string for a datum.
+     */
+    private pointContext(d: IHtmlEntry | null): string {
+        return d ? tooltipContext(d.tooltips as TooltipItem[]) : '';
+    }
+
+    /**
      * Abstraction of common click event handling for a `SelectableDataPoint`
      *
      * @param event - click event
      * @param d     - datum from selection
      */
-    private handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
+    handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
         event.preventDefault();
         event.stopPropagation();
+        this.options.hideTooltip();
+        // `d.selected` is the PRE-toggle state, so a Ctrl+click on an already-
+        // selected point removes it from the selection, otherwise it adds it; a
+        // plain click replaces the selection. Surfacing add/remove makes it
+        // clear how each click changes the multi-select context.
+        const op = event.ctrlKey ? (d.selected ? 'remove' : 'add') : 'select';
+        recordEvent('cross-filter', op, this.pointContext(d) || undefined);
         this.selectionHandler.handleSelection(d, event.ctrlKey);
     }
 
@@ -77,9 +97,15 @@ export class BehaviorManager<
      * @param event - click event
      * @param d     - datum from selection
      */
-    handleContextMenu(event: MouseEvent, d: IHtmlEntry) {
+    handleContextMenu(event: MouseEvent, d: IHtmlEntry | null) {
         event.preventDefault();
         event.stopPropagation();
+        this.options.hideTooltip();
+        recordEvent(
+            'drill',
+            `context-menu @ (${event.clientX},${event.clientY})`,
+            d ? this.pointContext(d) || undefined : 'background'
+        );
         event &&
             this.selectionHandler.handleContextMenu(d, {
                 x: event.clientX,
@@ -99,6 +125,8 @@ export class BehaviorManager<
             if (hasCrossFiltering) {
                 event.preventDefault();
                 event.stopPropagation();
+                this.options.hideTooltip();
+                recordEvent('cross-filter', 'cleared');
                 const mouseEvent: MouseEvent = <MouseEvent>event;
                 mouseEvent && this.selectionHandler.handleClearSelection();
             }
