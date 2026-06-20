@@ -37,9 +37,10 @@ export { getParsedHtmlAsDom } from './sanitize';
 
 // The sanitization functions previously defined inline here (getSanitizedContent,
 // getStrippedAttributes, getSanitizedCss, getSanitizedDataUri, and the original
-// getParsedHtmlAsDom) have been moved to ./sanitize-pipeline so they can be
-// imported by the Playwright integration harness without pulling in d3,
-// overlayscrollbars, or powerbi-visuals-api at test load time.
+// getParsedHtmlAsDom) have been moved to ./sanitize (the seam and its
+// backends) so they can be imported by the Playwright integration harness
+// without pulling in d3, overlayscrollbars, or powerbi-visuals-api at test
+// load time.
 // getParsedHtmlAsDom is re-exported above; getSanitizedCss is imported above
 // and used by resolveStyling below.
 

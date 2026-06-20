@@ -158,7 +158,7 @@ function extractUrlArgument(node: FunctionNode): string {
 
 // `isSafeImageDataUri` and `SAFE_IMAGE_MIME_TYPES` live in
 // `./svg-payload-scan` so all three call sites (this CSS url(),
-// the funciri value-scheme check in sanitize-pipeline.ts, and the
+// the funciri value-scheme check in sanitize/backend.certified.ts, and the
 // top-level URL attribute path) share one predicate. See that
 // module's header for the contract.
 
@@ -166,7 +166,7 @@ function isFragmentOnlyUrl(rawUrl: string): boolean {
     // Same-document fragment references like url(#shadow), url(#g1) are
     // safe — they resolve within the rendered SVG / document and never
     // trigger a fetch. Mirrors the funciri scheme check applied to SVG
-    // presentation attributes in sanitize-pipeline.ts where empty
+    // presentation attributes in sanitize/backend.certified.ts where empty
     // scheme + leading # is allowed. Without this, CSS rules like
     // `fill: url(#gradient)` or `filter: url(#shadow)` inside <style>
     // blocks would be silently dropped, even though the equivalent SVG
