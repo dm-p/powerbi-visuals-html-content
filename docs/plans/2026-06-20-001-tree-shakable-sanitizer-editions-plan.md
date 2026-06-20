@@ -34,8 +34,8 @@
 - Modify `src/domain-utils.ts`, `src/visual.ts`, `src/diagnostics/types.ts` — import-path churn.
 - Modify the seven test files — retarget imports.
 - Delete `config/visual.json`.
-- Create `config/editions.mjs`, `pbiviz.mjs`, `scripts/select-edition.mjs`, `scripts/check-no-sanitizer.mjs`.
-- Modify `package.json` (scripts), `.gitignore`. Repurpose/delete `config/package.json`, `bin/package-custom`.
+- Create `config/editions.mjs`, `capabilities.webaccess.json` (committed), `pbiviz.mjs`, `scripts/select-edition.mjs`, `scripts/check-no-sanitizer.mjs`, `test/capabilities-editions.test.ts`.
+- Modify `package.json` (scripts), `.gitignore`. Delete `config/package.json`, `bin/package-custom`.
 
 ---
 
@@ -398,7 +398,7 @@ git commit -m "test: passthrough sanitizer backend parity"
 ## Task 3: Build/edition wiring (pbiviz.mjs + select-edition prestep)
 
 **Files:**
-- Create: `config/editions.mjs`, `pbiviz.mjs`, `scripts/select-edition.mjs`
+- Create: `config/editions.mjs`, `capabilities.webaccess.json`, `pbiviz.mjs`, `scripts/select-edition.mjs`, `test/capabilities-editions.test.ts`
 - Modify: `package.json`, `.gitignore`
 - Delete: `config/package.json`, `bin/package-custom`
 
@@ -410,14 +410,15 @@ Create `config/editions.mjs` (values lifted from today's `config/package.json`):
 // Single source of truth for per-edition build configuration.
 // `certified` is the default (the committed pbiviz.json base): sanitized, no
 // WebAccess privilege, audited by Microsoft. The base editions disable the
-// sanitizer (handled by the code seam) and request WebAccess.
+// sanitizer (handled by the code seam) and point at the committed WebAccess
+// capabilities file. Privileges are NOT declared here — they live in the
+// committed capabilities files (capabilities.json / capabilities.webaccess.json).
 export const editions = {
     certified: {
         visual: {},
         assets: {},
         capabilities: 'capabilities.json',
-        sanitize: true,
-        privileges: []
+        sanitize: true
     },
     standard: {
         visual: {
@@ -428,8 +429,7 @@ export const editions = {
         },
         assets: { icon: 'assets/palette_icon_standard.png' },
         capabilities: 'capabilities.webaccess.json',
-        sanitize: false,
-        privileges: [{ name: 'WebAccess', parameters: ['*'] }]
+        sanitize: false
     },
     standalone: {
         visual: {
@@ -440,13 +440,22 @@ export const editions = {
         },
         assets: { icon: 'assets/palette_icon_standalone.png' },
         capabilities: 'capabilities.webaccess.json',
-        sanitize: false,
-        privileges: [{ name: 'WebAccess', parameters: ['*'] }]
+        sanitize: false
     }
 };
 ```
 
-- [ ] **Step 2: Create `pbiviz.mjs` (computed metadata, honored by the tools)**
+- [ ] **Step 2: Create the committed WebAccess capabilities file**
+
+`capabilities.json` already carries `privileges: []` (certified — no remote access). Create `capabilities.webaccess.json` as a byte-for-byte copy whose only difference is the `WebAccess` privilege. Generate it once from the committed source so the two start identical:
+
+```bash
+node -e "const c=require('./capabilities.json'); c.privileges=[{name:'WebAccess',parameters:['*']}]; require('fs').writeFileSync('capabilities.webaccess.json', JSON.stringify(c,null,4)+'\n')"
+```
+
+Confirm: `node -e "const a=require('./capabilities.json'),b=require('./capabilities.webaccess.json'); const {privileges:_,...ra}=a; const {privileges:__,...rb}=b; console.log('identical except privileges:', JSON.stringify(ra)===JSON.stringify(rb))"` prints `true`. This file is **committed** (not generated at build time); the drift guard in Step 7 keeps it honest.
+
+- [ ] **Step 3: Create `pbiviz.mjs` (computed metadata, honored by the tools)**
 
 Create `pbiviz.mjs` at the repo root. It reads the committed `pbiviz.json` as the certified base, then applies the active edition's overrides:
 
@@ -480,15 +489,17 @@ export default {
 };
 ```
 
-- [ ] **Step 3: Create the select-edition prestep**
+- [ ] **Step 4: Create the select-edition prestep**
 
-Create `scripts/select-edition.mjs`:
+Create `scripts/select-edition.mjs`. It writes only the two git-ignored generated artifacts — it does **not** touch capabilities (those are committed files, path-selected by `pbiviz.mjs`):
 
 ```js
-// Prestep run before `pbiviz package`/`start`/`test`. Writes the git-ignored
-// edition artifacts: the sanitizer backend selector, the active-edition handoff
-// for pbiviz.mjs, and (for base editions) the WebAccess capabilities file.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Prestep run before `pbiviz package`/`start`/`test`. Writes the two git-ignored
+// edition artifacts: the sanitizer backend selector and the active-edition
+// handoff that pbiviz.mjs reads. Capabilities are committed files (capabilities.json
+// / capabilities.webaccess.json); pbiviz.mjs selects the path, so nothing is
+// generated for them here.
+import { writeFileSync } from 'node:fs';
 import { editions } from '../config/editions.mjs';
 
 const edition = process.argv[2] ?? 'certified';
@@ -511,44 +522,66 @@ writeFileSync(
         `export default '${edition}';\n`
 );
 
-if (!e.sanitize) {
-    const caps = JSON.parse(
-        readFileSync(new URL('../capabilities.json', import.meta.url), 'utf8')
-    );
-    caps.privileges = e.privileges;
-    writeFileSync(
-        new URL('../capabilities.webaccess.json', import.meta.url),
-        JSON.stringify(caps, null, 4) + '\n'
-    );
-}
-
 console.log(
     `Selected edition: ${edition} (sanitize=${e.sanitize}, backend=${backend})`
 );
 ```
 
-- [ ] **Step 4: Verify the prestep writes the certified default**
+- [ ] **Step 5: Verify the prestep writes the certified default**
 
 Run: `node scripts/select-edition.mjs certified`
 Expected stdout: `Selected edition: certified (sanitize=true, backend=backend.certified)`
 Then confirm `src/sanitize/backend.ts` ends with `export * from './backend.certified';` and `config/active-edition.mjs` exists.
 
-- [ ] **Step 5: Verify the standalone prestep writes passthrough + capabilities**
+- [ ] **Step 6: Verify the standalone prestep flips to passthrough**
 
 Run: `node scripts/select-edition.mjs standalone`
 Expected stdout: `Selected edition: standalone (sanitize=false, backend=backend.passthrough)`
-Confirm `src/sanitize/backend.ts` now targets `./backend.passthrough` and `capabilities.webaccess.json` exists with a `privileges` array containing `WebAccess`.
+Confirm `src/sanitize/backend.ts` now targets `./backend.passthrough` and `config/active-edition.mjs` reads `export default 'standalone';`. (No capabilities file is written — that is committed.)
 Then reset to certified: `node scripts/select-edition.mjs certified`
 
-- [ ] **Step 6: Git-ignore the generated artifacts**
+- [ ] **Step 7: Add the capabilities drift guard**
 
-Append to `.gitignore`:
+Create `test/capabilities-editions.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import certified from '../capabilities.json';
+import webaccess from '../capabilities.webaccess.json';
+
+describe('capabilities editions', () => {
+    it('certified has no privileges', () => {
+        expect(certified.privileges).toEqual([]);
+    });
+
+    it('webaccess grants WebAccess', () => {
+        expect(webaccess.privileges).toEqual([
+            { name: 'WebAccess', parameters: ['*'] }
+        ]);
+    });
+
+    it('the two files are identical except privileges', () => {
+        const strip = (c: Record<string, unknown>) => {
+            const { privileges, ...rest } = c;
+            void privileges;
+            return rest;
+        };
+        expect(strip(webaccess)).toEqual(strip(certified));
+    });
+});
+```
+
+Run: `npx vitest run test/capabilities-editions.test.ts`
+Expected: PASS (3 tests). (Importing `.json` works under Vitest's `resolveJsonModule`.)
+
+- [ ] **Step 8: Git-ignore the generated artifacts**
+
+Append to `.gitignore` (only the two generated files — `capabilities.webaccess.json` is committed):
 
 ```
 # Generated per-edition build artifacts (scripts/select-edition.mjs)
 src/sanitize/backend.ts
 config/active-edition.mjs
-capabilities.webaccess.json
 ```
 
 Then untrack the now-committed selector if git is tracking it:
@@ -557,7 +590,7 @@ Then untrack the now-committed selector if git is tracking it:
 git rm --cached src/sanitize/backend.ts
 ```
 
-- [ ] **Step 7: Update npm scripts**
+- [ ] **Step 9: Update npm scripts**
 
 In `package.json`, replace the `package-standard`/`package-standalone` scripts and add lifecycle hooks. The relevant `scripts` entries become:
 
@@ -572,7 +605,7 @@ In `package.json`, replace the `package-standard`/`package-standalone` scripts a
 
 (Keep all other scripts unchanged. `start` and `test` stay as-is; their `pre*` hooks run the selector first.)
 
-- [ ] **Step 8: Remove the superseded packager**
+- [ ] **Step 10: Remove the superseded packager**
 
 ```bash
 git rm bin/package-custom config/package.json
@@ -580,12 +613,12 @@ git rm bin/package-custom config/package.json
 
 Confirm nothing else references them: `grep -rn "package-custom\|config/package.json" . --include=*.json --include=*.js --include=*.mjs -l` (expect no matches outside `node_modules`).
 
-- [ ] **Step 9: Verify tests still pass through the new pretest hook**
+- [ ] **Step 11: Verify tests still pass through the new pretest hook**
 
 Run: `npm test`
-Expected: the `pretest` selector logs `certified`, then all Vitest suites PASS.
+Expected: the `pretest` selector logs `certified`, then all Vitest suites PASS (including the new `test/capabilities-editions.test.ts`).
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 12: Commit**
 
 ```bash
 git add -A

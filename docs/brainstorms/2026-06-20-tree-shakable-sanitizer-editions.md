@@ -142,18 +142,26 @@ Both editions stay byte-identical to today:
 
 ## Build and edition wiring
 
-One build-time signal flows through generated, **git-ignored** artifacts, so
-nothing committed is mutated and there is no revert dance.
+One build-time signal flows through git-ignored generated artifacts (plus two
+committed, static capabilities files), so nothing committed is ever mutated and
+there is no revert dance.
 
-**`scripts/select-edition.mjs <edition>`** (the explicit prestep) writes:
+**`scripts/select-edition.mjs <edition>`** (the explicit prestep) writes two
+generated, git-ignored artifacts:
 
 - `src/sanitize/backend.ts` → `certified` or `passthrough` selector line.
-- `capabilities.webaccess.json` (base editions only) — generated from
-  `capabilities.json` + the privileges block, so there is a single source of
-  truth and no two-file drift.
 - `config/active-edition.mjs` → `export default '<edition>'` — the cross-process
   handoff that `pbiviz.mjs` reads (prestep and `pbiviz` run in separate
   processes).
+
+**Capabilities are two committed files, not generated.** `capabilities.json`
+(certified, `privileges: []`) and `capabilities.webaccess.json` (identical
+except the `WebAccess` privilege) are both committed; `pbiviz.mjs` just points
+the `capabilities` path at the right one per edition. Privileges therefore live
+in exactly one place — the JSON file — with nothing injected at build time. The
+only cost is that the two files can drift if one is edited and not the other; a
+small unit test asserts they are identical except for `privileges`, which closes
+that gap cheaply.
 
 **`pbiviz.mjs`** (honored, computed — replaces `pbiviz.json` + the merge/guid
 patch in `bin/package-custom`):
@@ -166,7 +174,8 @@ patch in `bin/package-custom`):
 
 **Edition data** lives in one source — `config/editions.mjs` (repurposed from
 today's `config/package.json`): guid, displayName, icon, description, `sanitize`
-bool, privileges per edition.
+bool, and the `capabilities` path per edition. (Privileges are not duplicated
+here — they live in the committed capabilities files.)
 
 ### npm scripts
 
@@ -179,9 +188,9 @@ bool, privileges per edition.
 ```
 
 Arg-based (matches today's `--mode` style — no `cross-env`/Windows shell
-concerns). Because all edition-varying files are generated and git-ignored, a
-failed base build leaves no committed file dirty; the next `prestart` /
-`postinstall` / `package` resets generated state to certified.
+concerns). The build only ever writes the two git-ignored generated files and
+never mutates a committed file, so a failed base build leaves nothing dirty; the
+next `prestart` / `postinstall` / `package` resets generated state to certified.
 
 ### Deleted
 
@@ -201,6 +210,9 @@ failed base build leaves no committed file dirty; the next `prestart` /
 - **Passthrough parity test:** import `backend.passthrough`; assert
   `sanitizeHtmlString` / `sanitizeCssString` return input unchanged,
   `sanitizeFragmentInPlace` leaves the fragment untouched, `enabled === false`.
+- **Capabilities drift guard:** assert `capabilities.json` and
+  `capabilities.webaccess.json` are identical except for the `privileges` field,
+  so the two committed files cannot silently diverge.
 - **Anti-regression guard (the one that matters):** after
   `npm run package-standalone`, scan the packaged `visual.js` for a
   DOMPurify/postcss fingerprint and assert it is **absent**. This stops a
