@@ -7,6 +7,7 @@
         "package-standard": "node scripts/select-edition.mjs standard && pbiviz package",
         "package-standalone": "node scripts/select-edition.mjs standalone && pbiviz package",
         "verify-standalone-lean": "npm run package-standalone && node scripts/check-no-sanitizer.mjs",
+        "verify-standard-lean": "npm run package-standard && node scripts/check-no-sanitizer.mjs",
         "prestart": "node scripts/select-edition.mjs certified",
         "pretest": "node scripts/select-edition.mjs certified",
         "postinstall": "node scripts/select-edition.mjs certified",

@@ -1,9 +1,9 @@
 // Fails if the freshly-built bundle contains sanitizer code. Intended to run
-// immediately after `npm run package-standalone` (or package-standard). The
-// webpack drop is the unzipped bundle; adjust BUNDLE if the drop folder differs.
+// immediately after `npm run package-standalone`/`package-standard`. The webpack
+// drop is the unzipped bundle; pass a path as argv[2] if the drop folder differs.
 import { existsSync, readFileSync } from 'node:fs';
 
-const BUNDLE = '.tmp/drop/visual.js';
+const BUNDLE = process.argv[2] ?? '.tmp/drop/visual.js';
 if (!existsSync(BUNDLE)) {
     console.error(`Bundle not found at ${BUNDLE}. Run a package build first.`);
     process.exit(1);
