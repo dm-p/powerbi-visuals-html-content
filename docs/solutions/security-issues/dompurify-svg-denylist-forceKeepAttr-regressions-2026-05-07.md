@@ -7,7 +7,7 @@ problem_type: security_issue
 component: tooling
 severity: critical
 related_components:
-  - sanitize-pipeline
+  - sanitize-backend
   - visual-constants
   - csp-harness-corpus
 tags:
@@ -99,7 +99,7 @@ filter: [''],
 The second half of the fix is the default-deny guard in the hook. Previously the `if (schemesByTag)` block was simply skipped when the tag had no entry. Now the `else if` arm explicitly rejects:
 
 ```typescript
-// src/sanitize-pipeline.ts — default-deny branch (was absent before)
+// src/sanitize/backend.certified.ts — default-deny branch (was absent before)
 if (schemesByTag) {
     const scheme = schemeMatch ? schemeMatch[1].toLowerCase() : '';
     if (!schemesByTag.includes(scheme)) {
