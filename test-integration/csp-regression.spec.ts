@@ -4,7 +4,7 @@ import { createHarness, formatFailure, RenderResult } from './csp-harness/runner
 import { MALICIOUS_PAYLOADS, CLEAN_PAYLOADS } from './csp-harness/corpus';
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { HYPERLINKS_PAYLOADS } from '../test/fixtures/hyperlinks';
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 
 // Sanity: assert ids are unique across all corpus arrays (sanitization
 // + lorem). Catches copy-paste duplicates that the corpus's structural

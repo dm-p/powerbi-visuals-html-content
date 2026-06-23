@@ -1,5 +1,4 @@
 // External dependencies
-import * as config from '../config/visual.json';
 import DOMPurify from 'dompurify';
 import type {
     DOMPurify as DOMPurifyType,
@@ -9,15 +8,16 @@ import type {
 import { marked } from 'marked';
 
 // Internal dependencies
-import { VisualConstants } from './visual-constants';
-import { RenderFormat } from './types';
-import { sanitizeCss } from './css-sanitizer';
+import { VisualConstants } from '../visual-constants';
+import { RenderFormat } from '../types';
+import { sanitizeCss } from '../css-sanitizer';
 import {
     hasDangerousSvgPayload,
     isSafeImageDataUri,
     SAFE_IMAGE_MIME_TYPES
-} from './svg-payload-scan';
-import { recordRemoval } from './diagnostics/diagnostics-sink';
+} from '../svg-payload-scan';
+import { recordRemoval } from '../diagnostics/diagnostics-sink';
+import { SanitizeOptions } from './options';
 
 /**
  * Per-tag attribute allowlist enforced by the DOMPurify
@@ -171,7 +171,7 @@ const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
  * textContent after DOMPurify has parsed the DOM correctly. That
  * backstop is load-bearing for this edge case.
  */
-function preprocessStyleTags(input: string): string {
+export function preprocessStyleTags(input: string): string {
     return input.replace(
         /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
         (_match, body) => {
@@ -214,44 +214,6 @@ function getPurify(): DOMPurifyType {
     }
     return purifyInstance;
 }
-
-/**
- * Caller-controlled toggles that influence sanitizer policy. Currently
- * only `allowHyperlinks` (off by default - fail-closed so unaware
- * callers do not leak href into the DOM).
- *
- * When `allowHyperlinks` is false, the sanitizer drops `href` and
- * `xlink:href` from every `<a>` element (HTML and SVG) so the rendered
- * DOM contains no clickable URL surface at all. This pairs with the
- * `hyperlinks` format-pane toggle: when the author disables hyperlink
- * delegation, the href attribute should not be present in the output
- * either (issue: MS AppSource certification scanner flags any
- * surviving href attribute in user content).
- */
-export type SanitizeOptions = {
-    allowHyperlinks?: boolean;
-};
-
-/**
- * Parse the supplied HTML string and then return as a DOM fragment that we can
- * use in the visual for our data. If we're specifying in the configuration that
- * we should sanitize, do this also.
- */
-export const getParsedHtmlAsDom = (
-    content: string,
-    format: RenderFormat,
-    options?: SanitizeOptions
-) => {
-    const parse = Range.prototype.createContextualFragment.bind(
-        document.createRange()
-    );
-    const converted =
-        format === 'markdown' ? marked.parse(content).toString() : content;
-    const dom = config.sanitize
-        ? getSanitizedContent(converted, options)
-        : converted;
-    return parse(dom);
-};
 
 // ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
 // built-in default attr allowlist would otherwise pre-strip legitimate
@@ -915,11 +877,6 @@ export const sanitizeFragmentInPlace = (
     fragment: DocumentFragment | Element,
     options?: SanitizeOptions
 ): void => {
-    // The unsanitized (standalone) edition renders author HTML as-is. Match
-    // getParsedHtmlAsDom/parseAndSanitizeInContext: when sanitization is
-    // disabled this is a no-op, so body templates are NOT sanitized while
-    // row content is left raw — the two paths stay consistent per edition.
-    if (!config.sanitize) return;
     withSanitizerHooks((purify) => {
         // IN_PLACE: true sanitizes the existing node's subtree in
         // place (and returns it) instead of re-parsing a string, so
@@ -952,73 +909,6 @@ export const sanitizeFragmentInPlace = (
             }
         });
     }, options);
-};
-
-/**
- * Parse `content` in the content model of `contextEl` (so `<tr>` etc.
- * survive instead of being foster-parented out of a context-free
- * fragment), then sanitize the parsed node(s) in place. Tokens
- * (`{{content}}` / `{{row}}`) must already be substituted before this is
- * called, so they never reach the sanitizer.
- *
- * The string is run through `preprocessStyleTags` before parsing (same as
- * the string path), and the `uponSanitizeElement` `<style>` backstop also
- * fires on the node path, so `<style>` bodies are sanitized both ways.
- * ELEMENT_NODE children are sanitized in place; COMMENT_NODE children are
- * removed (matching the string path — DOMPurify SAFE_FOR_XML strips
- * comments); inert TEXT_NODE children are preserved as authored content.
- *
- * NAMESPACE REQUIREMENT: `contextEl` MUST be an HTML-namespace element.
- * The in-place root-eligibility check (`isInPlaceSanitizableRoot`) and
- * DOMPurify's IN_PLACE pre-check are tag-name-only (namespace-blind), so
- * passing an SVG- or MathML-namespaced `contextEl` would cause
- * `createContextualFragment` to parse in that content model and diverge
- * from the expected HTML-context outcome. The intended callers in later
- * units always pass an HTML row/body container, so no runtime guard is
- * added here.
- */
-export const parseAndSanitizeInContext = (
-    content: string,
-    format: RenderFormat,
-    contextEl: Element,
-    options?: SanitizeOptions
-): DocumentFragment => {
-    const converted =
-        format === 'markdown' ? marked.parse(content).toString() : content;
-    const preprocessed = config.sanitize
-        ? preprocessStyleTags(converted)
-        : converted;
-    const range = document.createRange();
-    // Context = contextEl's content model, so the HTML parser applies the
-    // insertion-mode rules for that element (e.g. <tr> is legal inside a
-    // <tbody> context and is not foster-parented out, as it would be in a
-    // context-free fragment — issue #138).
-    range.selectNodeContents(contextEl);
-    const fragment = range.createContextualFragment(preprocessed);
-    if (config.sanitize) {
-        // The fragment is detached (createContextualFragment does not
-        // insert it); sanitize it in place via the shared helper before any
-        // caller appends it to the live DOM. Identical loop to the former
-        // inline version — see sanitizeFragmentInPlace.
-        sanitizeFragmentInPlace(fragment, options);
-    }
-    return fragment;
-};
-
-/**
- * Sanitize CSS content (custom stylesheet entry point).
- */
-export const getSanitizedCss = (css: string): string => {
-    if (!css || typeof css !== 'string') {
-        return '';
-    }
-    // The unsanitized (standalone) edition renders author CSS as-is, matching
-    // its raw HTML / <style> / script behaviour. Only the certified editions
-    // (config.sanitize === true) run the CSS sanitizer on the custom stylesheet.
-    if (!config.sanitize) {
-        return css;
-    }
-    return sanitizeCss(css, 'stylesheet');
 };
 
 /**
@@ -1084,15 +974,40 @@ export const getSanitizedDataUri = (dataUri: string): string => {
 };
 
 /**
- * Test-only entry point that returns the sanitized HTML *string*.
+ * Test-only entry point that returns the sanitized HTML *string*. Inlines the
+ * certified parse path (markdown-convert → DOMPurify → parse → serialize) that
+ * formerly lived in `getParsedHtmlAsDom`, so the certified sanitizer's test
+ * entry point does not depend on the edition-agnostic seam (`./index`).
  */
 export const getSanitizedHtmlForTesting = (
     content: string,
     format: RenderFormat,
     options?: SanitizeOptions
 ): string => {
-    const fragment = getParsedHtmlAsDom(content, format, options);
+    const converted =
+        format === 'markdown' ? marked.parse(content).toString() : content;
+    const parse = Range.prototype.createContextualFragment.bind(
+        document.createRange()
+    );
     const container = document.createElement('div');
-    container.appendChild(fragment);
+    container.appendChild(parse(getSanitizedContent(converted, options)));
     return container.innerHTML;
 };
+
+// --- Sanitizer backend contract (certified) ---------------------------------
+// The names the seam (src/sanitize/index.ts) delegates to. The passthrough
+// backend (src/sanitize/backend.passthrough.ts) exposes the same names as
+// identity/no-ops, so the seam stays edition-agnostic.
+
+/** Certified: full preprocess + DOMPurify (today's `getSanitizedContent`). */
+export const sanitizeHtmlString = getSanitizedContent;
+
+/** Certified: the <style>-tag preprocessing applied before context-parsing. */
+export const preprocessHtmlString = preprocessStyleTags;
+
+/** Certified: run the CSS sanitizer on a custom stylesheet. */
+export const sanitizeCssString = (css: string): string =>
+    sanitizeCss(css, 'stylesheet');
+
+/** This edition runs the sanitizer. */
+export const enabled = true;

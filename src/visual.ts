@@ -2,7 +2,6 @@
 import './../style/visual.less';
 import 'overlayscrollbars/css/OverlayScrollbars.css';
 import 'w3-css/w3.css';
-import * as config from '../config/visual.json';
 import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
@@ -43,6 +42,7 @@ import {
 import LandingPageHandler from './landing-page-handler';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
+import { sanitizerEnabled } from './sanitize';
 import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
 import './diagnostics/diagnostics-dialog'; // registration side-effect — must be imported
 import { beginCapture, endCapture } from './diagnostics/diagnostics-sink';
@@ -557,7 +557,7 @@ export class Visual implements IVisual {
             console: consoleSnapshot(),
             events: eventsSnapshot(),
             labels: this.diagnosticsLabels(),
-            sanitizeEnabled: config.sanitize,
+            sanitizeEnabled: sanitizerEnabled,
             initialTab: this.lastDiagnosticsTab,
             consoleFilter: this.lastConsoleFilter,
             eventsFilter: this.lastEventsFilter

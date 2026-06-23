@@ -94,7 +94,8 @@ export interface DiagnosticsSnapshot {
     rawHtml: { text: string; truncated: boolean; totalLength: number };
     labels: DiagnosticsLabels;
     /**
-     * Whether this edition runs the sanitizer (config.sanitize). The Sanitizer
+     * Whether this edition runs the sanitizer (the active sanitizer backend's
+     * `sanitizerEnabled`). The Sanitizer
      * tab is shown only when true — it's meaningless in the unsanitized
      * standard/standalone editions, where the sanitizer never runs.
      */

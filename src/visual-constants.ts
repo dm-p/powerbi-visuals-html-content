@@ -99,7 +99,7 @@ const htmlTags = [
 //
 // SMIL animation elements (animate, animatemotion, animatetransform,
 // set) are permitted but locked down by two enforcement layers in
-// sanitize-pipeline.ts:
+// sanitize/backend.certified.ts:
 //   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
 //      VisualConstants.allowedSchemesByTag), so the element's own
 //      href / xlink:href can only point at same-document fragments.
@@ -290,7 +290,7 @@ export const VisualConstants = {
         a: ['http', 'https'],
         // For AppSource certification, img and SVG image tags must NOT load
         // external resources. Only data: URIs are permitted (sanitized by
-        // getSanitizedDataUri in sanitize-pipeline.ts).
+        // getSanitizedDataUri in sanitize/backend.certified.ts).
         img: ['data'],
         image: ['data'],
         // SVG filter primitive that accepts an external image source.

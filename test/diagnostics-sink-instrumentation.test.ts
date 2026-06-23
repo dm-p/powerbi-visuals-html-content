@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 import { beginCapture, endCapture } from '../src/diagnostics/diagnostics-sink';
-import type { SanitizeOptions } from '../src/sanitize-pipeline';
+import type { SanitizeOptions } from '../src/sanitize/options';
 
 const sanitizeWithCapture = (html: string, options?: SanitizeOptions) => {
     beginCapture();

@@ -3,10 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-    getSanitizedCss,
-    getSanitizedHtmlForTesting
-} from '../src/sanitize-pipeline';
+import { getSanitizedCss } from '../src/sanitize';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 import {
     STYLESHEET_PAYLOADS,
     StylesheetScenario

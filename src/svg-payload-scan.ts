@@ -2,9 +2,9 @@
  * Shared safety helpers for `data:` URIs that carry images.
  *
  * Three call sites consume these helpers:
- *   - `getSanitizedDataUri` in `sanitize-pipeline.ts` — top-level URL
+ *   - `getSanitizedDataUri` in `sanitize/backend.certified.ts` — top-level URL
  *     attributes (`<img src>`, `<svg image href>`, `<feImage href>`).
- *   - The funciri value-scheme check in `sanitize-pipeline.ts` — SVG
+ *   - The funciri value-scheme check in `sanitize/backend.certified.ts` — SVG
  *     presentation attributes that accept `url(...)` references
  *     (`fill`, `mask`, `clip-path`, `filter`, `marker-*`, `cursor`).
  *   - `hasUnsafeFunction` in `css-sanitizer.ts` — CSS `url()` values

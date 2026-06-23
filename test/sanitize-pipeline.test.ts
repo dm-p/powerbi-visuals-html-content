@@ -1,9 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import {
-    getSanitizedHtmlForTesting,
-    getSanitizedCss,
-    parseAndSanitizeInContext
-} from '../src/sanitize-pipeline';
+import { describe, it, expect } from 'vitest';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
+import { getSanitizedCss, parseAndSanitizeInContext } from '../src/sanitize';
 
 /**
  * End-to-end smoke tests for src/sanitize-pipeline.ts. These exercise the
@@ -770,15 +767,13 @@ describe('parseAndSanitizeInContext', () => {
     });
 });
 
-describe('sanitizeFragmentInPlace — edition-consistency guard', () => {
-    // Verify that with config.sanitize === true (the default used by the
-    // standard/AppSource editions) sanitizeFragmentInPlace strips dangerous
-    // markup. The element hook removes any element carrying an on* handler, so
-    // a <div onclick="x()"> is dropped entirely. This guards against regression
-    // from the early-return added for the standalone edition.
-    it('removes onclick element when config.sanitize is true (default edition)', async () => {
-        const { sanitizeFragmentInPlace } =
-            await import('../src/sanitize-pipeline');
+describe('sanitizeFragmentInPlace — certified backend', () => {
+    // The certified backend (the default this suite compiles against) strips
+    // dangerous markup: the element hook removes any element carrying an on*
+    // handler, so a <div onclick="x()"> is dropped entirely. The passthrough
+    // backend's no-op counterpart is covered in test/sanitize-passthrough.test.ts.
+    it('removes an onclick element', async () => {
+        const { sanitizeFragmentInPlace } = await import('../src/sanitize');
         const frag = document.createDocumentFragment();
         const div = document.createElement('div');
         div.setAttribute('onclick', 'x()');
@@ -787,65 +782,17 @@ describe('sanitizeFragmentInPlace — edition-consistency guard', () => {
         // The element hook drops any element with an on* handler; the div is gone.
         expect(frag.querySelector('div')).toBeNull();
     });
-
-    // Verify that with config.sanitize === false (the standalone/unsanitized
-    // edition) sanitizeFragmentInPlace is a no-op — dangerous markup
-    // survives, matching the content path (getParsedHtmlAsDom /
-    // parseAndSanitizeInContext) which also skips sanitization in that edition.
-    it('is a no-op (onclick element survives) when config.sanitize is false (standalone edition)', async () => {
-        vi.doMock('../config/visual.json', () => ({ sanitize: false }));
-        vi.resetModules();
-        try {
-            const { sanitizeFragmentInPlace: sanitizeOff } =
-                await import('../src/sanitize-pipeline');
-            const frag = document.createDocumentFragment();
-            const div = document.createElement('div');
-            div.setAttribute('onclick', 'x()');
-            frag.appendChild(div);
-            sanitizeOff(frag);
-            // No-op: the div and its onclick attribute are untouched.
-            expect(frag.querySelector('div')).not.toBeNull();
-            expect(frag.querySelector('div')?.hasAttribute('onclick')).toBe(
-                true
-            );
-        } finally {
-            vi.doUnmock('../config/visual.json');
-            vi.resetModules();
-        }
-    });
 });
 
-describe('getSanitizedCss — edition guard', () => {
-    // Certified editions (config.sanitize === true) sanitize the custom
-    // stylesheet — a dangerous url() is stripped.
-    it('sanitizes the custom stylesheet when config.sanitize is true (default edition)', () => {
+describe('getSanitizedCss — certified backend', () => {
+    // The certified backend (this suite's default) sanitizes the custom
+    // stylesheet — a dangerous url() is stripped. The passthrough backend's
+    // verbatim-passthrough counterpart is covered in
+    // test/sanitize-passthrough.test.ts.
+    it('sanitizes the custom stylesheet', () => {
         const out = getSanitizedCss(
             'p { background: url(javascript:alert(1)); }'
         );
         expect(out).not.toContain('javascript');
-    });
-
-    // The unsanitized (standalone) edition renders author CSS as-is, matching
-    // the raw HTML / <style> / script behaviour — the CSS sanitizer is skipped.
-    // Asserting the SAME input across both arms pins the gate itself, not just
-    // the false-arm output: the default (sanitize:true) edition strips the
-    // dangerous url(); the standalone (sanitize:false) edition returns it verbatim.
-    it('returns the custom stylesheet untouched when config.sanitize is false (standalone edition)', async () => {
-        const css = 'p { background: url(javascript:alert(1)); }';
-        // Default edition (sanitize:true) strips it — the other arm of the gate.
-        expect(getSanitizedCss(css)).not.toContain('javascript');
-        vi.doMock('../config/visual.json', () => ({ sanitize: false }));
-        vi.resetModules();
-        try {
-            const { getSanitizedCss: cssOff } =
-                await import('../src/sanitize-pipeline');
-            // Standalone edition: returned verbatim — the dangerous url() and
-            // all survive untouched.
-            expect(cssOff(css)).toBe(css);
-            expect(cssOff(css)).toContain('javascript');
-        } finally {
-            vi.doUnmock('../config/visual.json');
-            vi.resetModules();
-        }
     });
 });

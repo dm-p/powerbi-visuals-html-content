@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 import { HYPERLINKS_PAYLOADS } from './fixtures/hyperlinks';
 import type { HyperlinksPayload } from '../test-integration/csp-harness/corpus';
 import { parseCsvRecords } from './helpers/parse-csv-records';

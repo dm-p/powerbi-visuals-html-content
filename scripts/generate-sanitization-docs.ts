@@ -31,7 +31,7 @@ import {
     Payload,
     PayloadCategory
 } from '../test-integration/csp-harness/corpus';
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

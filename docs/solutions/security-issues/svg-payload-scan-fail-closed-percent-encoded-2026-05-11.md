@@ -30,7 +30,7 @@ tags:
 
 ## Problem
 
-`decodeSvgDataUriPayload` in [src/svg-payload-scan.ts](../../../src/svg-payload-scan.ts) is the single decode point that feeds the SVG content scanner (`hasDangerousSvgPayload`) and through it the upstream gate in [src/sanitize-pipeline.ts:752](../../../src/sanitize-pipeline.ts#L752). Its `try { decodeURIComponent(payload) } catch { return payload }` fallback returned the raw, still-encoded string on malformed `%XX` input. The downstream regex scan (`/<script\b/i`, `/<foreignObject\b/i`, `on*=` boundary check, etc.) does not percent-decode — so an attacker-supplied payload with a single trailing `%GG` could carry `%3Cscript%3E…%3C/script%3E` past every check, while a sandbox-weak rendering surface that does decode would execute the inner script.
+`decodeSvgDataUriPayload` in [src/svg-payload-scan.ts](../../../src/svg-payload-scan.ts) is the single decode point that feeds the SVG content scanner (`hasDangerousSvgPayload`) and through it the upstream gate in [src/sanitize/backend.certified.ts](../../../src/sanitize/backend.certified.ts). Its `try { decodeURIComponent(payload) } catch { return payload }` fallback returned the raw, still-encoded string on malformed `%XX` input. The downstream regex scan (`/<script\b/i`, `/<foreignObject\b/i`, `on*=` boundary check, etc.) does not percent-decode — so an attacker-supplied payload with a single trailing `%GG` could carry `%3Cscript%3E…%3C/script%3E` past every check, while a sandbox-weak rendering surface that does decode would execute the inner script.
 
 ## Symptoms
 

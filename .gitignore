@@ -79,3 +79,7 @@ webpack.statistics.html
 # Power BI report
 **/.pbi/localSettings.json
 **/.pbi/cache.abf
+
+# Generated per-edition build artifacts (scripts/select-edition.mjs)
+src/sanitize/backend.ts
+config/active-edition.mjs
