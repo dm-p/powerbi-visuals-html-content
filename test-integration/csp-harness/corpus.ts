@@ -33,11 +33,11 @@
  *   fails CI immediately rather than silently shadowing.
  */
 
-// Type-only import — keeps corpus.ts free of runtime deps that
-// sanitize-pipeline pulls in (d3, postcss, jsdom). Re-exported via the
-// optional `sanitizeOptions` field on `Payload` so the harness can opt
+// Type-only import — keeps corpus.ts free of runtime deps that the
+// certified sanitizer backend pulls in (d3, postcss, jsdom). Re-exported via
+// the optional `sanitizeOptions` field on `Payload` so the harness can opt
 // individual payloads into toggle-on sanitization.
-import type { SanitizeOptions } from '../../src/sanitize-pipeline';
+import type { SanitizeOptions } from '../../src/sanitize/options';
 
 export type CspCategory =
     | 'img-src'
