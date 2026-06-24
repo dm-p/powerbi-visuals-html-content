@@ -14,5 +14,5 @@
         "esModuleInterop": true,
         "resolveJsonModule": true
     },
-    "files": ["./src/visual.ts"]
+    "files": ["./src/visual.ts", "./src/svg.d.ts"]
 }
