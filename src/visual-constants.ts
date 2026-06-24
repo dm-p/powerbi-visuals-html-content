@@ -1,5 +1,5 @@
 // Internal dependencies
-import { visual } from '../pbiviz.json';
+import { RESOLVED_VISUAL, EDITION } from './visual-config.generated';
 
 import { RenderFormat, RenderMode } from './types';
 
@@ -181,7 +181,8 @@ const svgTags = [
 ];
 
 export const VisualConstants = {
-    visual: visual,
+    visual: RESOLVED_VISUAL,
+    edition: EDITION,
     contentFormatting: {
         format: <RenderFormat>'html',
         renderMode: <RenderMode>'rebuild',
