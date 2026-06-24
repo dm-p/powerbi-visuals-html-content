@@ -10,6 +10,8 @@ import { Selection } from 'd3-selection';
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
 import { resolveScrollableContent } from './domain-utils';
+import { buildSplash, LandingLabels } from './landing-splash';
+import { MARK_URL } from './landing-mark.generated';
 
 /**
  * Manages the handling and placement of the visual landing page if no data is present.
@@ -70,95 +72,39 @@ export default class LandingPageHandler {
      * @param host - Power BI visual host services
      */
     render(host: IVisualHost) {
-        // Top-level elements
-        const container = this.element
-            .append('div')
-            .classed(
-                `${VisualConstants.dom.landingPageClassPrefix}-landing-page`,
-                true
-            )
-            .classed('w3-card-4', true);
+        const get = (key: string) =>
+            this.localisationManager.getDisplayName(key);
+        const labels: LandingLabels = {
+            headline: get('Landing_Headline'),
+            body: get('Landing_Body'),
+            quickStart: get('Landing_QuickStart'),
+            examples: get('Landing_Examples'),
+            whatsNew: get('Landing_WhatsNew'),
+            sandboxNote: get('Landing_SandboxNote'),
+            sandboxNoteLink: get('Landing_SandboxNoteLink'),
+            valuesLabel: get('Landing_ValuesLabel'),
+            valuesField: get('Landing_ValuesField'),
+            valuesHint: get('Landing_ValuesHint'),
+            compactBody: get('Landing_CompactBody'),
+            docs: get('Landing_Docs'),
+            openDocs: get('Landing_OpenDocs')
+        };
 
-        const heading = container
-            .append('div')
-            .classed('w3-container', true)
-            .classed('w3-theme', true);
-
-        const version = container
-            .append('div')
-            .classed('w3-container', true)
-            .classed('w3-theme-l3', true)
-            .classed('w3-small', true);
-
-        const helpBox = container
-            .append('div')
-            .classed('w3-container', true)
-            .classed('w3-theme-l5', true)
-            .classed(
-                `${VisualConstants.dom.landingPageClassPrefix}-watermark`,
-                true
-            )
-            .classed(
-                `${VisualConstants.dom.landingPageClassPrefix}-help`,
-                true
-            );
-
-        // Add title
-        heading.append('h5').text(VisualConstants.visual.displayName);
-
-        // Add version number
-        version.text(VisualConstants.visual.version);
-
-        // Help box content
-
-        // Button / remote link
-        helpBox
-            .append('button')
-            .classed('w3-button', true)
-            .classed('w3-theme-action', true)
-            .classed('w3-circle', true)
-            .style('position', 'fixed')
-            .style('top', '24px')
-            .style('right', '12px')
-            .on('click', () =>
-                host.launchUrl(VisualConstants.visual.supportUrl)
-            )
-            .text('?');
-
-        // Overview
-        helpBox
-            .append('p')
-            .classed('w3-small', true)
-            .text(
-                this.localisationManager.getDisplayName(
-                    'Landing_Page_Overview_1'
-                )
-            );
-        helpBox
-            .append('p')
-            .classed('w3-small', true)
-            .text(
-                this.localisationManager.getDisplayName(
-                    'Landing_Page_Overview_2'
-                )
-            );
-        helpBox
-            .append('p')
-            .classed('w3-small', true)
-            .text(
-                this.localisationManager.getDisplayName(
-                    'Landing_Page_Overview_3'
-                )
-            );
-        helpBox
-            .append('p')
-            .classed('w3-small', true)
-            .text(
-                this.localisationManager.getDisplayName(
-                    'Landing_Page_Overview_4'
-                )
-            );
-
-        resolveScrollableContent(container.node());
+        const el = this.element.node();
+        const doc = el.ownerDocument as Document;
+        const splash = buildSplash(doc, {
+            edition: VisualConstants.edition,
+            version: VisualConstants.visual.version,
+            markUrl: MARK_URL,
+            labels,
+            urls: VisualConstants.landingUrls,
+            onLaunch: (url: string) => host.launchUrl(url)
+        });
+        // Keep the existing container class prefix so external hooks still match.
+        splash.classList.add(
+            `${VisualConstants.dom.landingPageClassPrefix}-landing-page`
+        );
+        el.appendChild(splash);
+        resolveScrollableContent(el);
     }
 }

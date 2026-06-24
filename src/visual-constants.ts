@@ -183,6 +183,12 @@ const svgTags = [
 export const VisualConstants = {
     visual: RESOLVED_VISUAL,
     edition: EDITION,
+    landingUrls: {
+        docs: RESOLVED_VISUAL.supportUrl,
+        github: RESOLVED_VISUAL.gitHubUrl,
+        sponsor: 'https://github.com/sponsors/dm-p',
+        coffee: 'https://buymeacoffee.com/dmp'
+    },
     contentFormatting: {
         format: <RenderFormat>'html',
         renderMode: <RenderMode>'rebuild',

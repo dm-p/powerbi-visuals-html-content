@@ -3,6 +3,13 @@ import LandingPageHandler from '../src/landing-page-handler';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
 
+// The generated mark module imports an .svg asset, which the test runner
+// cannot resolve as a module. Stub it to a data URI so the handler can be
+// imported under test.
+vi.mock('../src/landing-mark.generated', () => ({
+    MARK_URL: 'data:image/svg+xml;base64,STUB'
+}));
+
 // Mock the resolveScrollableContent function which uses OverlayScrollbars
 vi.mock('../src/domain-utils', async importOriginal => {
     const original = await importOriginal<
@@ -101,26 +108,32 @@ describe('LandingPageHandler', () => {
     });
 
     describe('render', () => {
-        it('should create landing page container with proper classes', () => {
+        it('renders the splash container with the class prefix', () => {
             handler.handleLandingPage(false, mockHost);
-
             const container = mockElement.select('.html-display-landing-page');
             expect(container.empty()).toBe(false);
+            expect(container.classed('hc-landing')).toBe(true);
         });
 
-        it('should call localisationManager for text content', () => {
+        it('localizes the headline via the localisation manager', () => {
             handler.handleLandingPage(false, mockHost);
-
-            // Should have called getDisplayName for the overview texts
-            expect(mockLocalisationManager.getDisplayName).toHaveBeenCalled();
+            expect(mockLocalisationManager.getDisplayName).toHaveBeenCalledWith(
+                'Landing_Headline'
+            );
         });
 
-        it('should create a help button', () => {
+        it('launches the docs URL when the Docs button is clicked', () => {
             handler.handleLandingPage(false, mockHost);
+            const docs = mockElement
+                .node()
+                .querySelector('.hc-landing-docs') as HTMLElement;
+            docs.click();
+            expect(mockHost.launchUrl).toHaveBeenCalled();
+        });
 
-            const button = mockElement.select('button');
-            expect(button.empty()).toBe(false);
-            expect(button.text()).toBe('?');
+        it('renders no W3.CSS classes', () => {
+            handler.handleLandingPage(false, mockHost);
+            expect(mockElement.node().innerHTML).not.toMatch(/\bw3-/);
         });
     });
 });
