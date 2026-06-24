@@ -20,15 +20,20 @@ Reference: `design_landing/README.md` (handoff), `In-Visual Landing.dc.html`
 `design_landing/assets/`. Per the handoff, colors/type/spacing/shadows/copy are
 **final** — reproduce as-is.
 
+> **`design_landing/` is reference-only and is removed after implementation.** The
+> three brand marks are moved (and renamed) into `assets/`; everything else needed
+> is transcribed into code. No durable code/doc reference should point at
+> `design_landing/`.
+
 ## Decisions (from brainstorm)
 
 | Topic | Decision |
 |---|---|
 | Scope | Landing splash **and** diagnostics dialog, sharing one token system. Nothing else. |
 | Theme | **Light only.** No dark tokens, no host-theme detection. |
-| W3.CSS | **Dropped entirely** — import, dependency, all `w3-*` classes, and dead `.w3-theme-*` overrides. |
-| Shield/badge | **Inline SVG**, promoted from `design_landing/assets/` into source assets. |
-| Edition source | **Explicit `edition` constant** added to `config/editions.mjs`, surfaced via `VisualConstants`. No runtime sniffing. |
+| W3.CSS | **Dropped entirely** — import, dependency, all `w3-*` classes, and dead `.w3-theme-*` + legacy `.html-display-watermark`/`-help`/`-minimised` rules. |
+| Shield/badge | Edition mark from source-controlled `assets/shield.svg` / `shield-secure.svg` / `shield-standalone.svg` (renamed from `design_landing/assets/store-*`), imported as a data URI per edition (`<img>`); only the active mark is bundled. Link icons (GitHub/heart/coffee) stay inline `createElementNS` SVG (need `currentColor`). |
+| Edition source | **Explicit `edition` constant** added to `config/editions.mjs`. `select-edition.mjs` generates an edition-resolved visual-config module so `VisualConstants` is edition-accurate (replaces the raw `pbiviz.json` import). No runtime sniffing. |
 | Copy | **Localized** — new string keys; remove `Landing_Page_Overview_1–4`. |
 | Diagnostics depth | **Restyle + layout polish.** Tab structure, behavior, and DOM stay intact. |
 | Footprints | **CSS container queries** (single DOM; CSS drops elements at the compact breakpoint). |
