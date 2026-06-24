@@ -3,13 +3,6 @@ import LandingPageHandler from '../src/landing-page-handler';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
 
-// The generated mark module imports an .svg asset, which the test runner
-// cannot resolve as a module. Stub it to a data URI so the handler can be
-// imported under test.
-vi.mock('../src/landing-mark.generated', () => ({
-    MARK_URL: 'data:image/svg+xml;base64,STUB'
-}));
-
 // Mock the resolveScrollableContent function which uses OverlayScrollbars
 vi.mock('../src/domain-utils', async importOriginal => {
     const original = await importOriginal<
