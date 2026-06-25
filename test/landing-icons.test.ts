@@ -12,7 +12,7 @@ describe('landing-icons', () => {
 
     it('builds namespaced SVG with paths and the requested size', () => {
         for (const make of [githubIcon, heartIcon, coffeeIcon]) {
-            const svg = make(doc, 16, 16);
+            const svg = make(doc);
             expect(svg.namespaceURI).toBe(SVG_NS);
             expect(svg.getAttribute('width')).toBe('16');
             const p = svg.querySelector('path');
