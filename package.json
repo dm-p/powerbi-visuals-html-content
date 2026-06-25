@@ -3,6 +3,8 @@
     "scripts": {
         "pbiviz": "pbiviz",
         "start": "pbiviz start",
+        "start-standard": "node scripts/select-edition.mjs standard && pbiviz start",
+        "start-standalone": "node scripts/select-edition.mjs standalone && pbiviz start",
         "package": "node scripts/select-edition.mjs certified && pbiviz package",
         "package-standard": "node scripts/select-edition.mjs standard && pbiviz package",
         "package-standalone": "node scripts/select-edition.mjs standalone && pbiviz package",
