@@ -591,12 +591,15 @@
 
     // Collapse to the compact layout while there is still comfortable room for
     // the copy beside the Values cue — below this the two-column row gets cramped.
-    @container (max-width: 360px) {
+    @container (max-width: 400px) {
         .hc-landing-values,
         .hc-landing-lede,
         .hc-landing-links,
         .hc-landing-sandbox {
             display: none;
+        }
+        .hc-landing-name {
+            font-size: 8pt;
         }
         .hc-landing-compact-body {
             display: block;
@@ -629,6 +632,13 @@
         .hc-landing-mark {
             width: 24px;
             height: 24px;
+        }
+        // Let the icon row shrink and wrap its icons onto a second line
+        // (right-aligned) when the header runs out of room at this footprint.
+        .hc-landing-icons {
+            flex: 0 1 auto;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
         .hc-landing-watermark {
             width: 130px;
