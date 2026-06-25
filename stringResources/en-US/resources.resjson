@@ -1,10 +1,10 @@
 {
     "Landing_Headline": "Ready when you are.",
-    "Landing_Body": "Drop a measure or field that returns HTML into the Values well, and it renders right here — live on the canvas.",
+    "Landing_Body": "Drop a measure or field that returns HTML into the Values well, and it renders right here - live on the canvas.",
     "Landing_QuickStart": "Quick start →",
     "Landing_Examples": "Examples",
     "Landing_WhatsNew": "What's new",
-    "Landing_SandboxNote": "Some browser features are limited inside Power BI's sandbox —",
+    "Landing_SandboxNote": "Some browser features are limited inside Power BI's sandbox -",
     "Landing_SandboxNoteLink": "see the docs",
     "Landing_ValuesLabel": "Values",
     "Landing_ValuesField": "Report HTML",
