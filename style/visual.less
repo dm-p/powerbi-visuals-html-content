@@ -423,7 +423,7 @@
         min-height: 0;
         overflow: auto;
         display: flex;
-        gap: 26px;
+        gap: 12px;
         align-items: flex-start;
         padding: 24px 22px;
     }
@@ -448,7 +448,7 @@
     // around it as the visual narrows, instead of being overlapped.
     .hc-landing-values {
         flex: none;
-        width: 184px;
+        width: 150px;
         background: var(--hc-bg2);
         border: 1px solid var(--hc-stroke2);
         border-radius: 10px;
@@ -467,7 +467,7 @@
 
     // Collapse to the compact layout while there is still comfortable room for
     // the copy beside the Values cue — below this the two-column row gets cramped.
-    @container (max-width: 440px) {
+    @container (max-width: 360px) {
         .hc-landing-docs,
         .hc-landing-values,
         .hc-landing-lede,
