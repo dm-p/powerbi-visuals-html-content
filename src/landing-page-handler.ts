@@ -9,7 +9,6 @@ import { Selection } from 'd3-selection';
 
 // Internal dependencies
 import { VisualConstants } from './visual-constants';
-import { resolveScrollableContent } from './domain-utils';
 import { buildSplash, LandingLabels } from './landing-splash';
 import { MARK_URL } from './landing-mark.generated';
 
@@ -105,6 +104,10 @@ export default class LandingPageHandler {
             `${VisualConstants.dom.landingPageClassPrefix}-landing-page`
         );
         el.appendChild(splash);
-        resolveScrollableContent(el);
+        // No OverlayScrollbars here: the splash is a static, self-sizing layout
+        // (.hc-landing is min-height:100vh and fills the visual). OS would wrap
+        // the content in an auto-height layer that breaks the height fill, and
+        // the splash doesn't need custom scrollbars — #htmlViewer's own
+        // overflow:auto covers the rare case where content exceeds the viewport.
     }
 }
