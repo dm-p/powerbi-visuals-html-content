@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { githubIcon, heartIcon, coffeeIcon } from '../src/landing-icons';
+import { githubIcon, heartIcon, coffeeIcon } from '../src/landing/icons';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

@@ -8,9 +8,9 @@ import ILocalizationManager = powerbi.extensibility.ILocalizationManager;
 import { Selection } from 'd3-selection';
 
 // Internal dependencies
-import { VisualConstants } from './visual-constants';
-import { buildSplash, LandingLabels } from './landing-splash';
-import { MARK_URL } from './landing-mark.generated';
+import { VisualConstants } from '../visual-constants';
+import { buildSplash, LandingLabels } from './splash';
+import { MARK_URL } from './mark.generated';
 
 /**
  * Manages the handling and placement of the visual landing page if no data is present.

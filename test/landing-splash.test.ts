@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { buildSplash, LandingLabels, LandingUrls } from '../src/landing-splash';
+import { buildSplash, LandingLabels, LandingUrls } from '../src/landing/splash';
 
 const labels: LandingLabels = {
     headline: 'Ready when you are.',

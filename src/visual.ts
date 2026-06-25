@@ -38,7 +38,7 @@ import {
     TemplatedRenderOptions,
     getDiagnosticsRawHtml
 } from './domain-utils';
-import LandingPageHandler from './landing-page-handler';
+import { LandingPageHandler } from './landing';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
 import { sanitizerEnabled } from './sanitize';

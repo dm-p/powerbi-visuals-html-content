@@ -84,4 +84,4 @@ webpack.statistics.html
 src/sanitize/backend.ts
 config/active-edition.mjs
 src/visual-config.generated.ts
-src/landing-mark.generated.ts
+src/landing/mark.generated.ts

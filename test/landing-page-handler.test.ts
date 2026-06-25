@@ -1,18 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import LandingPageHandler from '../src/landing-page-handler';
+import { LandingPageHandler } from '../src/landing';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
-
-// Mock the resolveScrollableContent function which uses OverlayScrollbars
-vi.mock('../src/domain-utils', async importOriginal => {
-    const original = await importOriginal<
-        typeof import('../src/domain-utils')
-    >();
-    return {
-        ...original,
-        resolveScrollableContent: vi.fn()
-    };
-});
 
 describe('LandingPageHandler', () => {
     let handler: LandingPageHandler;

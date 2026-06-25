@@ -1,5 +1,5 @@
-import { Edition } from './visual-config.generated';
-import { githubIcon, heartIcon, coffeeIcon } from './landing-icons';
+import { Edition } from '../visual-config.generated';
+import { githubIcon, heartIcon, coffeeIcon } from './icons';
 
 export interface LandingLabels {
     headline: string;
