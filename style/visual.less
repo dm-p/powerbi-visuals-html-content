@@ -439,11 +439,14 @@
     // owns any overflow; a nested overflow here both fights it and collapses the
     // flex item to zero height. The watermark anchors to the body top and is
     // clipped by .hc-landing's overflow.
+    // No min-height:0 here: the body must not shrink below its content. If it
+    // could, the compact justify-content:center would center an over-tall body
+    // and spill content UP into the header. Floored at content height, content
+    // flows downward and #htmlViewer scrolls.
     .hc-landing-body {
         position: relative;
         z-index: 1;
         flex: 1;
-        min-height: 0;
         display: flex;
         flex-direction: column;
         padding: 24px 22px;
@@ -591,7 +594,7 @@
 
     // Collapse to the compact layout while there is still comfortable room for
     // the copy beside the Values cue — below this the two-column row gets cramped.
-    @container (max-width: 400px) {
+    @container (max-width: 360px) {
         .hc-landing-values,
         .hc-landing-lede,
         .hc-landing-links,
@@ -640,7 +643,7 @@
         // right-aligned on its own line.
         .hc-landing-icons {
             flex: 0 0 100%;
-            justify-content: flex-end;
+            justify-content: flex-start;
         }
         .hc-landing-watermark {
             width: 130px;
