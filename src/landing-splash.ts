@@ -42,7 +42,11 @@ interface EditionPresentation {
 }
 
 const PRESENTATION: Record<Edition, EditionPresentation> = {
-    flagship: { suffix: '', suffixClass: '', accentVar: 'var(--hc-accent-flagship)' },
+    flagship: {
+        suffix: '',
+        suffixClass: '',
+        accentVar: 'var(--hc-accent-flagship)'
+    },
     secure: {
         suffix: 'Secure',
         suffixClass: 'hc-landing-suffix--secure',
@@ -99,7 +103,10 @@ const textLink = (
     return b;
 };
 
-export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => {
+export const buildSplash = (
+    doc: Document,
+    opts: SplashOptions
+): HTMLElement => {
     const { edition, version, markUrl, labels, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
 
@@ -135,16 +142,37 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
 
     const icons = node(doc, 'div', 'hc-landing-icons');
     icons.appendChild(
-        iconLink(doc, 'hc-landing-iconlink', 'github', urls.github,
-            'View source on GitHub', githubIcon(doc), onLaunch)
+        iconLink(
+            doc,
+            'hc-landing-iconlink',
+            'github',
+            urls.github,
+            'View source on GitHub',
+            githubIcon(doc),
+            onLaunch
+        )
     );
     icons.appendChild(
-        iconLink(doc, 'hc-landing-iconlink hc-landing-iconlink--heart', 'sponsor',
-            urls.sponsor, 'Sponsor on GitHub', heartIcon(doc), onLaunch)
+        iconLink(
+            doc,
+            'hc-landing-iconlink hc-landing-iconlink--heart',
+            'sponsor',
+            urls.sponsor,
+            'Sponsor on GitHub',
+            heartIcon(doc),
+            onLaunch
+        )
     );
     icons.appendChild(
-        iconLink(doc, 'hc-landing-iconlink hc-landing-iconlink--coffee', 'coffee',
-            urls.coffee, 'Buy me a coffee', coffeeIcon(doc), onLaunch)
+        iconLink(
+            doc,
+            'hc-landing-iconlink hc-landing-iconlink--coffee',
+            'coffee',
+            urls.coffee,
+            'Buy me a coffee',
+            coffeeIcon(doc),
+            onLaunch
+        )
     );
     header.appendChild(icons);
     root.appendChild(header);
@@ -166,7 +194,9 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     const copy = node(doc, 'div', 'hc-landing-copy');
     copy.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
     copy.appendChild(node(doc, 'p', 'hc-landing-lede', labels.body));
-    copy.appendChild(node(doc, 'p', 'hc-landing-compact-body', labels.compactBody));
+    copy.appendChild(
+        node(doc, 'p', 'hc-landing-compact-body', labels.compactBody)
+    );
     hero.appendChild(copy);
 
     const cue = node(doc, 'div', 'hc-landing-values');
@@ -176,9 +206,13 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     const drop = node(doc, 'div', 'hc-landing-dropzone');
     const chip = node(doc, 'div', 'hc-landing-chip');
     chip.appendChild(node(doc, 'span', 'hc-landing-chip-grip', '⠿'));
-    chip.appendChild(node(doc, 'span', 'hc-landing-chip-text', labels.valuesField));
+    chip.appendChild(
+        node(doc, 'span', 'hc-landing-chip-text', labels.valuesField)
+    );
     drop.appendChild(chip);
-    drop.appendChild(node(doc, 'span', 'hc-landing-drophint', labels.valuesHint));
+    drop.appendChild(
+        node(doc, 'span', 'hc-landing-drophint', labels.valuesHint)
+    );
     cue.appendChild(drop);
     hero.appendChild(cue);
     body.appendChild(hero);
@@ -186,19 +220,50 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     // Footer (actions): full-width band that flows under the hero + graphic.
     const footer = node(doc, 'div', 'hc-landing-footer');
     const links = node(doc, 'div', 'hc-landing-links');
-    links.appendChild(textLink(doc,
-        'hc-landing-link hc-landing-link--brand', labels.quickStart, urls.quickStart, onLaunch));
-    links.appendChild(textLink(doc,
-        'hc-landing-link', labels.whatsNew, urls.changelog, onLaunch));
+    links.appendChild(
+        textLink(
+            doc,
+            'hc-landing-link hc-landing-link--brand',
+            labels.quickStart,
+            urls.quickStart,
+            onLaunch
+        )
+    );
+    links.appendChild(
+        textLink(
+            doc,
+            'hc-landing-link',
+            labels.whatsNew,
+            urls.changelog,
+            onLaunch
+        )
+    );
     footer.appendChild(links);
 
-    const sandbox = node(doc, 'p', 'hc-landing-sandbox', `${labels.sandboxNote} `);
+    const sandbox = node(
+        doc,
+        'p',
+        'hc-landing-sandbox',
+        `${labels.sandboxNote} `
+    );
     sandbox.appendChild(
-        textLink(doc, 'hc-landing-sandbox-link', labels.sandboxNoteLink, urls.docs, onLaunch)
+        textLink(
+            doc,
+            'hc-landing-sandbox-link',
+            labels.sandboxNoteLink,
+            urls.docs,
+            onLaunch
+        )
     );
     footer.appendChild(sandbox);
 
-    const openDocs = textLink(doc, 'hc-landing-opendocs', labels.openDocs, urls.docs, onLaunch);
+    const openDocs = textLink(
+        doc,
+        'hc-landing-opendocs',
+        labels.openDocs,
+        urls.docs,
+        onLaunch
+    );
     openDocs.appendChild(node(doc, 'span', undefined, ' ↗'));
     footer.appendChild(openDocs);
     body.appendChild(footer);

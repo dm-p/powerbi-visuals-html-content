@@ -22,7 +22,8 @@ const svg = (
     root.setAttribute('viewBox', '0 0 16 16');
     root.setAttribute('width', String(w));
     root.setAttribute('height', String(h));
-    if (extra) for (const [k, v] of Object.entries(extra)) root.setAttribute(k, v);
+    if (extra)
+        for (const [k, v] of Object.entries(extra)) root.setAttribute(k, v);
     for (const p of paths) {
         const path = doc.createElementNS(SVG_NS, 'path');
         path.setAttribute('d', p.d);
