@@ -148,43 +148,27 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     root.appendChild(header);
 
     // ---- Body ----
+    // The body is a fixed viewport: the watermark anchors to its top (clipped
+    // by the body's overflow), and a separate scroll layer holds the hero +
+    // footer so the watermark never moves or expands the scroll area.
     const body = node(doc, 'div', 'hc-landing-body');
 
-    // Anchored to the root (not the scrolling body) so its corner bleed is
-    // clipped by .hc-landing's overflow and never expands the body scroll area.
     const watermark = doc.createElement('img');
     watermark.className = 'hc-landing-watermark';
     watermark.src = markUrl;
     watermark.alt = '';
-    root.appendChild(watermark);
+    body.appendChild(watermark);
 
+    const scroll = node(doc, 'div', 'hc-landing-scroll');
+
+    // Hero: headline + lede beside the Values cue. Grows to fill spare height.
+    const hero = node(doc, 'div', 'hc-landing-hero');
     const copy = node(doc, 'div', 'hc-landing-copy');
     copy.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
     copy.appendChild(node(doc, 'p', 'hc-landing-lede', labels.body));
     copy.appendChild(node(doc, 'p', 'hc-landing-compact-body', labels.compactBody));
+    hero.appendChild(copy);
 
-    const links = node(doc, 'div', 'hc-landing-links');
-    links.appendChild(textLink(doc,
-        'hc-landing-link hc-landing-link--brand', labels.quickStart, urls.docs, onLaunch));
-    links.appendChild(textLink(doc,
-        'hc-landing-link', labels.examples, urls.docs, onLaunch));
-    links.appendChild(textLink(doc,
-        'hc-landing-link', labels.whatsNew, urls.docs, onLaunch));
-    copy.appendChild(links);
-
-    const sandbox = node(doc, 'p', 'hc-landing-sandbox', `${labels.sandboxNote} `);
-    sandbox.appendChild(
-        textLink(doc, 'hc-landing-sandbox-link', labels.sandboxNoteLink, urls.docs, onLaunch)
-    );
-    copy.appendChild(sandbox);
-
-    const openDocs = textLink(doc, 'hc-landing-opendocs', labels.openDocs, urls.docs, onLaunch);
-    openDocs.appendChild(node(doc, 'span', undefined, ' ↗'));
-    copy.appendChild(openDocs);
-
-    body.appendChild(copy);
-
-    // ---- Values cue ----
     const cue = node(doc, 'div', 'hc-landing-values');
     const cueLabel = node(doc, 'div', 'hc-landing-values-label');
     cueLabel.appendChild(node(doc, 'span', undefined, labels.valuesLabel));
@@ -196,8 +180,32 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     drop.appendChild(chip);
     drop.appendChild(node(doc, 'span', 'hc-landing-drophint', labels.valuesHint));
     cue.appendChild(drop);
-    body.appendChild(cue);
+    hero.appendChild(cue);
+    scroll.appendChild(hero);
 
+    // Footer (actions): full-width band that flows under the hero + graphic.
+    const footer = node(doc, 'div', 'hc-landing-footer');
+    const links = node(doc, 'div', 'hc-landing-links');
+    links.appendChild(textLink(doc,
+        'hc-landing-link hc-landing-link--brand', labels.quickStart, urls.docs, onLaunch));
+    links.appendChild(textLink(doc,
+        'hc-landing-link', labels.examples, urls.docs, onLaunch));
+    links.appendChild(textLink(doc,
+        'hc-landing-link', labels.whatsNew, urls.docs, onLaunch));
+    footer.appendChild(links);
+
+    const sandbox = node(doc, 'p', 'hc-landing-sandbox', `${labels.sandboxNote} `);
+    sandbox.appendChild(
+        textLink(doc, 'hc-landing-sandbox-link', labels.sandboxNoteLink, urls.docs, onLaunch)
+    );
+    footer.appendChild(sandbox);
+
+    const openDocs = textLink(doc, 'hc-landing-opendocs', labels.openDocs, urls.docs, onLaunch);
+    openDocs.appendChild(node(doc, 'span', undefined, ' ↗'));
+    footer.appendChild(openDocs);
+    scroll.appendChild(footer);
+
+    body.appendChild(scroll);
     root.appendChild(body);
     return root;
 };
