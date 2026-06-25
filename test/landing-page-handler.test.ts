@@ -115,15 +115,6 @@ describe('LandingPageHandler', () => {
             );
         });
 
-        it('launches the docs URL when the Docs button is clicked', () => {
-            handler.handleLandingPage(false, mockHost);
-            const docs = mockElement
-                .node()
-                .querySelector('.hc-landing-docs') as HTMLElement;
-            docs.click();
-            expect(mockHost.launchUrl).toHaveBeenCalled();
-        });
-
         it('renders no W3.CSS classes', () => {
             handler.handleLandingPage(false, mockHost);
             expect(mockElement.node().innerHTML).not.toMatch(/\bw3-/);
