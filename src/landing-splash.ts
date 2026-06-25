@@ -5,7 +5,6 @@ export interface LandingLabels {
     headline: string;
     body: string;
     quickStart: string;
-    examples: string;
     whatsNew: string;
     sandboxNote: string;
     sandboxNoteLink: string;
@@ -13,7 +12,6 @@ export interface LandingLabels {
     valuesField: string;
     valuesHint: string;
     compactBody: string;
-    docs: string;
     openDocs: string;
 }
 
@@ -133,12 +131,6 @@ export const buildSplash = (
         node(doc, 'div', 'hc-landing-version', `Version ${version}`)
     );
     header.appendChild(titleWrap);
-
-    const docsBtn = node(doc, 'button', 'hc-landing-docs', labels.docs);
-    docsBtn.setAttribute('type', 'button');
-    docsBtn.appendChild(node(doc, 'span', 'hc-landing-docs-arrow', '↗'));
-    docsBtn.addEventListener('click', () => onLaunch(urls.docs));
-    header.appendChild(docsBtn);
 
     const icons = node(doc, 'div', 'hc-landing-icons');
     icons.appendChild(

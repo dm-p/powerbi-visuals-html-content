@@ -6,7 +6,6 @@ const labels: LandingLabels = {
     headline: 'Ready when you are.',
     body: 'Drop a measure or field that returns HTML into the Values well.',
     quickStart: 'Quick start',
-    examples: 'Examples',
     whatsNew: "What's new",
     sandboxNote: 'Some browser features are limited inside the sandbox.',
     sandboxNoteLink: 'see the docs',
@@ -14,11 +13,12 @@ const labels: LandingLabels = {
     valuesField: 'Report HTML',
     valuesHint: 'drop a field here',
     compactBody: 'Add a field with HTML to the Values well to render it here.',
-    docs: 'Docs',
     openDocs: 'Open the docs'
 };
 const urls: LandingUrls = {
     docs: 'https://docs.example',
+    quickStart: 'https://quickstart.example',
+    changelog: 'https://changelog.example',
     github: 'https://gh.example',
     sponsor: 'https://sponsor.example',
     coffee: 'https://coffee.example'
@@ -72,8 +72,8 @@ describe('buildSplash', () => {
             urls,
             onLaunch
         });
-        (el.querySelector('.hc-landing-docs') as HTMLElement).click();
-        expect(onLaunch).toHaveBeenCalledWith(urls.docs);
+        (el.querySelector('.hc-landing-link--brand') as HTMLElement).click();
+        expect(onLaunch).toHaveBeenCalledWith(urls.quickStart);
         (el.querySelector('[data-link="github"]') as HTMLElement).click();
         expect(onLaunch).toHaveBeenCalledWith(urls.github);
         (el.querySelector('[data-link="sponsor"]') as HTMLElement).click();

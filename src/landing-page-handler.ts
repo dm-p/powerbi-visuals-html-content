@@ -77,7 +77,6 @@ export default class LandingPageHandler {
             headline: get('Landing_Headline'),
             body: get('Landing_Body'),
             quickStart: get('Landing_QuickStart'),
-            examples: get('Landing_Examples'),
             whatsNew: get('Landing_WhatsNew'),
             sandboxNote: get('Landing_SandboxNote'),
             sandboxNoteLink: get('Landing_SandboxNoteLink'),
@@ -85,7 +84,6 @@ export default class LandingPageHandler {
             valuesField: get('Landing_ValuesField'),
             valuesHint: get('Landing_ValuesHint'),
             compactBody: get('Landing_CompactBody'),
-            docs: get('Landing_Docs'),
             openDocs: get('Landing_OpenDocs')
         };
 
