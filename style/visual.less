@@ -449,7 +449,7 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        padding: 24px 22px;
+        padding: 18px 16px;
     }
     // Anchored to the top of the body and kept within bounds (no bleed) so it
     // never expands the layout now that nothing clips it.
@@ -521,7 +521,9 @@
         font-size: 8pt;
         line-height: 1.5;
         color: var(--hc-fg3);
-        margin: 18px 0 8px 0;
+        // Explicit margin overrides the UA <p> default (margin-block: 1em,
+        // = 10.667px at 8pt) that otherwise adds unwanted top/bottom space.
+        margin: 18px 0 0;
     }
     .hc-landing-sandbox-link {
         border: none;
@@ -654,7 +656,7 @@
         // Center the condensed content; the footer (Open the docs) sits right
         // under the hero rather than pinned to the bottom.
         .hc-landing-body {
-            padding: 14px 16px;
+            padding: 8px 8px;
             justify-content: center;
         }
         .hc-landing-footer {
