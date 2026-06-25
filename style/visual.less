@@ -625,19 +625,21 @@
         .hc-landing-headline {
             font-size: 10pt;
         }
+        // Allow the header to wrap so the icon row drops onto its own line
+        // beneath the title at this footprint.
         .hc-landing-header {
             padding: 12px 14px 11px;
             gap: 9px;
+            flex-wrap: wrap;
         }
         .hc-landing-mark {
             width: 24px;
             height: 24px;
         }
-        // Let the icon row shrink and wrap its icons onto a second line
-        // (right-aligned) when the header runs out of room at this footprint.
+        // Full-width basis forces the icon row below the title; keep it
+        // right-aligned on its own line.
         .hc-landing-icons {
-            flex: 0 1 auto;
-            flex-wrap: wrap;
+            flex: 0 0 100%;
             justify-content: flex-end;
         }
         .hc-landing-watermark {
