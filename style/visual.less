@@ -13,7 +13,6 @@
     --hc-fg1: #242424;
     --hc-fg2: #494949;
     --hc-fg3: #707070;
-    --hc-bg1: #f5f5f5;
 
     --hc-stroke1: #dcdad6;
     --hc-stroke2: #ededeb;
@@ -352,7 +351,9 @@
     flex-direction: column;
     font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
     color: var(--hc-fg1);
-    background: var(--hc-bg1);
+    // Sunken splash surface — intentionally greyer than the shared --hc-bg1
+    // white, which the chip/buttons/diagnostics surfaces sit on.
+    background: #f5f5f5;
 
     .hc-landing-header {
         position: relative;
