@@ -185,6 +185,8 @@ export const VisualConstants = {
     edition: EDITION,
     landingUrls: {
         docs: RESOLVED_VISUAL.supportUrl,
+        quickStart: `${RESOLVED_VISUAL.supportUrl}/docs/simple-example`,
+        changelog: `${RESOLVED_VISUAL.supportUrl}/docs/change-log`,
         github: RESOLVED_VISUAL.gitHubUrl,
         sponsor: 'https://github.com/sponsors/dm-p',
         coffee: 'https://buymeacoffee.com/dmp'

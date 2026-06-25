@@ -19,6 +19,8 @@ export interface LandingLabels {
 
 export interface LandingUrls {
     docs: string;
+    quickStart: string;
+    changelog: string;
     github: string;
     sponsor: string;
     coffee: string;
@@ -185,11 +187,9 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     const footer = node(doc, 'div', 'hc-landing-footer');
     const links = node(doc, 'div', 'hc-landing-links');
     links.appendChild(textLink(doc,
-        'hc-landing-link hc-landing-link--brand', labels.quickStart, urls.docs, onLaunch));
+        'hc-landing-link hc-landing-link--brand', labels.quickStart, urls.quickStart, onLaunch));
     links.appendChild(textLink(doc,
-        'hc-landing-link', labels.examples, urls.docs, onLaunch));
-    links.appendChild(textLink(doc,
-        'hc-landing-link', labels.whatsNew, urls.docs, onLaunch));
+        'hc-landing-link', labels.whatsNew, urls.changelog, onLaunch));
     footer.appendChild(links);
 
     const sandbox = node(doc, 'p', 'hc-landing-sandbox', `${labels.sandboxNote} `);
