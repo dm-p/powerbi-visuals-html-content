@@ -16,6 +16,7 @@
     --hc-fg1: #242424;
     --hc-fg2: #494949;
     --hc-fg3: #707070;
+    --hc-bg1: #f5f5f5;
 
     --hc-stroke1: #dcdad6;
     --hc-stroke2: #ededeb;
@@ -138,7 +139,6 @@
         flex: none;
         display: flex;
         gap: 4px;
-        border-top: 3px solid var(--hc-brand);
         border-bottom: 1px solid var(--hc-stroke2);
         padding-top: 6px;
     }
@@ -259,8 +259,8 @@
     .hc-banner {
         margin: 0 0 6px;
         padding: 4px 8px;
-        background: var(--hc-brand-tint);
-        border-left: 3px solid var(--hc-brand);
+        background: var(--hc-bg1);
+        border-left: 3px solid var(--hc-fg3);
         color: #333;
     }
     .hc-console-toolbar {
@@ -344,9 +344,12 @@
 .hc-landing {
     container-type: inline-size;
     box-sizing: border-box;
+    position: relative;
     width: 100%;
     height: 100%;
-    overflow: auto;
+    // Header stays fixed; only the body scrolls (see .hc-landing-body). The
+    // root clips the watermark's corner bleed.
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
@@ -355,6 +358,8 @@
 
     .hc-landing-header {
         position: relative;
+        z-index: 1;
+        flex: none;
         display: flex;
         align-items: center;
         gap: 12px;
@@ -409,7 +414,19 @@
     .hc-landing-iconlink--heart { color: #d6336c; }
     .hc-landing-iconlink--coffee { color: #c17d3b; }
 
-    .hc-landing-body { position: relative; flex: 1; padding: 24px 22px; overflow: hidden; }
+    // Flex row so the copy flows beside the Values cue (no overlap); the body
+    // is the scroll region (min-height:0 lets it shrink within the flex column).
+    .hc-landing-body {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        display: flex;
+        gap: 26px;
+        align-items: flex-start;
+        padding: 24px 22px;
+    }
     .hc-landing-watermark {
         position: absolute;
         right: -26px; bottom: -46px;
@@ -418,29 +435,27 @@
         z-index: 0;
         pointer-events: none;
     }
-    .hc-landing-copy { position: relative; z-index: 1; max-width: 34ch; }
+    .hc-landing-copy { flex: 1; min-width: 0; }
     .hc-landing-headline { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
-    .hc-landing-lede { font-size: 14px; line-height: 1.55; color: var(--hc-fg2); margin: 12px 0 0; }
+    .hc-landing-lede { font-size: 14px; line-height: 1.55; color: var(--hc-fg2); margin: 12px 0 0; max-width: 34ch; }
     .hc-landing-links { display: flex; gap: 18px; margin-top: 20px; font-size: 12.5px; font-weight: 600; }
     .hc-landing-link { border: none; background: none; font: inherit; font-weight: 600; color: var(--hc-fg3); cursor: pointer; padding: 0; }
     .hc-landing-link--brand { color: var(--hc-brand); }
     .hc-landing-sandbox { font-size: 11px; line-height: 1.5; color: var(--hc-fg3); margin: 18px 0 0; max-width: 40ch; }
     .hc-landing-sandbox-link { border: none; background: none; font: inherit; color: var(--hc-fg2); cursor: pointer; padding: 0; }
 
+    // In-flow flex item beside the copy (not absolute) so the copy reflows
+    // around it as the visual narrows, instead of being overlapped.
     .hc-landing-values {
-        position: absolute;
-        right: 22px; top: 50%;
-        transform: translateY(-50%);
+        flex: none;
         width: 184px;
         background: var(--hc-bg2);
         border: 1px solid var(--hc-stroke2);
         border-radius: 10px;
         padding: 13px;
         box-shadow: var(--hc-shadow4);
-        z-index: 1;
     }
-    .hc-landing-values-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--hc-fg2); margin-bottom: 9px; }
-    .hc-landing-values-box { width: 11px; height: 11px; border: 1.6px solid var(--hc-fg3); border-radius: 2px; }
+    .hc-landing-values-label { font-size: 11px; font-weight: 700; color: var(--hc-fg2); margin-bottom: 9px; }
     .hc-landing-dropzone { border: 1.6px dashed var(--hc-brand); border-radius: 7px; background: var(--hc-brand-tint); padding: 10px; display: flex; flex-direction: column; gap: 7px; align-items: center; }
     .hc-landing-chip { width: 100%; display: flex; align-items: center; gap: 7px; background: var(--hc-bg1); border: 1px solid var(--hc-stroke1); border-radius: 5px; padding: 6px 8px; box-shadow: var(--hc-shadow4); }
     .hc-landing-chip-text { font-size: 11.5px; font-weight: 600; color: var(--hc-fg1); white-space: nowrap; }
@@ -450,7 +465,9 @@
     .hc-landing-compact-body,
     .hc-landing-opendocs { display: none; }
 
-    @container (max-width: 360px) {
+    // Collapse to the compact layout while there is still comfortable room for
+    // the copy beside the Values cue — below this the two-column row gets cramped.
+    @container (max-width: 440px) {
         .hc-landing-docs,
         .hc-landing-values,
         .hc-landing-lede,

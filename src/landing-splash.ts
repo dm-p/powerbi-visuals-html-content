@@ -150,11 +150,13 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     // ---- Body ----
     const body = node(doc, 'div', 'hc-landing-body');
 
+    // Anchored to the root (not the scrolling body) so its corner bleed is
+    // clipped by .hc-landing's overflow and never expands the body scroll area.
     const watermark = doc.createElement('img');
     watermark.className = 'hc-landing-watermark';
     watermark.src = markUrl;
     watermark.alt = '';
-    body.appendChild(watermark);
+    root.appendChild(watermark);
 
     const copy = node(doc, 'div', 'hc-landing-copy');
     copy.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
@@ -185,7 +187,6 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     // ---- Values cue ----
     const cue = node(doc, 'div', 'hc-landing-values');
     const cueLabel = node(doc, 'div', 'hc-landing-values-label');
-    cueLabel.appendChild(node(doc, 'span', 'hc-landing-values-box'));
     cueLabel.appendChild(node(doc, 'span', undefined, labels.valuesLabel));
     cue.appendChild(cueLabel);
     const drop = node(doc, 'div', 'hc-landing-dropzone');
