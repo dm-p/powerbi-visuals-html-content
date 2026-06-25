@@ -148,9 +148,9 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     root.appendChild(header);
 
     // ---- Body ----
-    // The body is a fixed viewport: the watermark anchors to its top (clipped
-    // by the body's overflow), and a separate scroll layer holds the hero +
-    // footer so the watermark never moves or expands the scroll area.
+    // In-flow hero (top) + footer (bottom). The body does not scroll itself —
+    // the host's OverlayScrollbars owns overflow. The watermark anchors to the
+    // body top and is clipped by .hc-landing's overflow.
     const body = node(doc, 'div', 'hc-landing-body');
 
     const watermark = doc.createElement('img');
@@ -158,8 +158,6 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     watermark.src = markUrl;
     watermark.alt = '';
     body.appendChild(watermark);
-
-    const scroll = node(doc, 'div', 'hc-landing-scroll');
 
     // Hero: headline + lede beside the Values cue. Grows to fill spare height.
     const hero = node(doc, 'div', 'hc-landing-hero');
@@ -181,7 +179,7 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     drop.appendChild(node(doc, 'span', 'hc-landing-drophint', labels.valuesHint));
     cue.appendChild(drop);
     hero.appendChild(cue);
-    scroll.appendChild(hero);
+    body.appendChild(hero);
 
     // Footer (actions): full-width band that flows under the hero + graphic.
     const footer = node(doc, 'div', 'hc-landing-footer');
@@ -203,9 +201,8 @@ export const buildSplash = (doc: Document, opts: SplashOptions): HTMLElement => 
     const openDocs = textLink(doc, 'hc-landing-opendocs', labels.openDocs, urls.docs, onLaunch);
     openDocs.appendChild(node(doc, 'span', undefined, ' ↗'));
     footer.appendChild(openDocs);
-    scroll.appendChild(footer);
+    body.appendChild(footer);
 
-    body.appendChild(scroll);
     root.appendChild(body);
     return root;
 };

@@ -414,15 +414,19 @@
     .hc-landing-iconlink--heart { color: #d6336c; }
     .hc-landing-iconlink--coffee { color: #c17d3b; }
 
-    // Fixed viewport: the watermark anchors to its top (clipped here) while a
-    // separate absolute scroll layer holds the content — so the watermark never
-    // moves with the content or expands the scroll area.
+    // Body holds the hero (top) and footer (bottom) in flow. It does NOT scroll
+    // itself — the host element's OverlayScrollbars (resolveScrollableContent)
+    // owns any overflow; a nested overflow here both fights it and collapses the
+    // flex item to zero height. The watermark anchors to the body top and is
+    // clipped by .hc-landing's overflow.
     .hc-landing-body {
         position: relative;
         z-index: 1;
         flex: 1;
         min-height: 0;
-        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 24px 22px;
     }
     .hc-landing-watermark {
         position: absolute;
@@ -432,26 +436,24 @@
         z-index: 0;
         pointer-events: none;
     }
-    // Scroll layer over the body viewport: hero at top, footer pinned to the
-    // bottom (margin-top:auto) so the body fills its height — the watermark
-    // backdrop occupies the gap instead of empty whitespace.
-    .hc-landing-scroll {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        overflow: auto;
-        display: flex;
-        flex-direction: column;
-        padding: 24px 22px;
-    }
-    // Hero row: copy flows beside the Values cue (no overlap).
+    // Hero row: copy flows beside the Values cue (no overlap). Positioned so it
+    // paints above the watermark.
     .hc-landing-hero {
+        position: relative;
+        z-index: 1;
         flex: none;
         display: flex;
         gap: 12px;
         align-items: flex-start;
     }
-    .hc-landing-footer { flex: none; margin-top: auto; }
+    // Footer pinned to the bottom so the body fills its height — the watermark
+    // backdrop occupies the gap rather than empty whitespace.
+    .hc-landing-footer {
+        position: relative;
+        z-index: 1;
+        flex: none;
+        margin-top: auto;
+    }
     .hc-landing-copy { flex: 1; min-width: 0; }
     .hc-landing-headline { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
     .hc-landing-lede { font-size: 14px; line-height: 1.55; color: var(--hc-fg2); margin: 12px 0 0; max-width: 34ch; }
@@ -498,7 +500,7 @@
         .hc-landing-watermark { width: 160px; height: 160px; top: -24px; right: -24px; }
         // Center the condensed content; the footer (Open the docs) sits right
         // under the hero rather than pinned to the bottom.
-        .hc-landing-scroll { padding: 14px 16px; justify-content: center; }
+        .hc-landing-body { padding: 14px 16px; justify-content: center; }
         .hc-landing-footer { margin-top: 0; }
     }
 }
