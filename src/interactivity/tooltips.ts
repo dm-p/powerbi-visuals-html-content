@@ -12,6 +12,7 @@ import { VisualConstants } from '../visual-constants';
 import { IHtmlEntry } from '../view-model';
 import { recordTooltipEvent } from '../diagnostics/event-recorder';
 import { tooltipContext, TooltipItem } from '../diagnostics/host-events';
+import { resolveInteractivity } from './policy';
 
 /**
  * Handle eventing when a data element is hovred over. This includes showing
@@ -60,6 +61,10 @@ function bindManualTooltips(
         'g'
     );
     manualTooltipElements.on('mouseover mousemove', (event) => {
+        if (!resolveInteractivity(event.target as Element | null, 'tooltip')) {
+            tooltipService.hide({ immediately: true, isTouchEvent: true });
+            return;
+        }
         const dataset = event.currentTarget.dataset;
         const keys = Object.keys(dataset).map((key) =>
             key.replace(titleExp, '').replace(valueExp, '')
@@ -111,6 +116,10 @@ function bindStandardTooltips(
 ) {
     const { tooltipService } = host;
     dataElements.on('mouseover mousemove', (event, d) => {
+        if (!resolveInteractivity(event.target as Element | null, 'tooltip')) {
+            tooltipService.hide({ immediately: true, isTouchEvent: true });
+            return;
+        }
         select(event.currentTarget).classed(
             VisualConstants.dom.hoverClassSelector,
             true
