@@ -1,5 +1,5 @@
 // Internal dependencies
-import { visual } from '../pbiviz.json';
+import { RESOLVED_VISUAL, EDITION } from './visual-config.generated';
 
 import { RenderFormat, RenderMode } from './types';
 
@@ -181,7 +181,16 @@ const svgTags = [
 ];
 
 export const VisualConstants = {
-    visual: visual,
+    visual: RESOLVED_VISUAL,
+    edition: EDITION,
+    landingUrls: {
+        docs: RESOLVED_VISUAL.supportUrl,
+        quickStart: `${RESOLVED_VISUAL.supportUrl}/docs/simple-example`,
+        changelog: `${RESOLVED_VISUAL.supportUrl}/docs/change-log`,
+        github: RESOLVED_VISUAL.gitHubUrl,
+        sponsor: 'https://github.com/sponsors/dm-p',
+        coffee: 'https://buymeacoffee.com/dmp'
+    },
     contentFormatting: {
         format: <RenderFormat>'html',
         renderMode: <RenderMode>'rebuild',

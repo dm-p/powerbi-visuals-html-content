@@ -9,7 +9,8 @@ export const editions = {
         visual: {},
         assets: {},
         capabilities: 'capabilities.json',
-        sanitize: true
+        sanitize: true,
+        edition: 'secure'
     },
     standard: {
         visual: {
@@ -20,7 +21,8 @@ export const editions = {
         },
         assets: { icon: 'assets/palette_icon_standard.png' },
         capabilities: 'capabilities.webaccess.json',
-        sanitize: false
+        sanitize: false,
+        edition: 'flagship'
     },
     standalone: {
         visual: {
@@ -31,6 +33,7 @@ export const editions = {
         },
         assets: { icon: 'assets/palette_icon_standalone.png' },
         capabilities: 'capabilities.webaccess.json',
-        sanitize: false
+        sanitize: false,
+        edition: 'standalone'
     }
 };

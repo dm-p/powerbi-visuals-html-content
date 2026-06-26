@@ -3,8 +3,9 @@ name: test
 on:
     push:
         branches: [main, certification-remediation]
+    # Run on PRs to any base branch so the check is reported on the PR
+    # (e.g. feature branches targeting release lines like 2.0.0).
     pull_request:
-        branches: [main, certification-remediation]
 
 jobs:
     test:

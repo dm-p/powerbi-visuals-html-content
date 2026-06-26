@@ -1,7 +1,6 @@
 // Power BI API Dependencies
 import './../style/visual.less';
 import 'overlayscrollbars/css/OverlayScrollbars.css';
-import 'w3-css/w3.css';
 import powerbi from 'powerbi-visuals-api';
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
@@ -39,7 +38,7 @@ import {
     TemplatedRenderOptions,
     getDiagnosticsRawHtml
 } from './domain-utils';
-import LandingPageHandler from './landing-page-handler';
+import { LandingPageHandler } from './landing';
 import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 import { RenderFormat } from './types';
 import { sanitizerEnabled } from './sanitize';
