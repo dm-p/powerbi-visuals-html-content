@@ -38,12 +38,11 @@ because the visual reads the DOM itself — no author scripting required.
 
 ## The contract
 
-Two `data-` attributes:
+One `data-` attribute:
 
 | Attribute | Effect |
 |---|---|
 | `data-hc-suppress="filter context-menu tooltip"` | Disable the named interactions for this node **and its descendants** |
-| `data-hc-force="filter"` | Re-enable a named interaction that an ancestor suppressed |
 
 **Tokens** (space-separated):
 
@@ -55,19 +54,12 @@ Two `data-` attributes:
 Unknown tokens are ignored (forward-compatible: new interaction types can be
 added later without breaking older markup).
 
-### Resolution — nearest-ancestor-wins, per token
+### Resolution — any suppressing ancestor wins, per token
 
 For a given event and token, walk from the event's target up the parent chain.
-The first element that names the token decides it:
-
-- named via `data-hc-force` → **on**
-- named via `data-hc-suppress` → **off**
-- same element names it in both → **`force` wins**
-- no ancestor names it → **on** (today's default behaviour, unchanged)
-
-`all` is expanded to its constituent tokens before this walk, so a child's
-`data-hc-force="filter"` cleanly re-enables one interaction under an ancestor's
-`data-hc-suppress="all"`.
+If any element names that token in `data-hc-suppress` → **off**; if none do →
+**on** (today's default behaviour, unchanged). `all` expands to its constituent
+tokens before the walk.
 
 No boundary tracking is needed: `hc-` tokens only ever exist inside author
 content, so walking to the document root is safe and simpler than tracking the
@@ -88,6 +80,10 @@ resolveInteractivity(node: Element | null, token: InteractionToken): boolean
 
 Attribute and token strings live in `VisualConstants.dom`.
 
+The tooltip path calls this on `mousemove`, so it walks the parent chain per
+move. Fine at normal DOM depth (one attribute read per node); leave a
+`// ponytail:` note and only memoise if a profiler on multi-MB content complains.
+
 ### Wiring into existing handlers (no new event bindings)
 
 - **`behavior.ts` `bindClick`** — if `filter` resolves off for `event.target`:
@@ -96,7 +92,8 @@ Attribute and token strings live in `VisualConstants.dom`.
 - **`behavior.ts` `bindClearCatcher`** — if `filter` is off for the target: skip
   the clear.
 - **`behavior.ts` `bindContextMenu`** (row + clear-catcher) — if `context-menu`
-  is off: return without our `preventDefault` / menu (native behaviour applies).
+  is off: `event.preventDefault()` and return, so **no menu shows** (neither our
+  drill menu nor the browser's native one). Suppression means "nothing here".
 - **`domain-utils.ts` `bindStandardTooltips`** — if `tooltip` is off:
   `tooltipService.hide(...)` and return instead of showing.
 - **`domain-utils.ts` `bindManualTooltips`** — same check before showing a manual
@@ -110,31 +107,32 @@ resolver and is unaffected.
 
 Both `Team Card Body Template` and `Team Card Content`:
 
-- `modal-overlay` gets `data-hc-suppress='all'` — a fully inert backdrop.
-- One inner control gets `data-hc-force='filter'` (e.g. a "Filter to this person"
-  button), proving and documenting the override path with a real consumer.
+- `modal-overlay` gets `data-hc-suppress='all'` — a fully inert backdrop. This is
+  the end-to-end proof of the feature against the original reviewer complaint.
 
 ## Documentation
 
-- Document both attributes, the token vocabulary, and the resolution rule in
+- Document the attribute, the token vocabulary, and the resolution rule in
   `docs/v2/HTML-Content-v2-Guide.md`.
 - Mirror into `docs/v2/scripting-unsanitized-edition.md` where relevant, noting
   this is the declarative replacement for hand-written `stopPropagation()`.
 
 ## Testing
 
-- Unit tests for `resolveInteractivity`: single suppress, force override, `all`
-  expansion, nested suppress→force→suppress, unknown-token ignore, default-on.
+- Unit tests for `resolveInteractivity`: single suppress, `all` expansion, nested
+  suppress, unknown-token ignore, default-on.
 - `behavior.test.ts`: click on a suppressed subtree does not toggle and does not
-  clear; `force='filter'` inside a suppressed subtree does toggle; `context-menu`
-  suppression skips the menu.
+  clear; `context-menu` suppression shows no menu (and calls `preventDefault`).
 - Tooltip tests: hover over a `tooltip`-suppressed subtree hides rather than shows.
 
 ## Out of scope (YAGNI)
 
+- **`data-hc-force` (re-enable under a suppressing ancestor)** — deferred: no real
+  consumer today. The resolver stays a cheap upgrade away (the parent-chain walk
+  would compare nearest `suppress` vs `force` instead of first-suppress-wins). Add
+  when a real layout needs to punch a hole in a suppressed region.
 - Restructuring modals out of the row subtree (a shared modal + JS repopulation) —
   the marker makes it unnecessary.
-- A JavaScript opt-in API — the declarative attributes cover the need and work in
+- A JavaScript opt-in API — the declarative attribute covers the need and works in
   the certified edition.
 - Per-token suppression of hyperlinks — separate concern, not requested.
-- Any inheritance model beyond the suppress/force pair.
