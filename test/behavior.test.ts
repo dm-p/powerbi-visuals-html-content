@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BehaviorManager } from '../src/behavior';
+import { BehaviorManager } from '../src/interactivity';
 import { IViewModel, IHtmlEntry } from '../src/view-model';
 import { VisualConstants } from '../src/visual-constants';
 import { setArmed, snapshot, resetForTests } from '../src/diagnostics/event-recorder';

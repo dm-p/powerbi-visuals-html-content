@@ -4,11 +4,11 @@ import BaseDataPoint = interactivityBaseService.BaseDataPoint;
 import IInteractiveBehavior = interactivityBaseService.IInteractiveBehavior;
 import ISelectionHandler = interactivityBaseService.ISelectionHandler;
 
-import { IHtmlEntry, IViewModel } from './view-model';
-import { VisualConstants } from './visual-constants';
-import { shouldDimPoint } from './domain-utils';
-import { recordEvent } from './diagnostics/event-recorder';
-import { tooltipContext, TooltipItem } from './diagnostics/host-events';
+import { IHtmlEntry, IViewModel } from '../view-model';
+import { VisualConstants } from '../visual-constants';
+import { shouldDimPoint } from '../domain-utils';
+import { recordEvent } from '../diagnostics/event-recorder';
+import { tooltipContext, TooltipItem } from '../diagnostics/host-events';
 
 /**
  * Behavior options for interactivity.

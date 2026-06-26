@@ -39,7 +39,7 @@ import {
     getDiagnosticsRawHtml
 } from './domain-utils';
 import { LandingPageHandler } from './landing';
-import { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
+import { BehaviorManager, IHtmlBehaviorOptions } from './interactivity';
 import { RenderFormat } from './types';
 import { sanitizerEnabled } from './sanitize';
 import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
