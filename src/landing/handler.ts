@@ -88,6 +88,7 @@ export default class LandingPageHandler {
         };
 
         const el = this.element.node();
+        if (!el) return;
         const doc = el.ownerDocument as Document;
         const splash = buildSplash(doc, {
             edition: VisualConstants.edition,
