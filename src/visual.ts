@@ -27,7 +27,6 @@ import { ViewModelHandler, IHtmlEntry, IViewModel } from './view-model';
 import {
     getParsedHtmlAsDom,
     resolveForRawHtml,
-    resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
     resolveTemplateContainer,
@@ -41,7 +40,8 @@ import { LandingPageHandler } from './landing';
 import {
     BehaviorManager,
     IHtmlBehaviorOptions,
-    resolveHover
+    resolveHover,
+    resolveHyperlinkHandling
 } from './interactivity';
 import { RenderFormat } from './types';
 import { sanitizerEnabled } from './sanitize';
