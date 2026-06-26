@@ -13,9 +13,9 @@ import {
     renderTemplatedEntries,
     reconcileTemplatedEntries,
     resolveForRawHtml,
-    getDiagnosticsRawHtml,
-    resolveHover
+    getDiagnosticsRawHtml
 } from '../src/domain-utils';
+import { resolveHover } from '../src/interactivity';
 import {
     setArmed,
     snapshot as evtSnapshot,

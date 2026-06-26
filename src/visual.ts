@@ -30,7 +30,6 @@ import {
     resolveHyperlinkHandling,
     resolveScrollableContent,
     resolveStyling,
-    resolveHover,
     resolveTemplateContainer,
     renderTemplatedEntries,
     reconcileTemplatedEntries,
@@ -39,7 +38,11 @@ import {
     getDiagnosticsRawHtml
 } from './domain-utils';
 import { LandingPageHandler } from './landing';
-import { BehaviorManager, IHtmlBehaviorOptions } from './interactivity';
+import {
+    BehaviorManager,
+    IHtmlBehaviorOptions,
+    resolveHover
+} from './interactivity';
 import { RenderFormat } from './types';
 import { sanitizerEnabled } from './sanitize';
 import { RenderOrchestrator, RenderSteps } from './render-orchestrator';
