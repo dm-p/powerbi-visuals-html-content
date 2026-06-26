@@ -105,17 +105,25 @@ resolver and is unaffected.
 
 ## Sample report changes
 
+The sample lives in `sample-for-templates/`, which is **untracked UAT scratch**
+(too data-heavy to be a permanent corpus) and stays untracked. We edit it locally
+to prove the feature; it is not committed.
+
 Both `Team Card Body Template` and `Team Card Content`:
 
 - `modal-overlay` gets `data-hc-suppress='all'` — a fully inert backdrop. This is
   the end-to-end proof of the feature against the original reviewer complaint.
 
+**Follow-up (not this work):** build a lighter, committable UAT corpus that
+exercises `data-hc-suppress` without the Team Cards sample's data weight, so the
+feature has a permanent regression fixture.
+
 ## Documentation
 
-- Document the attribute, the token vocabulary, and the resolution rule in
-  `docs/v2/HTML-Content-v2-Guide.md`.
-- Mirror into `docs/v2/scripting-unsanitized-edition.md` where relevant, noting
-  this is the declarative replacement for hand-written `stopPropagation()`.
+Author-facing documentation (the attribute, token vocabulary, resolution rule,
+and that it is the declarative replacement for hand-written `stopPropagation()`)
+is maintained separately by the maintainer in the untracked v2 author guide. Not
+part of the implementation plan, and not referenced from code or commits.
 
 ## Testing
 
