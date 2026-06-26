@@ -9,6 +9,7 @@ import { VisualConstants } from '../visual-constants';
 import { shouldDimPoint } from '../domain-utils';
 import { recordEvent } from '../diagnostics/event-recorder';
 import { tooltipContext, TooltipItem } from '../diagnostics/host-events';
+import { resolveInteractivity } from './policy';
 
 /**
  * Behavior options for interactivity.
@@ -79,6 +80,12 @@ export class BehaviorManager<
      * @param d     - datum from selection
      */
     handleSelectionClick(event: MouseEvent, d: IHtmlEntry) {
+        if (!resolveInteractivity(event.target as Element | null, 'filter')) {
+            // Inert region: don't toggle, and stop the click reaching the
+            // clear-catcher (which would otherwise wipe the selection).
+            event.stopPropagation();
+            return;
+        }
         event.preventDefault();
         event.stopPropagation();
         this.options.hideTooltip();
@@ -98,7 +105,12 @@ export class BehaviorManager<
      * @param d     - datum from selection
      */
     handleContextMenu(event: MouseEvent, d: IHtmlEntry | null) {
+        // Always preventDefault so the browser's native menu never appears.
         event.preventDefault();
+        if (!resolveInteractivity(event.target as Element | null, 'context-menu')) {
+            // Inert region: show neither our drill menu nor the native one.
+            return;
+        }
         event.stopPropagation();
         this.options.hideTooltip();
         recordEvent(
@@ -123,6 +135,9 @@ export class BehaviorManager<
         } = this.options;
         clearCatcherSelection.on('click', (event) => {
             if (hasCrossFiltering) {
+                if (!resolveInteractivity(event.target as Element | null, 'filter')) {
+                    return; // inert region — don't clear
+                }
                 event.preventDefault();
                 event.stopPropagation();
                 this.options.hideTooltip();
