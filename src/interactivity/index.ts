@@ -3,3 +3,4 @@
 export { BehaviorManager, IHtmlBehaviorOptions } from './behavior';
 export { resolveHover } from './tooltips';
 export { resolveHyperlinkHandling } from './hyperlinks';
+export { resolveInteractivity } from './policy';

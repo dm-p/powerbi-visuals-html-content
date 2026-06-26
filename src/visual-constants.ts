@@ -260,7 +260,14 @@ export const VisualConstants = {
         // A persistent invisible anchor comment with the same value is left at
         // the slot after sanitization for row insertion. NOT the user-facing
         // token — purely an implementation detail of slot resolution.
-        contentSlotMarker: 'HC:CONTENT'
+        contentSlotMarker: 'HC:CONTENT',
+        // Declarative interactivity suppression. An author adds
+        // data-hc-suppress="filter context-menu tooltip" (or "all") to a node to
+        // make it + its descendants inert to the visual's cross-filter / context
+        // menu / tooltip handling, deferring to their own / native behaviour.
+        // Works in every edition because the visual reads the markup itself.
+        suppressAttr: 'data-hc-suppress',
+        suppressAllToken: 'all'
     },
     diagnostics: {
         dialogId: 'DiagnosticsDialog',
