@@ -23,6 +23,7 @@ import { select, Selection } from 'd3-selection';
 // Internal Dependencies
 import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
+import { buildThemeVariablesCss } from './theme-variables';
 import { ViewModelHandler, IHtmlEntry, IViewModel } from './view-model';
 import {
     getParsedHtmlAsDom,
@@ -158,6 +159,23 @@ export class Visual implements IVisual {
             .attr('id', VisualConstants.dom.stylesheetIdSelector)
             .attr('name', VisualConstants.dom.stylesheetIdSelector)
             .attr('type', 'text/css');
+        // Expose the host theme palette as --pbi-theme-* custom properties for
+        // authors to consume in content / custom stylesheet. Written once: a
+        // theme or contrast switch re-runs the constructor, refreshing this.
+        // This <style> is intentionally separate from styleSheetContainer,
+        // which resolveStyling() overwrites on every update.
+        select('head')
+            .append('style')
+            .attr('id', VisualConstants.dom.themeVarsIdSelector)
+            .attr('type', 'text/css')
+            .text(buildThemeVariablesCss(this.host.colorPalette));
+        // Declarative high-contrast signal: authors branch with `.pbi-theme-hc`
+        // in pure CSS (no scripting; certified-edition safe). Values themselves
+        // are honest pass-through — the author decides how to adapt.
+        document.documentElement.classList.toggle(
+            VisualConstants.dom.themeHighContrastClass,
+            !!this.host.colorPalette.isHighContrast
+        );
         this.landingContainer = this.container
             .append('div')
             .attr('id', VisualConstants.dom.landingIdSelector);

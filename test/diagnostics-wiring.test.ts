@@ -36,6 +36,9 @@ const buildVisual = (
             renderingFailed: () => undefined
         },
         hostCapabilities: { allowModalDialog: false, allowInteractions: false },
+        colorPalette: {
+            isHighContrast: false
+        },
         ...hostOverrides
     };
     const visual = new Visual({ element: root, host } as any);
