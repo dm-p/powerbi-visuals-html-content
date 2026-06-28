@@ -5,7 +5,6 @@ import {
     bindVisualDataToDom,
     domSerialize,
     getRawHtml,
-    resolveHyperlinkHandling,
     resolveHtmlGroupElement,
     reconcileVisualDataToDom,
     stampRenderedContent,
@@ -13,9 +12,9 @@ import {
     renderTemplatedEntries,
     reconcileTemplatedEntries,
     resolveForRawHtml,
-    getDiagnosticsRawHtml,
-    resolveHover
+    getDiagnosticsRawHtml
 } from '../src/domain-utils';
+import { resolveHover, resolveHyperlinkHandling } from '../src/interactivity';
 import {
     setArmed,
     snapshot as evtSnapshot,

@@ -1,9 +1,6 @@
 // Power BI API Dependencies
 import powerbi from 'powerbi-visuals-api';
-import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ISelectionId = powerbi.visuals.ISelectionId;
-import TooltipShowOptions = powerbi.extensibility.TooltipShowOptions;
-import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
 
 // External dependencies
 import { select, Selection } from 'd3-selection';
@@ -28,8 +25,6 @@ import {
 } from './sanitize';
 import { CONTENT_TOKEN, ROW_TOKEN, substitute } from './template-engine';
 import { buildHighlightedFragment } from './diagnostics/highlight-html';
-import { recordTooltipEvent } from './diagnostics/event-recorder';
-import { tooltipContext, TooltipItem } from './diagnostics/host-events';
 
 // Re-export sanitize pipeline entry points so existing callers that import
 // from './domain-utils' continue to work after the Task 7 extraction.
@@ -430,56 +425,6 @@ export const getDiagnosticsRawHtml = (
 };
 
 /**
- * For the specified element, process all hyperlinks so that they are either explicitly denied,
- * or delegated to the Power BI visual host for permission to open.
- *
- * @param host              - The Power BI visual host services object.
- * @param container         - The container to process.
- * @param allowDelegation   - Allow hyperlinks to be delegated to Power BI.
- */
-export function resolveHyperlinkHandling(
-    host: IVisualHost,
-    container: Selection<any, any, any, any>,
-    allowDelegation?: boolean
-) {
-    container.selectAll('a').on('click', (event) => {
-        // preventDefault unconditionally - when delegation is off, the
-        // click must be a no-op (no navigation, no host.launchUrl call).
-        event.preventDefault();
-        if (!allowDelegation) return;
-        // `select(...).attr('href')` reads only the unprefixed form,
-        // so fall back to `xlink:href` for SVG 1.1 authored anchors.
-        // In the normal sanitized path this fallback never matches:
-        // `<a>` takes the HTML branch in the sanitizer and
-        // `xlink:href` is not in `ALLOWED_ATTRIBUTES['a']`, so it is
-        // dropped by the per-tag allowlist before the URL scheme check
-        // runs (see fixture `hyperlinks-reject-svg-xlink-href-legacy`).
-        // Retained as defense-in-depth for any unsanitized content
-        // that reaches this handler, and exercised by the bypass test.
-        const sel = select(event.currentTarget as Element);
-        const url = (sel.attr('href') || sel.attr('xlink:href') || '').trim();
-        // Defense-in-depth: even though the sanitizer already restricts
-        // <a href> / <a xlink:href> to http/https, re-check at the call
-        // boundary before handing the URL to host.launchUrl(). Power BI's
-        // launchUrl contract requires http(s); any other scheme reaching
-        // here is a sanitizer bypass and must be rejected — silently, so
-        // the user sees no action and no error.
-        if (!/^https?:\/\//i.test(url)) return;
-        // Fail-soft envelope around the host boundary. host.launchUrl is
-        // owned by Power BI and may throw in embedded / restricted-host
-        // scenarios; an uncaught throw would propagate through d3's
-        // event dispatch and break later click handlers. Log and
-        // swallow — the user sees no action and no error, consistent
-        // with the silent-reject posture for non-http(s) URLs above.
-        try {
-            host.launchUrl(url);
-        } catch (err) {
-            console.warn('host.launchUrl failed:', err);
-        }
-    });
-}
-
-/**
  * As we want to display different types of element for each entry/grouping, we will clear down the
  * existing children and rebuild with our desired element for handling raw vs. rendered HTML.
  *
@@ -526,133 +471,6 @@ export function resolveScrollableContent(
         scrollbars: {
             clickScrolling: true
         }
-    });
-}
-
-/**
- * Handle eventing when a data element is hovred over. This includes showing
- * the tooltip and toggling appropriate class names for style hooks.
- *
- * @param dataElements      - The elements to analyse and process.
- * @param host              - Visual host services.
- * @param hasGranularity    - Whether we have granularity or not.
- */
-export function resolveHover(
-    dataElements: Selection<any, IHtmlEntry, any, any>,
-    host: IVisualHost,
-    hasGranularity: boolean
-) {
-    bindStandardTooltips(dataElements, host, hasGranularity);
-    bindManualTooltips(dataElements, host);
-}
-
-/**
- * If we don't have any granularity, we will look for elements that have
- * a tooltip attribute and use this to show the tooltip.
- *
- * @param dataElements      - The elements to analyse and process.
- * @param host              - Visual host services.
- */
-function bindManualTooltips(
-    dataElements: Selection<any, IHtmlEntry, any, any>,
-    host: IVisualHost
-) {
-    const { tooltipService } = host;
-    const {
-        manualTooltipSelector,
-        manualTooltipDataPrefix,
-        manualTooltipDataTitle,
-        manualTooltipDataValue
-    } = VisualConstants.dom;
-    const manualTooltipElements = dataElements.selectAll(
-        `.${manualTooltipSelector}`
-    );
-    const titleExp = new RegExp(
-        `${manualTooltipDataPrefix}${manualTooltipDataTitle}`,
-        'g'
-    );
-    const valueExp = new RegExp(
-        `${manualTooltipDataPrefix}${manualTooltipDataValue}`,
-        'g'
-    );
-    manualTooltipElements.on('mouseover mousemove', (event) => {
-        const dataset = event.currentTarget.dataset;
-        const keys = Object.keys(dataset).map((key) =>
-            key.replace(titleExp, '').replace(valueExp, '')
-        );
-        const uniqueKeys = [...new Set(keys)];
-        const dataItems: VisualTooltipDataItem[] = uniqueKeys.map((key) => ({
-            displayName:
-                dataset[
-                    `${manualTooltipDataPrefix}${manualTooltipDataTitle}${key}`
-                ] || '',
-            value:
-                dataset[
-                    `${manualTooltipDataPrefix}${manualTooltipDataValue}${key}`
-                ] || ''
-        }));
-        if (dataItems.length > 0) {
-            const options: TooltipShowOptions = {
-                coordinates: [event.clientX, event.clientY],
-                isTouchEvent: true,
-                dataItems,
-                identities: []
-            };
-            tooltipService.show(options);
-            recordTooltipEvent(
-                'show',
-                'manual',
-                tooltipContext(dataItems as TooltipItem[])
-            );
-        }
-    });
-    manualTooltipElements.on('mouseout', () => {
-        tooltipService.hide({ immediately: true, isTouchEvent: true });
-        recordTooltipEvent('hide', 'manual', '');
-    });
-}
-
-/**
- * For standard data elements, working with the data roles and correct
- * rules, we will apply the regular tooltip handling.
- *
- * @param dataElements      - The elements to analyse and process.
- * @param host              - Visual host services.
- * @param hasGranularity    - Whether we have granularity or not.
- */
-function bindStandardTooltips(
-    dataElements: Selection<any, IHtmlEntry, any, any>,
-    host: IVisualHost,
-    hasGranularity: boolean
-) {
-    const { tooltipService } = host;
-    dataElements.on('mouseover mousemove', (event, d) => {
-        select(event.currentTarget).classed(
-            VisualConstants.dom.hoverClassSelector,
-            true
-        );
-        if (hasGranularity || d.tooltips.length > 0) {
-            const options: TooltipShowOptions = {
-                coordinates: [event.clientX, event.clientY],
-                isTouchEvent: true,
-                dataItems: d.tooltips,
-                identities: [d.identity]
-            };
-            tooltipService.show(options);
-            recordTooltipEvent(
-                'show',
-                'contextual',
-                tooltipContext(d.tooltips as TooltipItem[])
-            );
-        }
-    });
-    dataElements.on('mouseout', (event) => {
-        select(event.currentTarget).classed(
-            VisualConstants.dom.hoverClassSelector,
-            false
-        );
-        tooltipService.hide({ immediately: true, isTouchEvent: true });
-        recordTooltipEvent('hide', 'contextual', '');
     });
 }
 

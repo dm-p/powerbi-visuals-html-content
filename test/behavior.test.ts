@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BehaviorManager } from '../src/behavior';
+import { BehaviorManager } from '../src/interactivity';
 import { IViewModel, IHtmlEntry } from '../src/view-model';
 import { VisualConstants } from '../src/visual-constants';
 import { setArmed, snapshot, resetForTests } from '../src/diagnostics/event-recorder';
@@ -316,5 +316,74 @@ describe('host-event instrumentation in behavior', () => {
         expect(
             snapshot().some((e) => e.type === 'cross-filter' && e.summary === 'cleared')
         ).toBe(true);
+    });
+});
+
+describe('interactivity suppression in behavior', () => {
+    it('suppresses cross-filter when the target is under data-hc-suppress=filter', () => {
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+
+        const modal = document.createElement('div');
+        modal.setAttribute('data-hc-suppress', 'filter');
+        const inner = document.createElement('button');
+        modal.appendChild(inner);
+
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: false, target: inner } as any;
+        mgr.handleSelectionClick(evt, { tooltips: [] } as any);
+
+        expect(evt.stopPropagation).toHaveBeenCalled(); // don't fall through to clear-catcher
+        expect(handler.handleSelection).not.toHaveBeenCalled();
+    });
+
+    it('still cross-filters when the target is outside any suppressed subtree', () => {
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+
+        const inner = document.createElement('button'); // no suppressing ancestor
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), ctrlKey: false, target: inner } as any;
+        mgr.handleSelectionClick(evt, { tooltips: [] } as any);
+
+        expect(handler.handleSelection).toHaveBeenCalled();
+    });
+
+    it('shows no context menu (but preventDefaults) under data-hc-suppress=all', () => {
+        const mgr = new BehaviorManager<any>();
+        const { options } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+
+        const modal = document.createElement('div');
+        modal.setAttribute('data-hc-suppress', 'all');
+        const inner = document.createElement('span');
+        modal.appendChild(inner);
+
+        const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 1, clientY: 2, target: inner } as any;
+        mgr.handleContextMenu(evt, { tooltips: [] } as any);
+
+        expect(evt.preventDefault).toHaveBeenCalled(); // swallow the native browser menu too
+        expect(evt.stopPropagation).toHaveBeenCalled(); // don't bubble to clear-catcher / host
+        expect(handler.handleContextMenu).not.toHaveBeenCalled();
+    });
+
+    it('skips the clear-catcher clear when the target is under data-hc-suppress=filter', () => {
+        const mgr = new BehaviorManager<any>();
+        const { options, clear } = makeOptions(vi.fn());
+        const handler = { handleSelection: vi.fn(), handleContextMenu: vi.fn(), handleClearSelection: vi.fn() };
+        mgr.bindEvents(options as any, handler as any);
+
+        const modal = document.createElement('div');
+        modal.setAttribute('data-hc-suppress', 'filter');
+        const inner = document.createElement('div');
+        modal.appendChild(inner);
+
+        const clickCall = (clear.on as any).mock.calls.find((c: any[]) => c[0] === 'click');
+        clickCall[1]({ preventDefault: vi.fn(), stopPropagation: vi.fn(), target: inner });
+
+        expect(handler.handleClearSelection).not.toHaveBeenCalled();
     });
 });
