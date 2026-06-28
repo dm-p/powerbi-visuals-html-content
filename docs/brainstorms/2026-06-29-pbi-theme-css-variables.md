@@ -45,13 +45,13 @@ naturally handles sparse high-contrast palettes and missing extension members.
 
 | Variable | Host source |
 |---|---|
-| `--pbi-theme-foreground` | `colorPalette.foreground` |
-| `--pbi-theme-foreground-neutral-secondary` | `colorPalette.foregroundNeutralSecondary` |
-| `--pbi-theme-foreground-neutral-tertiary` | `colorPalette.foregroundNeutralTertiary` |
-| `--pbi-theme-background` | `colorPalette.background` |
-| `--pbi-theme-background-light` | `colorPalette.backgroundLight` |
-| `--pbi-theme-background-neutral` | `colorPalette.backgroundNeutral` |
-| `--pbi-theme-foreground-selected` | `colorPalette.foregroundSelected` |
+| `--pbi-theme-fg` | `colorPalette.foreground` |
+| `--pbi-theme-fg-neutral-secondary` | `colorPalette.foregroundNeutralSecondary` |
+| `--pbi-theme-fg-neutral-tertiary` | `colorPalette.foregroundNeutralTertiary` |
+| `--pbi-theme-bg` | `colorPalette.background` |
+| `--pbi-theme-bg-light` | `colorPalette.backgroundLight` |
+| `--pbi-theme-bg-neutral` | `colorPalette.backgroundNeutral` |
+| `--pbi-theme-fg-selected` | `colorPalette.foregroundSelected` |
 | `--pbi-theme-hyperlink` | `colorPalette.hyperlink` |
 | `--pbi-theme-positive` | extension `positive` |
 | `--pbi-theme-negative` | extension `negative` |
@@ -101,14 +101,14 @@ the author, who is given a declarative signal to act on.
   /* normal: themed; high contrast: collapse to the four HC-safe colors */
   .badge { color: var(--pbi-theme-color-1); }
   .pbi-theme-hc .badge {
-      color: var(--pbi-theme-foreground);
-      background: var(--pbi-theme-background);
+      color: var(--pbi-theme-fg);
+      background: var(--pbi-theme-bg);
   }
   ```
 
 - Per MS guidance, the four colors safe to rely on in high contrast are
-  `foreground`, `background`, `foreground-selected`, and `hyperlink`. Authors who
-  follow that guidance read those four under `.pbi-theme-hc`.
+  `fg`, `bg`, `fg-selected`, and `hyperlink`. Authors who follow that guidance
+  read those four under `.pbi-theme-hc`.
 
 ### Naming note
 
@@ -127,7 +127,7 @@ drops into the UAT workbook's model and recolors live on theme switch.
   (`--pbi-theme-color-1` … `-12`) plus every named variable.
 - Each swatch uses a fallback chain so unset slots degrade visibly rather than
   rendering nothing:
-  `background: var(--pbi-theme-color-3, var(--pbi-theme-foreground, transparent))`.
+  `background: var(--pbi-theme-color-3, var(--pbi-theme-fg, transparent))`.
 - Ships with a small layout stylesheet snippet that is `.pbi-theme-hc`-aware, so
   toggling Windows high contrast doubles as a visual check of the signal.
 - **Limitation by design:** CSS cannot print a variable's resolved hex as text
