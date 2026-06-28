@@ -1,7 +1,7 @@
 import { VisualConstants } from '../visual-constants';
 
 /** Interaction categories an author can suppress via `data-hc-suppress`. */
-export type InteractionToken = 'filter' | 'context-menu' | 'tooltip';
+type InteractionToken = 'filter' | 'context-menu' | 'tooltip';
 
 /**
  * Whether a given interaction is allowed for `node`. Walks from `node` up the
