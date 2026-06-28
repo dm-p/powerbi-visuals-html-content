@@ -149,3 +149,29 @@ If the sanitizer drops content you think should be safe, or fails to drop someth
 3. What you expected.
 
 The maintainers will add a corresponding entry to the regression corpus so the same case can never silently regress.
+
+## Theme CSS variables (`--pbi-theme-*`)
+
+The visual exposes the host theme's colors as `--pbi-theme-*` CSS custom
+properties (numbered `--pbi-theme-color-1…N` plus curated named colors such as
+`--pbi-theme-fg`, `--pbi-theme-bg`, `--pbi-theme-positive`). Authors consume them
+directly in content or the Custom stylesheet — no need to hard-code hex values.
+
+**Probe:** add the measure in `test-uat/theme-probe.dax` to the semantic model and
+bind it to an **HTML Content** visual. It renders a labelled swatch grid driven
+entirely by the variables.
+
+Verify:
+
+1. **Live theming** — switch the report theme (View > Themes). Every swatch
+   recolors to the new palette without editing the measure.
+2. **Dynamic count** — themes with fewer than 12 data colors leave the surplus
+   numbered swatches falling back to the foreground color (the `var(…, fg)`
+   chain), confirming we emit only the colors the host actually provides.
+3. **High contrast** — enable Windows high contrast. The "HIGH CONTRAST ACTIVE"
+   banner appears (the `.pbi-theme-hc` class is set on the document root) and the
+   named `fg`/`bg`/`fg-selected`/`hyperlink` swatches take their HC values. Values
+   are pass-through: the author decides how to adapt via `.pbi-theme-hc` in CSS.
+
+**Known limitation:** inline `srcdoc` iframes in author content are separate
+documents — neither the `:root` variables nor `.pbi-theme-hc` cascade into them.

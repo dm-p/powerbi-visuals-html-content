@@ -1,0 +1,61 @@
+-- UAT probe for the --pbi-theme-* CSS variables (spec 2026-06-29).
+-- Bind to an HTML Content visual's field. Switch the report theme and toggle
+-- Windows high contrast: swatches recolor live; the HC banner appears when the
+-- host reports high-contrast mode. Unset numbered slots fall back to fg.
+Theme Color Probe =
+"<style>" &
+".tcp{display:flex;flex-wrap:wrap;gap:6px;font:11px 'Segoe UI',sans-serif;align-items:flex-start}" &
+".tcp .s{width:96px;height:56px;border:1px solid #ccc;border-radius:4px;display:flex;align-items:flex-end;padding:3px;box-sizing:border-box}" &
+".tcp .s span{background:rgba(255,255,255,.78);padding:0 3px;border-radius:2px}" &
+".tcp .hcflag{display:none;width:100%;font-weight:700;color:var(--pbi-theme-fg,#000)}" &
+".pbi-theme-hc .tcp .hcflag{display:block}" &
+".c1{background:var(--pbi-theme-color-1,var(--pbi-theme-fg,transparent))}" &
+".c2{background:var(--pbi-theme-color-2,var(--pbi-theme-fg,transparent))}" &
+".c3{background:var(--pbi-theme-color-3,var(--pbi-theme-fg,transparent))}" &
+".c4{background:var(--pbi-theme-color-4,var(--pbi-theme-fg,transparent))}" &
+".c5{background:var(--pbi-theme-color-5,var(--pbi-theme-fg,transparent))}" &
+".c6{background:var(--pbi-theme-color-6,var(--pbi-theme-fg,transparent))}" &
+".c7{background:var(--pbi-theme-color-7,var(--pbi-theme-fg,transparent))}" &
+".c8{background:var(--pbi-theme-color-8,var(--pbi-theme-fg,transparent))}" &
+".c9{background:var(--pbi-theme-color-9,var(--pbi-theme-fg,transparent))}" &
+".c10{background:var(--pbi-theme-color-10,var(--pbi-theme-fg,transparent))}" &
+".c11{background:var(--pbi-theme-color-11,var(--pbi-theme-fg,transparent))}" &
+".c12{background:var(--pbi-theme-color-12,var(--pbi-theme-fg,transparent))}" &
+".nfg{background:var(--pbi-theme-fg,transparent)}" &
+".nfgs{background:var(--pbi-theme-fg-neutral-secondary,transparent)}" &
+".nfgt{background:var(--pbi-theme-fg-neutral-tertiary,transparent)}" &
+".nbg{background:var(--pbi-theme-bg,transparent)}" &
+".nbgl{background:var(--pbi-theme-bg-light,transparent)}" &
+".nbgn{background:var(--pbi-theme-bg-neutral,transparent)}" &
+".nfgsel{background:var(--pbi-theme-fg-selected,transparent)}" &
+".nhl{background:var(--pbi-theme-hyperlink,transparent)}" &
+".npos{background:var(--pbi-theme-positive,transparent)}" &
+".nneg{background:var(--pbi-theme-negative,transparent)}" &
+".nneu{background:var(--pbi-theme-neutral,transparent)}" &
+"</style>" &
+"<div class='tcp'>" &
+"<div class='hcflag'>HIGH CONTRAST ACTIVE (.pbi-theme-hc)</div>" &
+"<div class='s c1'><span>color-1</span></div>" &
+"<div class='s c2'><span>color-2</span></div>" &
+"<div class='s c3'><span>color-3</span></div>" &
+"<div class='s c4'><span>color-4</span></div>" &
+"<div class='s c5'><span>color-5</span></div>" &
+"<div class='s c6'><span>color-6</span></div>" &
+"<div class='s c7'><span>color-7</span></div>" &
+"<div class='s c8'><span>color-8</span></div>" &
+"<div class='s c9'><span>color-9</span></div>" &
+"<div class='s c10'><span>color-10</span></div>" &
+"<div class='s c11'><span>color-11</span></div>" &
+"<div class='s c12'><span>color-12</span></div>" &
+"<div class='s nfg'><span>fg</span></div>" &
+"<div class='s nfgs'><span>fg-neutral-secondary</span></div>" &
+"<div class='s nfgt'><span>fg-neutral-tertiary</span></div>" &
+"<div class='s nbg'><span>bg</span></div>" &
+"<div class='s nbgl'><span>bg-light</span></div>" &
+"<div class='s nbgn'><span>bg-neutral</span></div>" &
+"<div class='s nfgsel'><span>fg-selected</span></div>" &
+"<div class='s nhl'><span>hyperlink</span></div>" &
+"<div class='s npos'><span>positive</span></div>" &
+"<div class='s nneg'><span>negative</span></div>" &
+"<div class='s nneu'><span>neutral</span></div>" &
+"</div>"
