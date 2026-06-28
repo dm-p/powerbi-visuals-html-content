@@ -32,6 +32,26 @@ export function resolveHover(
 }
 
 /**
+ * Shared guard for the tooltip handlers: when the hovered target sits under a
+ * `data-hc-suppress` (tooltip / all) subtree, hide any active tooltip and report
+ * suppressed so the caller bails out before showing one.
+ *
+ * @param event          - the hover event (its `target` is walked for suppression)
+ * @param tooltipService - host tooltip service used to dismiss any active tooltip
+ * @returns true when suppressed (caller should return), false to proceed
+ */
+function tooltipSuppressed(
+    event: Event,
+    tooltipService: IVisualHost['tooltipService']
+): boolean {
+    if (resolveInteractivity(event.target as Element | null, 'tooltip')) {
+        return false;
+    }
+    tooltipService.hide({ immediately: true, isTouchEvent: true });
+    return true;
+}
+
+/**
  * If we don't have any granularity, we will look for elements that have
  * a tooltip attribute and use this to show the tooltip.
  *
@@ -61,10 +81,7 @@ function bindManualTooltips(
         'g'
     );
     manualTooltipElements.on('mouseover mousemove', (event) => {
-        if (!resolveInteractivity(event.target as Element | null, 'tooltip')) {
-            tooltipService.hide({ immediately: true, isTouchEvent: true });
-            return;
-        }
+        if (tooltipSuppressed(event, tooltipService)) return;
         const dataset = event.currentTarget.dataset;
         const keys = Object.keys(dataset).map((key) =>
             key.replace(titleExp, '').replace(valueExp, '')
@@ -116,10 +133,7 @@ function bindStandardTooltips(
 ) {
     const { tooltipService } = host;
     dataElements.on('mouseover mousemove', (event, d) => {
-        if (!resolveInteractivity(event.target as Element | null, 'tooltip')) {
-            tooltipService.hide({ immediately: true, isTouchEvent: true });
-            return;
-        }
+        if (tooltipSuppressed(event, tooltipService)) return;
         select(event.currentTarget).classed(
             VisualConstants.dom.hoverClassSelector,
             true
