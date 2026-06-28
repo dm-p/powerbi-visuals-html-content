@@ -127,7 +127,15 @@ function bindStandardTooltips(
 ) {
     const { tooltipService } = host;
     dataElements.on('mouseover mousemove', (event, d) => {
-        if (tooltipSuppressed(event, tooltipService)) return;
+        if (tooltipSuppressed(event, tooltipService)) {
+            // Entering a suppressed descendant: also clear the row's hover state
+            // now — mouseout won't fire until the pointer leaves the whole row.
+            select(event.currentTarget).classed(
+                VisualConstants.dom.hoverClassSelector,
+                false
+            );
+            return;
+        }
         select(event.currentTarget).classed(
             VisualConstants.dom.hoverClassSelector,
             true

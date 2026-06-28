@@ -366,6 +366,7 @@ describe('interactivity suppression in behavior', () => {
         mgr.handleContextMenu(evt, { tooltips: [] } as any);
 
         expect(evt.preventDefault).toHaveBeenCalled(); // swallow the native browser menu too
+        expect(evt.stopPropagation).toHaveBeenCalled(); // don't bubble to clear-catcher / host
         expect(handler.handleContextMenu).not.toHaveBeenCalled();
     });
 

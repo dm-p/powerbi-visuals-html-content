@@ -108,7 +108,9 @@ export class BehaviorManager<
         // Always preventDefault so the browser's native menu never appears.
         event.preventDefault();
         if (!resolveInteractivity(event.target as Element | null, 'context-menu')) {
-            // Inert region: show neither our drill menu nor the native one.
+            // Inert region: show neither our drill menu nor the native one, and
+            // stop the event bubbling to ancestor (clear-catcher / host) handlers.
+            event.stopPropagation();
             return;
         }
         event.stopPropagation();
