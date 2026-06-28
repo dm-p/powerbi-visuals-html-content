@@ -34,6 +34,13 @@ palette). **1-indexed** to match the Power BI UI's "Color 1…N" labels (the arr
 is 0-indexed, so emit `--pbi-theme-color-${i + 1}`). N is dynamic — themes define
 different palette lengths.
 
+`colors` is **not** declared on `ISandboxExtendedColorPalette` (only `getColor(key)`
+is) — it is present on the host palette at runtime but reached via a narrow cast,
+mirroring Deneb. Guard with `Array.isArray` before iterating; if it is ever absent
+we emit zero numbered variables (the named set still works). Chosen over looping
+`getColor("0"…"k")` because `colors[]` yields the true palette length, keeping N
+dynamic without a hard-coded ceiling.
+
 ```
 --pbi-theme-color-1 … --pbi-theme-color-N
 ```
@@ -53,20 +60,20 @@ naturally handles sparse high-contrast palettes and missing extension members.
 | `--pbi-theme-bg-neutral` | `colorPalette.backgroundNeutral` |
 | `--pbi-theme-fg-selected` | `colorPalette.foregroundSelected` |
 | `--pbi-theme-hyperlink` | `colorPalette.hyperlink` |
-| `--pbi-theme-positive` | extension `positive` |
-| `--pbi-theme-negative` | extension `negative` |
-| `--pbi-theme-neutral` | extension `neutral` |
-| `--pbi-theme-min` | extension `minimum` |
-| `--pbi-theme-center` | extension `center` |
-| `--pbi-theme-max` | extension `maximium ?? maximum` |
+| `--pbi-theme-positive` | `colorPalette.positive` |
+| `--pbi-theme-negative` | `colorPalette.negative` |
+| `--pbi-theme-neutral` | `colorPalette.neutral` |
 
-The sentiment (`positive`/`negative`/`neutral`) and divergent
-(`minimum`/`center`/`maximium`) members are **not** in the typed
-`ISandboxExtendedColorPalette` but are present on the host palette at runtime
-(this is the gap Deneb's `PowerBIColorPaletteExtension` type fills). Access them
-through a typed cast mirroring Deneb's extension. `--pbi-theme-max` reads
-`maximium ?? maximum` to absorb the known upstream typo while remaining correct if
-it is ever fixed.
+The sentiment members `positive` / `negative` / `neutral` **are** declared on
+`ISandboxExtendedColorPalette` (as optional) — no cast needed, just the
+emit-only-if-present guard.
+
+**Divergent endpoints (`min` / `center` / `max`) are deliberately excluded.**
+They are not declared in the API at all (not even optionally), are undocumented,
+and are rarely populated by real themes — speculative surface on a permanent public
+contract. If a concrete need appears later, they can be added (via a Deneb-style
+cast, with `max` reading `maximium ?? maximum` to absorb the upstream typo) without
+breaking existing variables.
 
 ## Injection
 
@@ -147,6 +154,8 @@ caveat for templated content.
 - **No enable/disable toggle.** The variables are inert until an author references
   them; injecting them always is harmless and one fewer property to persist.
 - **No fonts / typography.** Colors only, per the brief.
+- **No divergent endpoints** (`min`/`center`/`max`). Untyped, undocumented, rarely
+  populated — additive later if a real need appears.
 - **No non-Power-BI shim.** The visual only ever runs inside the host; the Deneb
   shim exists for environments this visual never targets.
 - **No value translation in high contrast.** The author opts in via `.pbi-theme-hc`;
