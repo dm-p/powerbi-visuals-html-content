@@ -267,7 +267,14 @@ export const VisualConstants = {
         // menu / tooltip handling, deferring to their own / native behaviour.
         // Works in every edition because the visual reads the markup itself.
         suppressAttr: 'data-hc-suppress',
-        suppressAllToken: 'all'
+        suppressAllToken: 'all',
+        // Theme CSS variables. The constructor writes a dedicated <style>
+        // (themeVarsIdSelector) holding the :root { --pbi-theme-* } block, and
+        // reflects host high-contrast state as themeHighContrastClass on
+        // documentElement so authors can branch in pure CSS (`.pbi-theme-hc …`).
+        // `hc-` is NOT used: it is this project's html-content token namespace.
+        themeVarsIdSelector: 'pbiThemeVars',
+        themeHighContrastClass: 'pbi-theme-hc'
     },
     diagnostics: {
         dialogId: 'DiagnosticsDialog',
