@@ -156,8 +156,6 @@ caveat for templated content.
 - **No fonts / typography.** Colors only, per the brief.
 - **No divergent endpoints** (`min`/`center`/`max`). Untyped, undocumented, rarely
   populated — additive later if a real need appears.
-- **No non-Power-BI shim.** The visual only ever runs inside the host; the Deneb
-  shim exists for environments this visual never targets.
 - **No value translation in high contrast.** The author opts in via `.pbi-theme-hc`;
   we do not silently rewrite colors.
 - **No update-time refresh** (see Injection assumption).

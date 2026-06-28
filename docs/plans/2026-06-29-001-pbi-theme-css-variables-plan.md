@@ -16,6 +16,7 @@
 - **Sanitizer is already compatible — no sanitizer task needed.** Author content that references `var(--pbi-theme-*)` survives `src/css-sanitizer.ts` untouched: custom properties are walked like any declaration (see its header comment, "CSS custom properties (`--foo`) are covered"), and `var()` is not a denied function and trips none of the `url(`/`expression(`/`-moz-binding(`/`attr(` guards. Our own `:root` block is written directly to a style element we control and never passes through the author sanitizer — it is guarded only by the hex/rgb validation in this plan.
 - **Constructor-re-run assumption.** The design assumes Power BI re-instantiates the visual (new constructor) on a theme/contrast switch. Verified manually in Task 5. If it proves false, the only change is to also call the builder from `update()`; nothing else in the design moves.
 - **No `visual.ts` integration test exists** (every test targets pure modules). We keep that pattern: the builder is fully tested; the constructor glue is verified by typecheck + manual UAT.
+- **CI gates — run before each commit that touches `src/`:** `npm run prettier-check` (gates `src,spec,style` only — `test/` and `test-uat/` are outside the glob) and `npm run eslint` (gates everything). If prettier-check flags the new source file, run `npm run prettier-format` and re-stage. `npm test` auto-selects the certified edition via the `pretest` hook — no manual edition switch needed.
 
 ---
 
@@ -359,6 +360,8 @@ git commit -m "feat(theme): inject --pbi-theme-* vars and HC class in constructo
 - [ ] **Step 1: Create the probe measure**
 
 Create `test-uat/theme-probe.dax`. It is a single self-contained HTML string: a `<style>` block (layout + `.pbi-theme-hc` demo) followed by labelled swatches. Each swatch falls back to `--pbi-theme-fg` then `transparent`, so unset numbered slots (and HC) degrade visibly. Bind this measure to an **HTML Content** visual's data field.
+
+It is committed as a standalone artifact — intentionally **not** wired into `scripts/generate-uat-corpus.ts`. That generator produces the sanitization-regression CSVs from payload matrices; a single static theme probe doesn't belong in it, and `<style>`-in-data is already covered there as sanitization surface 2.
 
 ```dax
 -- UAT probe for the --pbi-theme-* CSS variables (spec 2026-06-29).
