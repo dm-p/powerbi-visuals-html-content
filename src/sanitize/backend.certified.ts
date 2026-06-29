@@ -704,28 +704,19 @@ function withSanitizerHooks<T>(
             }
         );
 
-        // Hook 2: per-element sanitization.
-        //  - If any element has an on* event-handler attribute, drop the
-        //    entire element by removing it from its parent.
-        //  - For <style> tags: run sanitizeCss on the text content as a
-        //    defense-in-depth backstop. preprocessStyleTags already sanitized
-        //    the body via regex extraction, but if the regex was defeated
-        //    (e.g. by a '>' inside an attribute value or an unclosed tag),
-        //    this hook catches the fallthrough. DOMPurify's ADD_TAGS:['style']
-        //    preserves the element — without this hook, an unsanitized body
-        //    would reach the DOM.
+        // Hook 2: <style>-tag backstop. Run sanitizeCss on the text content
+        // as a defense-in-depth backstop. preprocessStyleTags already
+        // sanitized the body via regex extraction, but if the regex was
+        // defeated (e.g. by a '>' inside an attribute value or an unclosed
+        // tag), this hook catches the fallthrough. DOMPurify's
+        // ADD_TAGS:['style'] preserves the element — without this hook, an
+        // unsanitized body would reach the DOM.
         purify.addHook('uponSanitizeElement', (currentNode: Node) => {
-            // Fail-closed envelope. If the element-hook body throws,
-            // remove the element rather than leak it through to the
-            // sanitized output. Style-tag textContent re-sanitization
-            // is the most likely throw site (postcss parse errors on
-            // pathological CSS), and a failed re-sanitize is worse
-            // than dropping the whole <style>.
+            // Fail-closed envelope. If the style re-sanitize throws (postcss
+            // parse errors on pathological CSS), drop the whole <style> rather
+            // than let an unsanitized body through.
             try {
                 if (!currentNode) return;
-
-                // Style-tag backstop: sanitize the text content through postcss
-                // so preprocessStyleTags bypasses don't reach the DOM.
                 if (
                     currentNode.nodeName &&
                     currentNode.nodeName.toLowerCase() === 'style'
@@ -735,13 +726,43 @@ function withSanitizerHooks<T>(
                         const sanitized = sanitizeCss(raw, 'stylesheet');
                         currentNode.textContent = sanitized;
                     }
+                }
+            } catch (err) {
+                console.warn(
+                    'uponSanitizeElement hook error, removing element:',
+                    err
+                );
+                if (currentNode && currentNode.parentNode) {
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+            }
+        });
+
+        // Hook 3: on*-handler element drop. If any element carries an on*
+        // event-handler attribute, drop the ENTIRE element — stricter than
+        // DOMPurify's default of merely stripping the attribute, and a
+        // backstop for any handler name DOMPurify's own allowlist misses.
+        //
+        // This MUST run in afterSanitizeElements, not uponSanitizeElement.
+        // afterSanitizeElements fires only once DOMPurify has already decided
+        // to KEEP the node, so detaching it here can never leave a parentless
+        // node for DOMPurify's own `_forceRemove` to hit. Removing it earlier
+        // (uponSanitizeElement) orphans the node mid-walk; DOMPurify 3.4.x then
+        // throws "a node selected for removal could not be detached" when its
+        // namespace check force-removes the now-rootless SVG child. The on*
+        // attribute is still present at this point (attribute sanitization
+        // runs after element sanitization), so the scan still sees it.
+        purify.addHook('afterSanitizeElements', (currentNode: Node) => {
+            // Fail-closed: any throw drops the element rather than leaking it.
+            try {
+                // Element-only (`.attributes`); text/comment nodes can never
+                // carry event handlers, so early-out is safe.
+                if (
+                    !currentNode ||
+                    currentNode.nodeType !== 1 /* ELEMENT_NODE */
+                ) {
                     return;
                 }
-
-                // The on*-handler check is Element-only (`.attributes`).
-                // Non-element nodes (text/comment) can never carry
-                // event handler attributes, so early-out is safe.
-                if (currentNode.nodeType !== 1 /* ELEMENT_NODE */) return;
                 const element = currentNode as Element;
                 if (!element.attributes) return;
                 for (let i = 0; i < element.attributes.length; i++) {
@@ -760,7 +781,7 @@ function withSanitizerHooks<T>(
                 }
             } catch (err) {
                 console.warn(
-                    'uponSanitizeElement hook error, removing element:',
+                    'afterSanitizeElements hook error, removing element:',
                     err
                 );
                 if (currentNode && currentNode.parentNode) {
