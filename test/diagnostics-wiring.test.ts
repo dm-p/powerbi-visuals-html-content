@@ -21,6 +21,7 @@ vi.mock('powerbi-visuals-utils-interactivityutils', () => ({
 }));
 
 import { Visual } from '../src/visual';
+import { VisualConstants } from '../src/visual-constants';
 
 const buildVisual = (
     hostOverrides: Record<string, any> = {}
@@ -36,6 +37,9 @@ const buildVisual = (
             renderingFailed: () => undefined
         },
         hostCapabilities: { allowModalDialog: false, allowInteractions: false },
+        colorPalette: {
+            isHighContrast: false
+        },
         ...hostOverrides
     };
     const visual = new Visual({ element: root, host } as any);
@@ -97,5 +101,39 @@ describe('diagnostics wiring', () => {
         visual.destroy();
         pressHotkey();
         expect(openModalDialog).not.toHaveBeenCalled();
+    });
+});
+
+// The constructor appends two <style> elements to <head> — the user stylesheet
+// (#visualUserStylesheet, rewritten via .text() on every update) and the
+// theme-vars block (#pbiThemeVars, written once). Both use a remove-before-
+// append guard so re-instantiation (a theme/contrast switch re-runs the
+// constructor in the same document — and tests build many instances in one
+// jsdom document) never accumulates duplicates, and destroy() removes them.
+describe('constructor <head> style hygiene', () => {
+    const ssId = VisualConstants.dom.stylesheetIdSelector;
+    const tvId = VisualConstants.dom.themeVarsIdSelector;
+    const headCount = (id: string): number =>
+        document.head.querySelectorAll('#' + id).length;
+
+    it('keeps exactly one of each across re-instantiation (no accumulation)', () => {
+        const a = buildVisual();
+        const b = buildVisual();
+        const c = buildVisual();
+        expect(headCount(ssId)).toBe(1);
+        expect(headCount(tvId)).toBe(1);
+        // Clean up: detaches each instance's hotkey listener + head <style>.
+        a.visual.destroy();
+        b.visual.destroy();
+        c.visual.destroy();
+    });
+
+    it('destroy() removes the instance head <style> elements', () => {
+        const { visual } = buildVisual();
+        expect(headCount(ssId)).toBe(1);
+        expect(headCount(tvId)).toBe(1);
+        visual.destroy();
+        expect(headCount(ssId)).toBe(0);
+        expect(headCount(tvId)).toBe(0);
     });
 });

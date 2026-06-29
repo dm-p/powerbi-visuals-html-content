@@ -89,6 +89,10 @@ describe('VisualConstants', () => {
             expect(VisualConstants.dom.manualTooltipDataPrefix).toBe('tooltip');
             expect(VisualConstants.dom.manualTooltipDataTitle).toBe('Title');
             expect(VisualConstants.dom.manualTooltipDataValue).toBe('Value');
+            expect(VisualConstants.dom.themeVarsIdSelector).toBe('pbiThemeVars');
+            expect(VisualConstants.dom.themeHighContrastClass).toBe(
+                'pbi-theme-hc'
+            );
         });
     });
 

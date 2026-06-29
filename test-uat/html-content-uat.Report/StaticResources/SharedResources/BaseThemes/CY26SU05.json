@@ -1,5 +1,5 @@
 {
-  "name": "CY25SU11",
+  "name": "CY26SU05",
   "dataColors": [
     "#118DFF",
     "#12239E",
@@ -230,6 +230,13 @@
           {
             "matchSeriesInterpolation": true
           }
+        ],
+        "seriesLabels": [
+          {
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
+          }
         ]
       }
     },
@@ -286,15 +293,6 @@
         "labels": [
           {
             "labelStyle": "Data value, percent of total"
-          }
-        ]
-      }
-    },
-    "tableEx": {
-      "*": {
-        "columnHeaders": [
-          {
-            "columnAdjustment": "growToFit"
           }
         ]
       }
@@ -544,6 +542,15 @@
         ]
       }
     },
+    "listSlicer": {
+      "*": {
+        "layout": [
+          {
+            "showFixedSize": true
+          }
+        ]
+      }
+    },
     "slicer": {
       "*": {
         "general": [
@@ -705,6 +712,13 @@
             "backgroundTransparency": 0,
             "gridLineType": "inner"
           }
+        ],
+        "seriesLabels": [
+          {
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
+          }
         ]
       }
     },
@@ -719,6 +733,13 @@
           {
             "backgroundTransparency": 0,
             "gridLineType": "inner"
+          }
+        ],
+        "seriesLabels": [
+          {
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
           }
         ]
       }
@@ -735,6 +756,14 @@
             "backgroundTransparency": 0,
             "gridLineType": "inner"
           }
+        ],
+        "seriesLabels": [
+          {
+            "backgroundTransparency": 0.9,
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
+          }
         ]
       }
     },
@@ -749,6 +778,14 @@
           {
             "backgroundTransparency": 0,
             "gridLineType": "inner"
+          }
+        ],
+        "seriesLabels": [
+          {
+            "backgroundTransparency": 0.9,
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
           }
         ]
       }
@@ -784,6 +821,13 @@
           {
             "backgroundTransparency": 0,
             "gridLineType": "inner"
+          }
+        ],
+        "seriesLabels": [
+          {
+            "enableBackground": true,
+            "leaderLines": true,
+            "seriesMatchColor": true
           }
         ]
       }

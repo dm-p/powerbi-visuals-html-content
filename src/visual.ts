@@ -23,6 +23,7 @@ import { select, Selection } from 'd3-selection';
 // Internal Dependencies
 import { VisualFormattingSettingsModel } from './visual-settings';
 import { VisualConstants } from './visual-constants';
+import { buildThemeVariablesCss } from './theme-variables';
 import { ViewModelHandler, IHtmlEntry, IViewModel } from './view-model';
 import {
     getParsedHtmlAsDom,
@@ -94,6 +95,10 @@ export class Visual implements IVisual {
     private landingPageHandler: LandingPageHandler;
     // Manages custom styling from the user
     private styleSheetContainer: Selection<HTMLStyleElement, any, any, any>;
+    // Holds the :root { --pbi-theme-* } block (written once in the constructor).
+    // Retained so destroy() can remove it; also re-resolved each construct so a
+    // re-instantiation never leaves a duplicate behind (see constructor).
+    private themeVarsContainer: Selection<HTMLStyleElement, any, any, any>;
     // Interactivity for data points
     private interactivity: IInteractivityService<SelectableDataPoint>;
     // Behavior of data points
@@ -153,11 +158,34 @@ export class Visual implements IVisual {
                 this.host
             );
         this.behavior = new BehaviorManager();
+        // Remove any prior #visualUserStylesheet before appending — same
+        // accumulation guard as the theme-vars element below (a re-instantiation
+        // in the same document, or repeated builds in a shared test document).
+        select('head')
+            .select('#' + VisualConstants.dom.stylesheetIdSelector)
+            .remove();
         this.styleSheetContainer = select('head')
             .append('style')
             .attr('id', VisualConstants.dom.stylesheetIdSelector)
             .attr('name', VisualConstants.dom.stylesheetIdSelector)
             .attr('type', 'text/css');
+        // Expose the host theme palette as --pbi-theme-* custom properties for
+        // authors to consume in content / custom stylesheet. Written once: a
+        // theme or contrast switch re-runs the constructor, refreshing this.
+        // This <style> is intentionally separate from styleSheetContainer,
+        // which resolveStyling() overwrites on every update.
+        // Remove any prior #pbiThemeVars before appending, so the element never
+        // accumulates: a theme/contrast switch re-instantiates the visual in the
+        // same document, and a shared test document builds many instances. Held
+        // in a field so destroy() can clean it up.
+        select('head')
+            .select('#' + VisualConstants.dom.themeVarsIdSelector)
+            .remove();
+        this.themeVarsContainer = select('head')
+            .append('style')
+            .attr('id', VisualConstants.dom.themeVarsIdSelector)
+            .attr('type', 'text/css')
+            .text(buildThemeVariablesCss(this.host.colorPalette));
         this.landingContainer = this.container
             .append('div')
             .attr('id', VisualConstants.dom.landingIdSelector);
@@ -168,6 +196,18 @@ export class Visual implements IVisual {
             .append('div')
             .attr('tabindex', 0)
             .attr('id', VisualConstants.dom.contentIdSelector);
+        // Declarative high-contrast signal: authors branch with `.pbi-theme-hc`
+        // in pure CSS (no scripting; certified-edition safe). Set on #htmlContent
+        // (not documentElement) so it is also the serialized root of "Show raw
+        // HTML" — surfacing the cue as `<div id="htmlContent" class="pbi-theme-hc">`
+        // when authors debug their markup. #htmlContent is still an ancestor of
+        // all rendered content, so `.pbi-theme-hc .foo` selectors keep matching.
+        // Values themselves are honest pass-through — the author decides how to
+        // adapt. Re-evaluated each constructor (theme/contrast switch re-runs it).
+        this.contentContainer.classed(
+            VisualConstants.dom.themeHighContrastClass,
+            !!this.host.colorPalette.isHighContrast
+        );
         this.formattingSettingsService = new FormattingSettingsService(
             this.localisationManager
         );
@@ -533,10 +573,14 @@ export class Visual implements IVisual {
     /**
      * Power BI calls destroy() when the visual instance is torn down. Detach the
      * document-level keydown listener so a disposed instance can't react to
-     * Ctrl/Cmd+D (the handler closes over `this`).
+     * Ctrl/Cmd+D (the handler closes over `this`), and remove the two <style>
+     * elements this instance appended to <head> (the user stylesheet and the
+     * theme-vars block) so they don't outlive the visual.
      */
     public destroy(): void {
         this.removeHotkeyListener?.();
+        this.styleSheetContainer?.remove();
+        this.themeVarsContainer?.remove();
     }
 
     /** Assemble a bounded snapshot and open the host modal dialog. */
