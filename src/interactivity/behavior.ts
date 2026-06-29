@@ -108,7 +108,12 @@ export class BehaviorManager<
     handleContextMenu(event: MouseEvent, d: IHtmlEntry | null) {
         // Always preventDefault so the browser's native menu never appears.
         event.preventDefault();
-        if (!resolveInteractivity(event.target as Element | null, 'context-menu')) {
+        if (
+            !resolveInteractivity(
+                event.target as Element | null,
+                'context-menu'
+            )
+        ) {
             // Inert region: show neither our drill menu nor the native one, and
             // stop the event bubbling to ancestor (clear-catcher / host) handlers.
             event.stopPropagation();
@@ -138,7 +143,12 @@ export class BehaviorManager<
         } = this.options;
         clearCatcherSelection.on('click', (event) => {
             if (hasCrossFiltering) {
-                if (!resolveInteractivity(event.target as Element | null, 'filter')) {
+                if (
+                    !resolveInteractivity(
+                        event.target as Element | null,
+                        'filter'
+                    )
+                ) {
                     return; // inert region — don't clear
                 }
                 event.preventDefault();
