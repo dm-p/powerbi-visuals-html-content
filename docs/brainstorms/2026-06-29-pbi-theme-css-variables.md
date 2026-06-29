@@ -139,16 +139,25 @@ variables it pairs with.
 
 ## UAT corpus
 
-A committed `.dax` snippet — a single measure returning an HTML swatch grid — that
-drops into the UAT workbook's model and recolors live on theme switch.
+A `Theme Color Probe` measure in the UAT semantic model (`stylesheet` table of
+`test-uat/html-content-uat.SemanticModel`) returning an HTML swatch grid, bound to
+an **HTML Content** visual and recoloring live on theme switch. It supersedes the
+earlier standalone `test-uat/theme-probe.dax` (removed once the measure was added
+to the workbook).
 
-- One labelled swatch per variable: a fixed numbered probe range
-  (`--pbi-theme-color-1` … `-12`) plus every named variable.
+- One labelled swatch per variable, grouped into four `flex-wrap` sections that
+  reflow on resize: **Theme colors** (`--pbi-theme-color-1` … `-12`),
+  **Sentiment colors** (`good`/`bad`/`neutral`), **Divergent colors**
+  (`min`/`center`/`max`), and **Other colors** (the structural set).
 - Each swatch uses a fallback chain so unset slots degrade visibly rather than
   rendering nothing:
   `background: var(--pbi-theme-color-3, var(--pbi-theme-fg, transparent))`.
-- Ships with a small layout stylesheet snippet that is `.pbi-theme-hc`-aware, so
-  toggling Windows high contrast doubles as a visual check of the signal.
+- The layout is `.pbi-theme-hc`-aware, so toggling Windows high contrast doubles
+  as a visual check of the signal.
+- **Verified via the Desktop Bridge** (TOM measure edit + reload/screenshot)
+  against the `CY25SU11` theme in both editions: every variable populates,
+  including the divergent `min`/`center`/`max` — confirming the runtime
+  `host.colorPalette` exposes the divergent members.
 - **Limitation by design:** CSS cannot print a variable's resolved hex as text
   (there is no var→text). The corpus debugs colors **visually** (swatch + label),
   not as hex strings. For exact values, authors use DevTools or the diagnostics

@@ -17,6 +17,11 @@
 > `maximium ?? maximum`). The builder's `NAMED` entries now map a suffix to a list
 > of candidate members (first present-and-valid wins). The **spec is the source of
 > truth** for the final contract; the Task 2/4 snippets below are pre-amendment.
+>
+> The Task 4 UAT probe also moved: the standalone `test-uat/theme-probe.dax` was
+> removed and the probe now lives as the `Theme Color Probe` measure in the UAT
+> semantic model (`stylesheet` table), redesigned into four `flex-wrap` sections
+> (Theme / Sentiment / Divergent / Other) and verified via the Desktop Bridge.
 
 ---
 

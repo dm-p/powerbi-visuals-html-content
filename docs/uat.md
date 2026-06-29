@@ -158,9 +158,10 @@ properties (numbered `--pbi-theme-color-1…N` plus curated named colors such as
 Variable names mirror the JSON theme schema keys. Authors consume them directly
 in content or the Custom stylesheet — no need to hard-code hex values.
 
-**Probe:** add the measure in `test-uat/theme-probe.dax` to the semantic model and
-bind it to an **HTML Content** visual. It renders a labelled swatch grid driven
-entirely by the variables.
+**Probe:** the `Theme Color Probe` measure (in the `stylesheet` table of the UAT
+semantic model) is bound to the **HTML Content** visuals on the **Theme Tokens**
+page. It renders a labelled swatch grid — four `flex-wrap` sections (Theme,
+Sentiment, Divergent, Other) — driven entirely by the variables.
 
 Verify:
 
