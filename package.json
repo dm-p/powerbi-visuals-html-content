@@ -30,8 +30,8 @@
     "devDependencies": {
         "@playwright/test": "^1.61.1",
         "@types/d3-selection": "^3.0.11",
-        "@types/jsdom": "^27.0.0",
-        "@types/node": "^20.19.28",
+        "@types/jsdom": "^28.0.3",
+        "@types/node": "^24.13.2",
         "@types/overlayscrollbars": "^1.12.5",
         "@types/pretty": "^2.0.3",
         "@vitest/ui": "^4.1.9",
@@ -39,7 +39,7 @@
         "dompurify": "^3.4.11",
         "eslint": "^10.6.0",
         "eslint-plugin-powerbi-visuals": "^1.1.1",
-        "jsdom": "^27.4.0",
+        "jsdom": "^29.1.1",
         "marked": "^18.0.5",
         "overlayscrollbars": "^1.13.3",
         "postcss": "^8.5.16",
@@ -52,9 +52,9 @@
         "powerbi-visuals-utils-interactivityutils": "^6.0.4",
         "prettier": "~3.8.3",
         "pretty": "^2.0.0",
-        "ts-loader": "6.1.0",
+        "ts-loader": "^9.6.2",
         "tsx": "^4.22.4",
-        "typescript": "^5.4.3",
+        "typescript": "^5.9.3",
         "vitest": "^4.1.9"
     }
 }
