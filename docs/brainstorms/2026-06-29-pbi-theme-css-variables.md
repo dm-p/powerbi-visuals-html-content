@@ -111,9 +111,13 @@ Values are **honest pass-through** — variables always carry their true palette
 value, never a translated one. The decision to adapt for high contrast belongs to
 the author, who is given a declarative signal to act on.
 
-- The constructor reflects `colorPalette.isHighContrast` onto `documentElement`
-  as the class **`pbi-theme-hc`** (a single `classList.toggle('pbi-theme-hc', isHC)`).
-  Present only in high-contrast mode.
+- The constructor reflects `colorPalette.isHighContrast` onto the **`#htmlContent`**
+  container as the class **`pbi-theme-hc`** (a single `.classed('pbi-theme-hc', isHC)`).
+  Present only in high-contrast mode. `#htmlContent` (not `documentElement`) is
+  chosen deliberately: it is the serialized root of the **Show raw HTML** debug
+  view, so the cue appears as `<div id="htmlContent" class="pbi-theme-hc">` when an
+  author inspects their markup. It remains an ancestor of all rendered content, so
+  `.pbi-theme-hc .foo` author selectors still match.
 - Authors branch in **pure CSS** — no scripting, certified-edition safe:
 
   ```css

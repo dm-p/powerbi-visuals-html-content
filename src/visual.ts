@@ -169,13 +169,6 @@ export class Visual implements IVisual {
             .attr('id', VisualConstants.dom.themeVarsIdSelector)
             .attr('type', 'text/css')
             .text(buildThemeVariablesCss(this.host.colorPalette));
-        // Declarative high-contrast signal: authors branch with `.pbi-theme-hc`
-        // in pure CSS (no scripting; certified-edition safe). Values themselves
-        // are honest pass-through — the author decides how to adapt.
-        document.documentElement.classList.toggle(
-            VisualConstants.dom.themeHighContrastClass,
-            !!this.host.colorPalette.isHighContrast
-        );
         this.landingContainer = this.container
             .append('div')
             .attr('id', VisualConstants.dom.landingIdSelector);
@@ -186,6 +179,18 @@ export class Visual implements IVisual {
             .append('div')
             .attr('tabindex', 0)
             .attr('id', VisualConstants.dom.contentIdSelector);
+        // Declarative high-contrast signal: authors branch with `.pbi-theme-hc`
+        // in pure CSS (no scripting; certified-edition safe). Set on #htmlContent
+        // (not documentElement) so it is also the serialized root of "Show raw
+        // HTML" — surfacing the cue as `<div id="htmlContent" class="pbi-theme-hc">`
+        // when authors debug their markup. #htmlContent is still an ancestor of
+        // all rendered content, so `.pbi-theme-hc .foo` selectors keep matching.
+        // Values themselves are honest pass-through — the author decides how to
+        // adapt. Re-evaluated each constructor (theme/contrast switch re-runs it).
+        this.contentContainer.classed(
+            VisualConstants.dom.themeHighContrastClass,
+            !!this.host.colorPalette.isHighContrast
+        );
         this.formattingSettingsService = new FormattingSettingsService(
             this.localisationManager
         );
