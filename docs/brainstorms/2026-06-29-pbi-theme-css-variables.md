@@ -149,10 +149,12 @@ an **HTML Content** visual and recoloring live on theme switch. It supersedes th
 earlier standalone `test-uat/theme-probe.dax` (removed once the measure was added
 to the workbook).
 
-- One labelled swatch per variable, grouped into four `flex-wrap` sections that
+- One labelled swatch per variable, grouped into five `flex-wrap` sections that
   reflow on resize: **Theme colors** (`--pbi-theme-color-1` … `-12`),
   **Sentiment colors** (`good`/`bad`/`neutral`), **Divergent colors**
-  (`min`/`center`/`max`), and **Other colors** (the structural set).
+  (`min`/`center`/`max`), **High contrast colors** (the four MS-documented HC-safe
+  colors: `fg`/`bg`/`fg-selected`/`hyperlink`, for eyeballing under Windows high
+  contrast), and **Other colors** (the remaining structural set).
 - Each swatch uses a fallback chain so unset slots degrade visibly rather than
   rendering nothing:
   `background: var(--pbi-theme-color-3, var(--pbi-theme-fg, transparent))`.

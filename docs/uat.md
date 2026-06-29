@@ -160,8 +160,8 @@ in content or the Custom stylesheet — no need to hard-code hex values.
 
 **Probe:** the `Theme Color Probe` measure (in the `stylesheet` table of the UAT
 semantic model) is bound to the **HTML Content** visuals on the **Theme Tokens**
-page. It renders a labelled swatch grid — four `flex-wrap` sections (Theme,
-Sentiment, Divergent, Other) — driven entirely by the variables.
+page. It renders a labelled swatch grid — five `flex-wrap` sections (Theme,
+Sentiment, Divergent, High contrast, Other) — driven entirely by the variables.
 
 Verify:
 

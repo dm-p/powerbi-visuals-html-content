@@ -20,8 +20,9 @@
 >
 > The Task 4 UAT probe also moved: the standalone `test-uat/theme-probe.dax` was
 > removed and the probe now lives as the `Theme Color Probe` measure in the UAT
-> semantic model (`stylesheet` table), redesigned into four `flex-wrap` sections
-> (Theme / Sentiment / Divergent / Other) and verified via the Desktop Bridge.
+> semantic model (`stylesheet` table), redesigned into five `flex-wrap` sections
+> (Theme / Sentiment / Divergent / High contrast / Other) and verified via the
+> Desktop Bridge.
 
 ---
 
