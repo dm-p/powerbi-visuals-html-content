@@ -115,7 +115,7 @@ owasp-script-img-onerror,OWASP: img with onerror.,malicious,owasp,script-src,OWA
 owasp-script-img-javascript-href,OWASP: image with javascript: href via dynsrc.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<IMG DYNSRC=""javascript:alert('XSS')"">",<img>
 owasp-bgsound,OWASP: BGSOUND element.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<BGSOUND SRC=""javascript:alert('XSS')"">",
 owasp-svg-onload,OWASP: svg onload.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<svg onload=""alert(1)"">",
-owasp-marquee,OWASP: marquee with onstart.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<marquee onstart=""alert(1)"">x</marquee>",
+owasp-marquee,OWASP: marquee with onstart.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<marquee onstart=""alert(1)"">x</marquee>",x
 owasp-style-expression,OWASP: style expression() (legacy IE).,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<div style=""width: expression(alert(1))"">x</div>",<div>x</div>
 owasp-meta-charset,OWASP: meta charset utf-7 attack.,malicious,owasp,default-src,OWASP XSS Filter Evasion,"<META HTTP-EQUIV=""Content-Type"" CONTENT=""text/html; charset=UTF-7"">",
 owasp-isindex,OWASP: ISINDEX action.,malicious,owasp,script-src,OWASP XSS Filter Evasion,"<ISINDEX TYPE=IMAGE SRC=""javascript:alert('XSS')"">",
