@@ -303,6 +303,20 @@ const isInPlaceSanitizableRoot = (el: Element): boolean => {
  * here verbatim from the former getSanitizedContent body. Do not change
  * a rule here without changing the frozen sanitizer policy on purpose.
  */
+/**
+ * If `element` carries any `on*` event-handler attribute, return that
+ * attribute's name; otherwise null. Shared by the two-phase on*-element
+ * drop (empty-in-`uponSanitizeElement` + remove-in-`afterSanitizeElements`).
+ */
+const eventHandlerAttrName = (element: Element): string | null => {
+    if (!element.attributes) return null;
+    for (let i = 0; i < element.attributes.length; i++) {
+        const name = element.attributes[i].name;
+        if (/^on[a-z]+$/i.test(name)) return name;
+    }
+    return null;
+};
+
 function withSanitizerHooks<T>(
     run: (purify: DOMPurifyType) => T,
     options?: SanitizeOptions
@@ -727,6 +741,28 @@ function withSanitizerHooks<T>(
                         currentNode.textContent = sanitized;
                     }
                 }
+
+                // on*-handler container: EMPTY the subtree here — before
+                // DOMPurify's disallowed-tag KEEP_CONTENT hoist can lift a
+                // child out of the element. Phase 1 of the two-phase
+                // event-handler-element drop (phase 2 removes the element in
+                // afterSanitizeElements). Without this, a disallowed container
+                // like `<marquee onstart="…">x</marquee>` has its `x` hoisted
+                // to the parent before phase 2 runs, so the strict
+                // "drop the ENTIRE element + content" rule would leak the
+                // child content. Emptying (vs detaching the element) keeps
+                // `currentNode` parented through the rest of the element walk,
+                // so DOMPurify's own namespace/forced-removal checks never hit
+                // a parentless node — the 3.4.x "could not be detached" throw
+                // that a direct removeChild here would trigger on an SVG child.
+                if (currentNode.nodeType === 1 /* ELEMENT_NODE */) {
+                    const el = currentNode as Element;
+                    if (eventHandlerAttrName(el)) {
+                        while (el.firstChild) {
+                            el.removeChild(el.firstChild);
+                        }
+                    }
+                }
             } catch (err) {
                 console.warn(
                     'uponSanitizeElement hook error, removing element:',
@@ -738,20 +774,23 @@ function withSanitizerHooks<T>(
             }
         });
 
-        // Hook 3: on*-handler element drop. If any element carries an on*
-        // event-handler attribute, drop the ENTIRE element — stricter than
-        // DOMPurify's default of merely stripping the attribute, and a
-        // backstop for any handler name DOMPurify's own allowlist misses.
+        // Hook 3: on*-handler element drop — phase 2. If any element carries
+        // an on* event-handler attribute, drop the ENTIRE element (its subtree
+        // was already emptied in phase 1, above) — stricter than DOMPurify's
+        // default of merely stripping the attribute, and a backstop for any
+        // handler name DOMPurify's own allowlist misses.
         //
-        // This MUST run in afterSanitizeElements, not uponSanitizeElement.
-        // afterSanitizeElements fires only once DOMPurify has already decided
-        // to KEEP the node, so detaching it here can never leave a parentless
-        // node for DOMPurify's own `_forceRemove` to hit. Removing it earlier
-        // (uponSanitizeElement) orphans the node mid-walk; DOMPurify 3.4.x then
-        // throws "a node selected for removal could not be detached" when its
-        // namespace check force-removes the now-rootless SVG child. The on*
-        // attribute is still present at this point (attribute sanitization
-        // runs after element sanitization), so the scan still sees it.
+        // The actual removeChild runs in afterSanitizeElements, not
+        // uponSanitizeElement: afterSanitizeElements fires only once DOMPurify
+        // has decided to KEEP the node, so detaching it here can never leave a
+        // parentless node for DOMPurify's own `_forceRemove` to hit. Detaching
+        // earlier orphans the node mid-walk; DOMPurify 3.4.x then throws
+        // "a node selected for removal could not be detached" when its
+        // namespace check force-removes the now-rootless SVG child. (A
+        // disallowed container is instead removed by DOMPurify itself before
+        // this hook fires — harmless, because phase 1 already emptied it.) The
+        // on* attribute is still present here (attribute sanitization runs
+        // after element sanitization), so the scan still sees it.
         purify.addHook('afterSanitizeElements', (currentNode: Node) => {
             // Fail-closed: any throw drops the element rather than leaking it.
             try {
@@ -764,19 +803,15 @@ function withSanitizerHooks<T>(
                     return;
                 }
                 const element = currentNode as Element;
-                if (!element.attributes) return;
-                for (let i = 0; i < element.attributes.length; i++) {
-                    const attr = element.attributes[i];
-                    if (/^on[a-z]+$/i.test(attr.name)) {
-                        recordRemoval({
-                            kind: 'element',
-                            subject: `<${element.nodeName.toLowerCase()}> (${attr.name})`,
-                            rule: 'event-handler'
-                        });
-                        if (element.parentNode) {
-                            element.parentNode.removeChild(element);
-                        }
-                        return;
+                const handler = eventHandlerAttrName(element);
+                if (handler) {
+                    recordRemoval({
+                        kind: 'element',
+                        subject: `<${element.nodeName.toLowerCase()}> (${handler})`,
+                        rule: 'event-handler'
+                    });
+                    if (element.parentNode) {
+                        element.parentNode.removeChild(element);
                     }
                 }
             } catch (err) {

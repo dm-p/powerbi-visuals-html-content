@@ -1984,7 +1984,7 @@ Representative entries from the OWASP XSS Filter Evasion list.
 **Output:**
 
 ```html
-x
+(empty — entire input was dropped)
 ```
 
 #### OWASP: style expression() (legacy IE).

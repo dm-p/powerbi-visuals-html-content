@@ -328,6 +328,58 @@ describe('sanitize-pipeline end-to-end', () => {
         });
     });
 
+    // An element carrying an on* handler is dropped ENTIRELY — element AND
+    // its subtree — not merely stripped of the handler attribute. These
+    // assert the *content* is gone, which `notContains: ['on…']` corpus
+    // entries do not (they pass even if the child content survives). Phase 1
+    // of the drop empties the subtree in uponSanitizeElement so a DISALLOWED
+    // container's children cannot be hoisted out by DOMPurify's KEEP_CONTENT
+    // before phase 2 removes the element in afterSanitizeElements.
+    describe('event-handler element drop (whole subtree)', () => {
+        it('drops a disallowed container and its text (marquee)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<marquee onstart="alert(1)">SECRET</marquee>',
+                'html'
+            );
+            expect(out).not.toContain('onstart');
+            expect(out).not.toContain('alert');
+            // The text content must NOT survive via KEEP_CONTENT hoisting.
+            expect(out).not.toContain('SECRET');
+        });
+
+        it('drops an allowed container and its text (div)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<div onclick="evil()">SECRET</div>',
+                'html'
+            );
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('SECRET');
+        });
+
+        it('drops the whole subtree, including nested elements', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<marquee onstart="x"><a href="https://e.example/">LINK</a></marquee>',
+                'html'
+            );
+            expect(out).not.toContain('onstart');
+            expect(out).not.toContain('LINK');
+            expect(out).not.toContain('e.example');
+        });
+
+        it('drops an on*-bearing SVG child without throwing', () => {
+            // Regression guard for the DOMPurify 3.4.x parentless-removal
+            // throw: emptying (not detaching) in phase 1 keeps the node
+            // parented through the namespace check.
+            const out = getSanitizedHtmlForTesting(
+                '<svg><rect onclick="alert(1)" width="10" height="10"><title>SECRET</title></rect></svg>',
+                'html'
+            );
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('SECRET');
+        });
+    });
+
     describe('getSanitizedCss direct', () => {
         it('preserves safe rule', () => {
             const out = getSanitizedCss('p { color: red; }');
