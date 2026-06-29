@@ -158,6 +158,12 @@ export class Visual implements IVisual {
                 this.host
             );
         this.behavior = new BehaviorManager();
+        // Remove any prior #visualUserStylesheet before appending — same
+        // accumulation guard as the theme-vars element below (a re-instantiation
+        // in the same document, or repeated builds in a shared test document).
+        select('head')
+            .select('#' + VisualConstants.dom.stylesheetIdSelector)
+            .remove();
         this.styleSheetContainer = select('head')
             .append('style')
             .attr('id', VisualConstants.dom.stylesheetIdSelector)
@@ -567,11 +573,13 @@ export class Visual implements IVisual {
     /**
      * Power BI calls destroy() when the visual instance is torn down. Detach the
      * document-level keydown listener so a disposed instance can't react to
-     * Ctrl/Cmd+D (the handler closes over `this`), and remove the theme-vars
-     * <style> this instance appended to <head> so it doesn't outlive the visual.
+     * Ctrl/Cmd+D (the handler closes over `this`), and remove the two <style>
+     * elements this instance appended to <head> (the user stylesheet and the
+     * theme-vars block) so they don't outlive the visual.
      */
     public destroy(): void {
         this.removeHotkeyListener?.();
+        this.styleSheetContainer?.remove();
         this.themeVarsContainer?.remove();
     }
 
