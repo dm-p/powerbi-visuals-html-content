@@ -8,6 +8,16 @@
 
 **Tech Stack:** TypeScript, d3-selection (already used for the existing `<style>` element), vitest (jsdom), `powerbi-visuals-api` types.
 
+> **Post-implementation amendment (2026-06-29):** after a naming audit against the
+> theme JSON schema (`test-uat/.../BaseThemes/CY25SU11.json`), the named contract
+> changed from what the Task 2/4 code blocks below show. Sentiment variables were
+> renamed to mirror the JSON keys — `--pbi-theme-positive`/`-negative` → **`--pbi-theme-good`/`-bad`**
+> (still reading the runtime `positive`/`negative` members) — and the **divergent
+> endpoints `--pbi-theme-min` / `-center` / `-max` were added** (`max` reads
+> `maximium ?? maximum`). The builder's `NAMED` entries now map a suffix to a list
+> of candidate members (first present-and-valid wins). The **spec is the source of
+> truth** for the final contract; the Task 2/4 snippets below are pre-amendment.
+
 ---
 
 ## Pre-flight notes (read once, no action)

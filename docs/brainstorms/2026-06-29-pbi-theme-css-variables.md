@@ -60,20 +60,32 @@ naturally handles sparse high-contrast palettes and missing extension members.
 | `--pbi-theme-bg-neutral` | `colorPalette.backgroundNeutral` |
 | `--pbi-theme-fg-selected` | `colorPalette.foregroundSelected` |
 | `--pbi-theme-hyperlink` | `colorPalette.hyperlink` |
-| `--pbi-theme-positive` | `colorPalette.positive` |
-| `--pbi-theme-negative` | `colorPalette.negative` |
+| `--pbi-theme-good` | `colorPalette.positive` |
+| `--pbi-theme-bad` | `colorPalette.negative` |
 | `--pbi-theme-neutral` | `colorPalette.neutral` |
+| `--pbi-theme-min` | `colorPalette.minimum` |
+| `--pbi-theme-center` | `colorPalette.center` |
+| `--pbi-theme-max` | `colorPalette.maximium ?? colorPalette.maximum` |
 
-The sentiment members `positive` / `negative` / `neutral` **are** declared on
-`ISandboxExtendedColorPalette` (as optional) — no cast needed, just the
-emit-only-if-present guard.
+**Variable names mirror the JSON theme-schema keys** (what a theme author sees in
+the theme file), not the runtime palette member names where the two differ:
 
-**Divergent endpoints (`min` / `center` / `max`) are deliberately excluded.**
-They are not declared in the API at all (not even optionally), are undocumented,
-and are rarely populated by real themes — speculative surface on a permanent public
-contract. If a concrete need appears later, they can be added (via a Deneb-style
-cast, with `max` reading `maximium ?? maximum` to absorb the upstream typo) without
-breaking existing variables.
+- **Sentiment:** the theme JSON uses `good` / `bad` / `neutral`; the runtime
+  palette members are `positive` / `negative` / `neutral`. We read the runtime
+  members but name the variables `--pbi-theme-good` / `-bad` / `-neutral`. (Both
+  the theme-editor UI and the runtime API say "positive/negative", so this is a
+  deliberate choice to follow the JSON schema — consistent with `center` below.)
+- **Divergent:** `--pbi-theme-center` matches the JSON key exactly; `--pbi-theme-min`
+  / `-max` trim `minimum` / `maximum` to match the `fg` / `bg` convention.
+
+Typing notes: `positive` / `negative` / `neutral` are declared on
+`ISandboxExtendedColorPalette` (optional) — no cast. The divergent members
+(`minimum` / `center` / `maximium`) are **not** on the typed interface and are
+reached via the same narrow cast used for `colors[]`. `--pbi-theme-max` reads
+`maximium ?? maximum`: the runtime object historically carries the upstream
+`maximium` typo, while the theme JSON uses the correct `maximum`. Every member is
+still emitted only when present and valid, so a theme that omits any of these just
+skips the variable.
 
 ## Injection
 
@@ -154,8 +166,8 @@ caveat for templated content.
 - **No enable/disable toggle.** The variables are inert until an author references
   them; injecting them always is harmless and one fewer property to persist.
 - **No fonts / typography.** Colors only, per the brief.
-- **No divergent endpoints** (`min`/`center`/`max`). Untyped, undocumented, rarely
-  populated — additive later if a real need appears.
+- **No `tableAccent` / `visitedHyperlink` / `null` (empty) colors.** Present in the
+  theme schema but out of scope for the first cut; additive later if asked.
 - **No value translation in high contrast.** The author opts in via `.pbi-theme-hc`;
   we do not silently rewrite colors.
 - **No update-time refresh** (see Injection assumption).

@@ -154,8 +154,9 @@ The maintainers will add a corresponding entry to the regression corpus so the s
 
 The visual exposes the host theme's colors as `--pbi-theme-*` CSS custom
 properties (numbered `--pbi-theme-color-1…N` plus curated named colors such as
-`--pbi-theme-fg`, `--pbi-theme-bg`, `--pbi-theme-positive`). Authors consume them
-directly in content or the Custom stylesheet — no need to hard-code hex values.
+`--pbi-theme-fg`, `--pbi-theme-bg`, `--pbi-theme-good`, `--pbi-theme-center`).
+Variable names mirror the JSON theme schema keys. Authors consume them directly
+in content or the Custom stylesheet — no need to hard-code hex values.
 
 **Probe:** add the measure in `test-uat/theme-probe.dax` to the semantic model and
 bind it to an **HTML Content** visual. It renders a labelled swatch grid driven

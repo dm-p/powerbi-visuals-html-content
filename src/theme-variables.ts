@@ -16,22 +16,33 @@ interface PaletteColors {
     colors?: { value?: string }[];
 }
 
-// Curated named contract: variable suffix → palette member name. Order is the
-// public contract order. Sentiment members are optional on the interface and
-// simply absent on themes that don't define them (the guard below skips them).
-// Divergent endpoints (min/center/max) are deliberately excluded — see spec.
-const NAMED: { suffix: string; member: string }[] = [
-    { suffix: 'fg', member: 'foreground' },
-    { suffix: 'fg-neutral-secondary', member: 'foregroundNeutralSecondary' },
-    { suffix: 'fg-neutral-tertiary', member: 'foregroundNeutralTertiary' },
-    { suffix: 'bg', member: 'background' },
-    { suffix: 'bg-light', member: 'backgroundLight' },
-    { suffix: 'bg-neutral', member: 'backgroundNeutral' },
-    { suffix: 'fg-selected', member: 'foregroundSelected' },
-    { suffix: 'hyperlink', member: 'hyperlink' },
-    { suffix: 'positive', member: 'positive' },
-    { suffix: 'negative', member: 'negative' },
-    { suffix: 'neutral', member: 'neutral' }
+// Curated named contract: CSS variable suffix → the host palette member(s) to
+// read (first present & valid wins). Order is the public contract order. A
+// member that a theme doesn't define is simply absent and skipped.
+//
+// Variable names mirror the JSON theme schema keys, which is what theme authors
+// see (e.g. `good`/`bad`/`center`), even where the runtime palette member we
+// read is spelled differently — sentiment is `positive`/`negative` on the
+// runtime object but `good`/`bad` in the theme JSON. `max` lists the upstream
+// `maximium` typo first, then the correct `maximum` (the theme JSON spelling).
+const NAMED: { suffix: string; members: string[] }[] = [
+    { suffix: 'fg', members: ['foreground'] },
+    { suffix: 'fg-neutral-secondary', members: ['foregroundNeutralSecondary'] },
+    { suffix: 'fg-neutral-tertiary', members: ['foregroundNeutralTertiary'] },
+    { suffix: 'bg', members: ['background'] },
+    { suffix: 'bg-light', members: ['backgroundLight'] },
+    { suffix: 'bg-neutral', members: ['backgroundNeutral'] },
+    { suffix: 'fg-selected', members: ['foregroundSelected'] },
+    { suffix: 'hyperlink', members: ['hyperlink'] },
+    // Sentiment — JSON theme keys good/bad/neutral; runtime members
+    // positive/negative/neutral. Read the runtime member, name after the JSON.
+    { suffix: 'good', members: ['positive'] },
+    { suffix: 'bad', members: ['negative'] },
+    { suffix: 'neutral', members: ['neutral'] },
+    // Divergent endpoints.
+    { suffix: 'min', members: ['minimum'] },
+    { suffix: 'center', members: ['center'] },
+    { suffix: 'max', members: ['maximium', 'maximum'] }
 ];
 
 // Trust-boundary guard: only hex (#rgb/#rgba/#rrggbb/#rrggbbaa) or rgb()/rgba()
@@ -60,11 +71,15 @@ export function buildThemeVariablesCss(
         });
     }
 
-    // Curated named colors — emit only when present and valid.
+    // Curated named colors — first present-and-valid member wins; emit only if
+    // one resolves (so themes that omit a member, or a build without the typo'd
+    // key, just skip it).
     const bag = palette as unknown as Record<string, { value?: string }>;
-    for (const { suffix, member } of NAMED) {
-        const info = bag[member];
-        if (info && isValidColorValue(info.value)) {
+    for (const { suffix, members } of NAMED) {
+        const info = members
+            .map((m) => bag[m])
+            .find((v) => v && isValidColorValue(v.value));
+        if (info) {
             decls.push(`--pbi-theme-${suffix}: ${info.value};`);
         }
     }

@@ -48,21 +48,42 @@ describe('buildThemeVariablesCss', () => {
         expect(css.startsWith(':root {')).toBe(true);
     });
 
-    it('emits curated named colors, including optional sentiment', () => {
+    it('emits curated named colors: sentiment named after JSON schema, plus divergent', () => {
         const css = buildThemeVariablesCss(
             palette({
                 foreground: { value: '#000000' },
                 background: { value: '#ffffff' },
                 foregroundSelected: { value: '#0078d4' },
                 hyperlink: { value: '#0563c1' },
-                positive: { value: '#107c10' }
+                // runtime members are positive/negative; vars are good/bad
+                positive: { value: '#107c10' },
+                negative: { value: '#d64550' },
+                neutral: { value: '#d9b300' },
+                minimum: { value: '#deefff' },
+                center: { value: '#d9b300' }
             })
         );
         expect(css).toContain('--pbi-theme-fg: #000000;');
         expect(css).toContain('--pbi-theme-bg: #ffffff;');
         expect(css).toContain('--pbi-theme-fg-selected: #0078d4;');
         expect(css).toContain('--pbi-theme-hyperlink: #0563c1;');
-        expect(css).toContain('--pbi-theme-positive: #107c10;');
+        expect(css).toContain('--pbi-theme-good: #107c10;');
+        expect(css).toContain('--pbi-theme-bad: #d64550;');
+        expect(css).toContain('--pbi-theme-neutral: #d9b300;');
+        expect(css).toContain('--pbi-theme-min: #deefff;');
+        expect(css).toContain('--pbi-theme-center: #d9b300;');
+        // sentiment vars mirror the JSON theme keys, not the runtime members
+        expect(css).not.toContain('--pbi-theme-positive');
+        expect(css).not.toContain('--pbi-theme-negative');
+    });
+
+    it('reads the maximium typo, then the corrected maximum, for --pbi-theme-max', () => {
+        expect(
+            buildThemeVariablesCss(palette({ maximium: { value: '#118dff' } }))
+        ).toContain('--pbi-theme-max: #118dff;');
+        expect(
+            buildThemeVariablesCss(palette({ maximum: { value: '#222222' } }))
+        ).toContain('--pbi-theme-max: #222222;');
     });
 
     it('skips missing members and invalid values', () => {
