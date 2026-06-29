@@ -133,6 +133,23 @@ the author, who is given a declarative signal to act on.
   `fg`, `bg`, `fg-selected`, and `hyperlink`. Authors who follow that guidance
   read those four under `.pbi-theme-hc`.
 
+### Forced-colors interaction (important)
+
+In Windows high contrast the embedded browser also enters CSS **forced-colors
+mode** (`forced-colors: active`), which overrides author `background-color` /
+`color` with the OS system palette. The theme variables still hold the correct
+HC values, but the browser won't *paint* `background: var(--pbi-theme-*)` unless
+the element opts out with `forced-color-adjust: none`. So:
+
+- For most content, **let forced-colors win** — it's the accessibility default;
+  don't blanket-override it.
+- An author who needs controlled theming in HC opts a specific element out
+  (`forced-color-adjust: none`) and then applies the HC-safe vars under
+  `.pbi-theme-hc`.
+- The UAT probe sets `forced-color-adjust: none` on its swatches precisely
+  because its job is to *display* the palette — a debug-only choice, not a
+  pattern to copy into production content.
+
 ### Naming note
 
 The `hc-` prefix in this codebase is the project's **html-content** namespace

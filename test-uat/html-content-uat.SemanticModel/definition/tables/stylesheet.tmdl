@@ -65,6 +65,12 @@ table stylesheet
 			"<div class='s ncenter'><span>center</span></div>" &
 			"<div class='s nmax'><span>max</span></div>" &
 			"</div></div>" &
+			"<div class='grp'><h4>High contrast colors</h4><div class='sw'>" &
+			"<div class='s nfg'><span>fg</span></div>" &
+			"<div class='s nbg'><span>bg</span></div>" &
+			"<div class='s nfgsel'><span>fg-selected</span></div>" &
+			"<div class='s nhl'><span>hyperlink</span></div>" &
+			"</div></div>" &
 			"<div class='grp'><h4>Other colors</h4><div class='sw'>" &
 			"<div class='s nfg'><span>fg</span></div>" &
 			"<div class='s nfgs'><span>fg-neutral-secondary</span></div>" &
