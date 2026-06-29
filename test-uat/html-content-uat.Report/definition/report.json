@@ -1,14 +1,23 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.2.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.3.0/schema.json",
   "themeCollection": {
     "baseTheme": {
-      "name": "CY25SU11",
+      "name": "CY26SU05",
       "reportVersionAtImport": {
-        "visual": "2.4.0",
-        "report": "3.0.0",
-        "page": "2.3.0"
+        "visual": "2.9.0",
+        "report": "3.3.0",
+        "page": "2.3.1"
       },
       "type": "SharedResources"
+    },
+    "customTheme": {
+      "name": "CY25SU116399093369657929.json",
+      "reportVersionAtImport": {
+        "visual": "2.10.0",
+        "report": "3.4.0",
+        "page": "2.3.1"
+      },
+      "type": "RegisteredResources"
     }
   },
   "objects": {
@@ -49,9 +58,20 @@
       "type": "SharedResources",
       "items": [
         {
-          "name": "CY25SU11",
-          "path": "BaseThemes/CY25SU11.json",
+          "name": "CY26SU05",
+          "path": "BaseThemes/CY26SU05.json",
           "type": "BaseTheme"
+        }
+      ]
+    },
+    {
+      "name": "RegisteredResources",
+      "type": "RegisteredResources",
+      "items": [
+        {
+          "name": "CY25SU116399093369657929.json",
+          "path": "CY25SU116399093369657929.json",
+          "type": "CustomTheme"
         }
       ]
     }
