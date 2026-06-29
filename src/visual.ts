@@ -95,6 +95,10 @@ export class Visual implements IVisual {
     private landingPageHandler: LandingPageHandler;
     // Manages custom styling from the user
     private styleSheetContainer: Selection<HTMLStyleElement, any, any, any>;
+    // Holds the :root { --pbi-theme-* } block (written once in the constructor).
+    // Retained so destroy() can remove it; also re-resolved each construct so a
+    // re-instantiation never leaves a duplicate behind (see constructor).
+    private themeVarsContainer: Selection<HTMLStyleElement, any, any, any>;
     // Interactivity for data points
     private interactivity: IInteractivityService<SelectableDataPoint>;
     // Behavior of data points
@@ -164,7 +168,14 @@ export class Visual implements IVisual {
         // theme or contrast switch re-runs the constructor, refreshing this.
         // This <style> is intentionally separate from styleSheetContainer,
         // which resolveStyling() overwrites on every update.
+        // Remove any prior #pbiThemeVars before appending, so the element never
+        // accumulates: a theme/contrast switch re-instantiates the visual in the
+        // same document, and a shared test document builds many instances. Held
+        // in a field so destroy() can clean it up.
         select('head')
+            .select('#' + VisualConstants.dom.themeVarsIdSelector)
+            .remove();
+        this.themeVarsContainer = select('head')
             .append('style')
             .attr('id', VisualConstants.dom.themeVarsIdSelector)
             .attr('type', 'text/css')
@@ -556,10 +567,12 @@ export class Visual implements IVisual {
     /**
      * Power BI calls destroy() when the visual instance is torn down. Detach the
      * document-level keydown listener so a disposed instance can't react to
-     * Ctrl/Cmd+D (the handler closes over `this`).
+     * Ctrl/Cmd+D (the handler closes over `this`), and remove the theme-vars
+     * <style> this instance appended to <head> so it doesn't outlive the visual.
      */
     public destroy(): void {
         this.removeHotkeyListener?.();
+        this.themeVarsContainer?.remove();
     }
 
     /** Assemble a bounded snapshot and open the host modal dialog. */

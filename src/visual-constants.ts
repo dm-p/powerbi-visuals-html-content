@@ -270,8 +270,9 @@ export const VisualConstants = {
         suppressAllToken: 'all',
         // Theme CSS variables. The constructor writes a dedicated <style>
         // (themeVarsIdSelector) holding the :root { --pbi-theme-* } block, and
-        // reflects host high-contrast state as themeHighContrastClass on
-        // documentElement so authors can branch in pure CSS (`.pbi-theme-hc …`).
+        // reflects host high-contrast state as themeHighContrastClass on the
+        // #htmlContent container (so it shows in the Show-raw-HTML view) — authors
+        // branch in pure CSS (`.pbi-theme-hc …`).
         // `hc-` is NOT used: it is this project's html-content token namespace.
         themeVarsIdSelector: 'pbiThemeVars',
         themeHighContrastClass: 'pbi-theme-hc'
