@@ -13,7 +13,7 @@ import ISelectionId = powerbi.visuals.ISelectionId;
  */
 export interface ISimulatedTable {
     columns: DataViewMetadataColumn[]; // categories first, then values
-    rows: PrimitiveValue[][]; // row-major, aligned to columns
+    rows: (PrimitiveValue | null)[][]; // row-major, aligned to columns; null = blank cell
     identities: ISelectionId[]; // one per row
 }
 
@@ -60,7 +60,7 @@ export function mapCategoricalToTable(
         ...categories.map((c) => c.source),
         ...values.map((v) => v.source)
     ];
-    const rows: PrimitiveValue[][] = [];
+    const rows: (PrimitiveValue | null)[][] = [];
     const identities: ISelectionId[] = [];
     for (let i = 0; i < rowCount; i++) {
         rows.push([
