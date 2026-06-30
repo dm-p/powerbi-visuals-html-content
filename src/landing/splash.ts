@@ -134,13 +134,33 @@ export const buildSplash = (
 
     const icons = node(doc, 'div', 'hc-landing-icons');
     const iconLinks: [string, string, string, string, () => SVGElement][] = [
-        ['', 'github', urls.github, 'View source on GitHub', () => githubIcon(doc)],
-        ['--heart', 'sponsor', urls.sponsor, 'Sponsor on GitHub', () => heartIcon(doc)],
-        ['--coffee', 'coffee', urls.coffee, 'Buy me a coffee', () => coffeeIcon(doc)]
+        [
+            '',
+            'github',
+            urls.github,
+            'View source on GitHub',
+            () => githubIcon(doc)
+        ],
+        [
+            '--heart',
+            'sponsor',
+            urls.sponsor,
+            'Sponsor on GitHub',
+            () => heartIcon(doc)
+        ],
+        [
+            '--coffee',
+            'coffee',
+            urls.coffee,
+            'Buy me a coffee',
+            () => coffeeIcon(doc)
+        ]
     ];
     for (const [mod, key, url, title, icon] of iconLinks) {
         const cls = `hc-landing-iconlink${mod ? ` hc-landing-iconlink${mod}` : ''}`;
-        icons.appendChild(iconLink(doc, cls, key, url, title, icon(), onLaunch));
+        icons.appendChild(
+            iconLink(doc, cls, key, url, title, icon(), onLaunch)
+        );
     }
     header.appendChild(icons);
     root.appendChild(header);
