@@ -18,147 +18,18 @@ import {
 } from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
-
-/**
- * Per-tag attribute allowlist enforced by the DOMPurify
- * `uponSanitizeAttribute` hook. DOMPurify's `ALLOWED_ATTR` is global,
- * so per-tag enforcement is a hook responsibility.
- *
- * Globals (apply to every allowed tag):
- *   class, id, title, lang, dir, style, role, aria-*, data-*, tabindex
- *
- * Explicitly NOT allowed anywhere:
- *   srcdoc, formaction, action, ping, background, poster, srcset.
- */
-type AttributeAllowlist = {
-    [tag: string]: string[];
-};
-
-// Derived from VisualConstants.svgTags so adding/removing an SVG tag
-// in one place updates both the allowed-tags list and the sanitizer's
-// HTML-vs-SVG branch.
-const SVG_TAGS = new Set<string>(VisualConstants.svgTags);
-
-const SVG_ATTRIBUTE_DENYLIST = new Set<string>([
-    'srcdoc',
-    'formaction',
-    'action',
-    'ping',
-    'background',
-    'poster',
-    'srcset'
-]);
-
-// SMIL animation elements (<animate>, <animateMotion>,
-// <animateTransform>, <set>) accept an `attributeName="..."` value
-// that names the property to animate at runtime. Without this
-// denylist, an attacker could declare `attributeName="href"` and
-// rewrite a sanitized URL to `javascript:` after the DOM is live —
-// the well-known SMIL sanitizer-bypass primitive. We refuse animation
-// that targets URL-bearing attributes (href / xlink:href / src and
-// the four URL-form-action variants), the bulk `style` attribute
-// (animating `style` replaces the entire inline style string,
-// re-introducing url() declarations the static sanitizer never saw),
-// any of the SVG presentation attributes that resolve via `url(#id)`
-// references (cursor, clip-path, mask, filter, marker-*), and the
-// meta `attributeName` itself (animating attributeName lets the
-// animation target a different attribute later). Animation that
-// targets safe presentation / geometry properties (opacity,
-// transform, fill, stroke, cx, cy, d, etc.) is unconstrained.
-//
-// IMPORTANT — gate ordering for SMIL animation *values*:
-// Once attributeName passes this denylist, the actual animation
-// values carried in `to`, `from`, `values`, `by` are gated SOLELY by
-// the `scriptingPatterns` substring scan further down the hook (the
-// `dangerousPatterns.some(p => lowerValue.includes(p))` check). That
-// gate is what blocks `to="javascript:..."`, `to="vbscript:..."`,
-// `from="data:text/html,..."`, etc. on SMIL elements. The funciri
-// scheme check fires only when the value contains a literal `url(...)`
-// wrapper, so a bare-scheme `to="javascript:..."` does not trip it.
-// If `scriptingPatterns` is ever weakened or made opt-out for any
-// subset of SVG tags, these four SMIL value attributes need their
-// own explicit gate.
-const SMIL_TAGS = new Set<string>([
-    'animate',
-    'animatemotion',
-    'animatetransform',
-    'set'
-]);
-
-const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
-    'href',
-    'xlink:href',
-    'src',
-    'srcdoc',
-    'srcset',
-    'formaction',
-    'action',
-    'ping',
-    'background',
-    'poster',
-    'style',
-    'cursor',
-    'clip-path',
-    'mask',
-    'filter',
-    'marker-start',
-    'marker-mid',
-    'marker-end',
-    'attributename'
-]);
-
-const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
-    '*': [
-        'class',
-        'id',
-        'title',
-        'lang',
-        'dir',
-        'style',
-        'role',
-        'aria-*',
-        'data-*',
-        'tabindex'
-    ],
-    a: ['href', 'target', 'rel', 'download', 'hreflang', 'type'],
-    img: ['src', 'alt', 'width', 'height', 'loading', 'decoding'],
-    source: ['src', 'type', 'media'],
-    table: ['align', 'valign'],
-    td: ['colspan', 'rowspan', 'headers', 'scope', 'abbr', 'align', 'valign'],
-    th: ['colspan', 'rowspan', 'headers', 'scope', 'abbr', 'align', 'valign'],
-    col: ['span'],
-    colgroup: ['span'],
-    time: ['datetime'],
-    blockquote: ['cite'],
-    q: ['cite'],
-    ol: ['start', 'type', 'reversed'],
-    li: ['value'],
-    details: ['open'],
-    meter: ['value', 'min', 'max', 'low', 'high', 'optimum'],
-    progress: ['value', 'max'],
-    // del, ins, output were added to VisualConstants.allowedTags in
-    // commit 3e440c9 (PR #139). Each has legitimate tag-specific
-    // attributes per the HTML spec; without these entries the attribs
-    // are dropped and only the globals survive.
-    del: ['cite', 'datetime'],
-    ins: ['cite', 'datetime'],
-    output: ['for', 'form', 'name']
-
-    // SVG tags are intentionally absent from this map.
-    //
-    // The uponSanitizeAttribute hook below branches on `isSvgTag =
-    // SVG_TAGS.has(tagName)`. SVG tags take the denylist path
-    // (SVG_ATTRIBUTE_DENYLIST + on*) and never consult ALLOWED_ATTRIBUTES.
-    // Adding an SVG entry here has no effect — the per-tag URL scheme
-    // gate (allowedSchemesByTag), the funciri value-scheme check, the
-    // SMIL attributeName denylist, and the scriptingPatterns scan are
-    // the active gates for SVG attributes.
-    //
-    // To restrict an SVG attribute, add it to SVG_ATTRIBUTE_DENYLIST
-    // above. To restrict a URL scheme on an SVG tag, edit
-    // VisualConstants.allowedSchemesByTag in src/visual-constants.ts.
-    // Do not add SVG keys to this map.
-};
+// Per-tag attribute-policy constants now live in attribute-policy.ts (moved
+// there alongside the pure gate functions). The hook below still references
+// them inline this task. Runtime-only import cycle: attribute-policy.ts
+// imports `getSanitizedDataUri` from here — safe because neither side touches
+// the other during module initialization.
+import {
+    SVG_TAGS,
+    SVG_ATTRIBUTE_DENYLIST,
+    SMIL_TAGS,
+    SMIL_ATTRIBUTE_NAME_DENYLIST,
+    ALLOWED_ATTRIBUTES
+} from './attribute-policy';
 
 /**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
