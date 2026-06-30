@@ -7,12 +7,15 @@
         "target": "es6",
         "sourceMap": true,
         "outDir": "./.tmp/build/",
-        "moduleResolution": "node",
+        "rootDir": ".",
+        "moduleResolution": "bundler",
         "declaration": true,
         "lib": ["es2019", "dom"],
-        "alwaysStrict": true,
+        "strict": true,
+        "skipLibCheck": true,
         "esModuleInterop": true,
         "resolveJsonModule": true
     },
-    "files": ["./src/visual.ts", "./src/svg.d.ts"]
+    "files": ["./src/visual.ts", "./src/svg.d.ts"],
+    "include": ["./src/**/*.ts"]
 }
