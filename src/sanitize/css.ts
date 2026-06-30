@@ -30,8 +30,8 @@ import valueParser, {
     Node as ValueNode,
     FunctionNode
 } from 'postcss-value-parser';
-import { isSafeImageDataUri } from './sanitize/svg-payload-scan';
-import { recordRemoval } from './diagnostics/diagnostics-sink';
+import { isSafeImageDataUri } from './svg-payload-scan';
+import { recordRemoval } from '../diagnostics/diagnostics-sink';
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',

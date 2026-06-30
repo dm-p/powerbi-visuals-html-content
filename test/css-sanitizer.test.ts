@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { sanitizeCss } from '../src/css-sanitizer';
+import { sanitizeCss } from '../src/sanitize/css';
 import {
     beginCapture,
     endCapture

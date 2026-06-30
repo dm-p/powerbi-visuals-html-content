@@ -10,7 +10,7 @@ import { marked } from 'marked';
 // Internal dependencies
 import { VisualConstants } from '../visual-constants';
 import { RenderFormat } from '../types';
-import { sanitizeCss } from '../css-sanitizer';
+import { sanitizeCss } from './css';
 import {
     hasDangerousSvgPayload,
     isSafeImageDataUri,
