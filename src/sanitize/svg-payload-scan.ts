@@ -152,38 +152,50 @@ export function hasDangerousSvgPayload(
     // scan defends, so a whitespace-only boundary would let an external
     // fetch through here while a downstream parser still initiated it.
     // Mirrors the boundary used by the on* event-handler regex above.
+    if (hasDangerousInnerHref(decoded, depth)) return true;
+    return false;
+}
+
+/**
+ * Scan the decoded SVG payload for inner-element `href` / `xlink:href`
+ * attributes that reference a non-fragment, non-image-data scheme.
+ *
+ * Extracted from `hasDangerousSvgPayload` to flatten its nesting; the
+ * boundary regexes, branch order, and recursive nested-data-URI scan
+ * are unchanged. Returns true when any inner href is dangerous.
+ */
+function hasDangerousInnerHref(decoded: string, depth: number): boolean {
     const hrefMatches = decoded.match(
         /(?:^|[\s"'])(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
     );
-    if (hrefMatches) {
-        for (const raw of hrefMatches) {
-            const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
-            if (!valueMatch) continue;
-            const value = valueMatch[1].trim();
-            // Empty href and fragment-only refs (#id) resolve in-document
-            // and never fetch — safe.
-            if (value === '' || value.startsWith('#')) continue;
-            // data: URIs are admitted only for image MIME types. The
-            // outer attribute pipeline (getSanitizedDataUri,
-            // isSafeImageDataUri) restricts data: to image/* across all
-            // URL-bearing attributes; this scan applies the same rule
-            // to inner-element href / xlink:href so a payload like
-            // <image href="data:text/html,<script>..."> is flagged
-            // even when wrapped inside an outer image-context SVG.
-            //
-            // Inner data:image/svg+xml is recursively scanned — a
-            // base64 inner SVG could otherwise hide <script> /
-            // <foreignObject> / on*= behind opaque base64 that the
-            // outer regex can't see through.
-            if (/^data:image\/svg\+xml/i.test(value)) {
-                if (hasDangerousSvgPayload(value, depth + 1)) {
-                    return true;
-                }
-                continue;
+    if (!hrefMatches) return false;
+    for (const raw of hrefMatches) {
+        const valueMatch = raw.match(/=\s*["']?\s*([^"'\s>]+)/);
+        if (!valueMatch) continue;
+        const value = valueMatch[1].trim();
+        // Empty href and fragment-only refs (#id) resolve in-document
+        // and never fetch — safe.
+        if (value === '' || value.startsWith('#')) continue;
+        // data: URIs are admitted only for image MIME types. The
+        // outer attribute pipeline (getSanitizedDataUri,
+        // isSafeImageDataUri) restricts data: to image/* across all
+        // URL-bearing attributes; this scan applies the same rule
+        // to inner-element href / xlink:href so a payload like
+        // <image href="data:text/html,<script>..."> is flagged
+        // even when wrapped inside an outer image-context SVG.
+        //
+        // Inner data:image/svg+xml is recursively scanned — a
+        // base64 inner SVG could otherwise hide <script> /
+        // <foreignObject> / on*= behind opaque base64 that the
+        // outer regex can't see through.
+        if (/^data:image\/svg\+xml/i.test(value)) {
+            if (hasDangerousSvgPayload(value, depth + 1)) {
+                return true;
             }
-            if (/^data:image\//i.test(value)) continue;
-            return true;
+            continue;
         }
+        if (/^data:image\//i.test(value)) continue;
+        return true;
     }
     return false;
 }
@@ -205,9 +217,30 @@ export function hasDangerousSvgPayload(
  * emit the non-base64 forms.
  */
 export function isSafeImageDataUri(rawUrl: string): boolean {
+    const parsed = parseDataUriMime(rawUrl);
+    if (parsed == null) return false;
+    const { mime, isBase64 } = parsed;
+    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
+    if (mime !== 'image/svg+xml' && !isBase64) return false;
+    if (mime === 'image/svg+xml' && hasDangerousSvgPayload(rawUrl)) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Parse the MIME type and base64 flag from a `data:` URI header.
+ * Returns null for empty / non-`data:` input. Extracted from
+ * `isSafeImageDataUri`; the header-boundary computation and the
+ * `;base64,` detection (against the original-case `rawUrl`) are
+ * unchanged.
+ */
+function parseDataUriMime(
+    rawUrl: string
+): { mime: string; isBase64: boolean } | null {
     const url = rawUrl.trim().toLowerCase();
-    if (!url) return false;
-    if (!url.startsWith('data:')) return false;
+    if (!url) return null;
+    if (!url.startsWith('data:')) return null;
     const semi = url.indexOf(';');
     const comma = url.indexOf(',');
     const end = Math.min(
@@ -215,10 +248,6 @@ export function isSafeImageDataUri(rawUrl: string): boolean {
         comma === -1 ? url.length : comma
     );
     const mime = url.slice(5, end);
-    if (!SAFE_IMAGE_MIME_TYPES.has(mime)) return false;
-    if (mime !== 'image/svg+xml' && !/;base64,/i.test(rawUrl)) return false;
-    if (mime === 'image/svg+xml' && hasDangerousSvgPayload(rawUrl)) {
-        return false;
-    }
-    return true;
+    const isBase64 = /;base64,/i.test(rawUrl);
+    return { mime, isBase64 };
 }
