@@ -32,6 +32,7 @@ import valueParser, {
 } from 'postcss-value-parser';
 import { isSafeImageDataUri } from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
+import { SCHEME_REGEXES } from './dangerous-patterns';
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
@@ -61,14 +62,9 @@ const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
     /@font-face/i,
     /@namespace/i,
     /expression\s*\(/i,
-    /javascript\s*:/i,
-    /vbscript\s*:/i,
-    /livescript\s*:/i,
-    /mocha\s*:/i,
-    /data\s*:\s*text\/html/i,
-    /data\s*:\s*text\/javascript/i,
-    /data\s*:\s*application\/javascript/i,
-    /data\s*:\s*application\/x-javascript/i,
+    // The 8 shared dangerous-scheme regexes, spread verbatim from the
+    // canonical source so this list cannot drift from the others.
+    ...SCHEME_REGEXES,
     /-moz-binding/i,
     /(^|[;{\s])behavior\s*:/i,
     /progid\s*:/i
@@ -79,14 +75,9 @@ function finalPassIsClean(serialized: string): boolean {
 }
 
 const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
-    /javascript\s*:/i,
-    /vbscript\s*:/i,
-    /livescript\s*:/i,
-    /mocha\s*:/i,
-    /data\s*:\s*text\/html/i,
-    /data\s*:\s*text\/javascript/i,
-    /data\s*:\s*application\/javascript/i,
-    /data\s*:\s*application\/x-javascript/i,
+    // The 8 shared dangerous-scheme regexes, spread verbatim from the
+    // canonical source so this list cannot drift from the others.
+    ...SCHEME_REGEXES,
     // Intentionally broad: matches `data:image` anywhere in the value,
     // including inside string literals (e.g. content: "data:image/png example").
     // The url()-token pre-strip above prevents false positives for safe

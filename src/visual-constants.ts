@@ -2,6 +2,10 @@
 import { RESOLVED_VISUAL, EDITION } from './visual-config.generated';
 
 import { RenderFormat, RenderMode } from './types';
+import {
+    SCHEME_REGEXES,
+    SCHEME_SUBSTRINGS
+} from './sanitize/dangerous-patterns';
 
 // HTML element names the visual permits in sanitized output. Lowercase
 // to match DOMPurify's normalization. Anything not in this list (or
@@ -354,91 +358,32 @@ export const VisualConstants = {
     htmlTags,
     svgTags,
     allowedTags: [...htmlTags, ...svgTags],
-    scriptingPatterns: [
-        'javascript:',
-        'javascript :',
-        'vbscript:',
-        'vbscript :',
-        'livescript:',
-        'livescript :',
-        'mocha:',
-        'data:text/html',
-        'data:text/javascript',
-        'data:application/javascript',
-        'data:application/x-javascript',
-        // All control characters (0x00-0x1F) for javascript obfuscation
-        'javas\x00cript',
-        'javas\x01cript',
-        'javas\x02cript',
-        'javas\x03cript',
-        'javas\x04cript',
-        'javas\x05cript',
-        'javas\x06cript',
-        'javas\x07cript',
-        'javas\x08cript',
-        'javas\x09cript',
-        'javas\x0Acript',
-        'javas\x0Bcript',
-        'javas\x0Ccript',
-        'javas\x0Dcript',
-        'javas\x0Ecript',
-        'javas\x0Fcript',
-        'javas\x10cript',
-        'javas\x11cript',
-        'javas\x12cript',
-        'javas\x13cript',
-        'javas\x14cript',
-        'javas\x15cript',
-        'javas\x16cript',
-        'javas\x17cript',
-        'javas\x18cript',
-        'javas\x19cript',
-        'javas\x1Acript',
-        'javas\x1Bcript',
-        'javas\x1Ccript',
-        'javas\x1Dcript',
-        'javas\x1Ecript',
-        'javas\x1Fcript',
-        // CSS-based attacks
-        'expression(',
-        'expression (',
-        '-moz-binding',
-        'behavior:',
-        'behavior :',
-        // URL functions that can be dangerous
-        'url(javascript',
-        'url( javascript',
-        'url(data:text/html',
-        'url( data:text/html',
-        'url(data:text/javascript',
-        'url( data:text/javascript',
-        'url(data:application/',
-        'url( data:application/',
-        'url(vbscript',
-        'url( vbscript'
-    ],
+    // Derived verbatim from the canonical SCHEME_SUBSTRINGS denylist so the
+    // HTML/URL substring scan shares one source of truth with the CSS scheme
+    // regexes. Do NOT re-literal these here — add new entries to
+    // sanitize/dangerous-patterns.ts.
+    scriptingPatterns: [...SCHEME_SUBSTRINGS],
     /**
-     * @deprecated Live CSS pattern enforcement now lives in
-     * `src/css-sanitizer.ts` under `DEFENSE_IN_DEPTH_PATTERNS` and the
-     * postcss-walker-based gates above it. This array is no longer
-     * read by `src/` runtime code — it survives only because several
-     * tests still pin its shape as documentation of the rule set.
+     * Dangerous-CSS regex denylist. The dangerous-scheme members (indices
+     * 2-6) are sourced from the canonical `SCHEME_REGEXES` rather than being
+     * re-literaled here, so the scheme knowledge lives in exactly one place
+     * (`sanitize/dangerous-patterns.ts`). The remaining members are
+     * CSS-specific (obfuscated `@import`, `expression(`, `-moz-binding:`,
+     * `behavior:`, and the url(...)-wrapped scheme variants) and have no
+     * equivalent in the shared scheme list, so they stay inline.
      *
-     * DO NOT add new entries here expecting them to gate sanitization.
-     * Any new dangerous-CSS pattern must be added to the live list in
-     * `css-sanitizer.ts`. The next time the test suite is reorganised,
-     * delete this field and repoint the assertions at the live source
-     * (`DEFENSE_IN_DEPTH_PATTERNS` would need to be exported from
-     * `css-sanitizer.ts` first).
+     * Member order is preserved deliberately: several security tests pin
+     * specific indices ([0] = obfuscated @import, [1] = expression,
+     * [2] = javascript) as documentation of the rule set.
      */
     cssDangerousPatterns: [
         /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/i,
         /expression\s*\(/i,
-        /javascript\s*:/i,
-        /vbscript\s*:/i,
-        /data\s*:\s*text\/html/i,
-        /data\s*:\s*text\/javascript/i,
-        /data\s*:\s*application\/javascript/i,
+        SCHEME_REGEXES[0], // /javascript\s*:/i
+        SCHEME_REGEXES[1], // /vbscript\s*:/i
+        SCHEME_REGEXES[4], // /data\s*:\s*text\/html/i
+        SCHEME_REGEXES[5], // /data\s*:\s*text\/javascript/i
+        SCHEME_REGEXES[6], // /data\s*:\s*application\/javascript/i
         /-moz-binding\s*:/i,
         /behavior\s*:/i,
         /url\s*\(\s*['"]?\s*javascript/i,
