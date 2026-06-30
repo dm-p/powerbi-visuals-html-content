@@ -281,7 +281,7 @@ describe('host-event instrumentation in behavior', () => {
         expect(snapshot().some((e) => e.type === 'cross-filter' && e.summary === 'remove')).toBe(true);
     });
 
-    it('records a drill event with x,y on context menu', () => {
+    it('records a context-menu event with x,y on context menu', () => {
         setArmed(true);
         const mgr = new BehaviorManager<any>();
         const { options } = makeOptions(vi.fn());
@@ -290,10 +290,10 @@ describe('host-event instrumentation in behavior', () => {
         const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 320, clientY: 140 } as any;
         mgr.handleContextMenu(evt, { tooltips: [{ displayName: 'Region', value: 'East' }] } as any);
         const s = snapshot();
-        expect(s.some((e) => e.type === 'drill' && e.summary.includes('320'))).toBe(true);
+        expect(s.some((e) => e.type === 'context-menu' && e.summary.includes('320'))).toBe(true);
     });
 
-    it('records a background drill when the datum is null', () => {
+    it('records a background context-menu when the datum is null', () => {
         setArmed(true);
         const mgr = new BehaviorManager<any>();
         const { options } = makeOptions(vi.fn());
@@ -301,7 +301,7 @@ describe('host-event instrumentation in behavior', () => {
         mgr.bindEvents(options as any, handler as any);
         const evt = { preventDefault: vi.fn(), stopPropagation: vi.fn(), clientX: 1, clientY: 2 } as any;
         mgr.handleContextMenu(evt, null as any);
-        expect(snapshot().some((e) => e.type === 'drill' && e.context === 'background')).toBe(true);
+        expect(snapshot().some((e) => e.type === 'context-menu' && e.context === 'background')).toBe(true);
     });
 
     it('records a cross-filter cleared event on clear-catcher click', () => {

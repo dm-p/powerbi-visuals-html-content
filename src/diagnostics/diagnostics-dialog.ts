@@ -68,7 +68,7 @@ const EVENT_TYPES: { type: HostEventType; label: keyof DiagnosticsLabels }[] = [
     { type: 'update', label: 'evtUpdate' },
     { type: 'cross-filter', label: 'evtCrossFilter' },
     { type: 'tooltip', label: 'evtTooltip' },
-    { type: 'drill', label: 'evtDrill' }
+    { type: 'context-menu', label: 'evtContextMenu' }
 ];
 
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {

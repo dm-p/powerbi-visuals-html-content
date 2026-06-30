@@ -9,7 +9,11 @@ import { IHtmlEntry, IViewModel } from '../view-model';
 import { VisualConstants } from '../visual-constants';
 import { shouldDimPoint } from '../domain-utils';
 import { recordEvent } from '../diagnostics/event-recorder';
-import { tooltipContext, TooltipItem } from '../diagnostics/host-events';
+import {
+    tooltipContext,
+    TooltipItem,
+    eventCoords
+} from '../diagnostics/host-events';
 import { resolveInteractivity } from './policy';
 
 /**
@@ -122,8 +126,8 @@ export class BehaviorManager<
         event.stopPropagation();
         this.options.hideTooltip();
         recordEvent(
-            'drill',
-            `context-menu @ (${event.clientX},${event.clientY})`,
+            'context-menu',
+            eventCoords(event),
             d ? this.pointContext(d) || undefined : 'background'
         );
         event &&

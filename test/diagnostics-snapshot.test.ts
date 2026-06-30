@@ -47,7 +47,7 @@ const labels = {
     evtUpdate: 'update',
     evtCrossFilter: 'cross-filter',
     evtTooltip: 'tooltip',
-    evtDrill: 'drill',
+    evtContextMenu: 'context-menu',
     filterAll: 'all'
 };
 
@@ -97,10 +97,10 @@ describe('buildSnapshot', () => {
             ...base,
             rawHtml: 'x',
             consoleFilter: 'warn',
-            eventsFilter: 'drill'
+            eventsFilter: 'context-menu'
         });
         expect(snap.consoleFilter).toBe('warn');
-        expect(snap.eventsFilter).toBe('drill');
+        expect(snap.eventsFilter).toBe('context-menu');
     });
 
     it('passes the labels and sanitizeEnabled through unchanged', () => {

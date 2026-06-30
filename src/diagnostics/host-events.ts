@@ -55,3 +55,7 @@ export const tooltipContext = (items: TooltipItem[]): string =>
         VisualConstants.diagnostics.eventContextItems,
         VisualConstants.diagnostics.eventContextCap
     );
+
+/** "@ (x,y)" from a pointer event, for the event-context coordinate prefix. */
+export const eventCoords = (event: MouseEvent): string =>
+    `@ (${event.clientX},${event.clientY})`;

@@ -100,15 +100,16 @@ function bindManualTooltips(
             };
             tooltipService.show(options);
             recordTooltipEvent(
+                event,
                 'show',
                 'manual',
                 tooltipContext(dataItems as TooltipItem[])
             );
         }
     });
-    manualTooltipElements.on('mouseout', () => {
+    manualTooltipElements.on('mouseout', (event) => {
         tooltipService.hide({ immediately: true, isTouchEvent: true });
-        recordTooltipEvent('hide', 'manual', '');
+        recordTooltipEvent(event, 'hide', 'manual', '');
     });
 }
 
@@ -149,6 +150,7 @@ function bindStandardTooltips(
             };
             tooltipService.show(options);
             recordTooltipEvent(
+                event,
                 'show',
                 'contextual',
                 tooltipContext(d.tooltips as TooltipItem[])
@@ -161,6 +163,6 @@ function bindStandardTooltips(
             false
         );
         tooltipService.hide({ immediately: true, isTouchEvent: true });
-        recordTooltipEvent('hide', 'contextual', '');
+        recordTooltipEvent(event, 'hide', 'contextual', '');
     });
 }

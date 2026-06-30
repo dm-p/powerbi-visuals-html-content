@@ -8,6 +8,7 @@
  */
 import { HostEvent, HostEventType, TooltipPhase, TooltipSource } from './types';
 import { VisualConstants } from '../visual-constants';
+import { eventCoords } from './host-events';
 
 let armed = false;
 let buffer: HostEvent[] = [];
@@ -44,6 +45,7 @@ export const recordEvent = (
 /** Record a tooltip event with Decision 9/10 de-duplication. No-op unless
  *  armed. The dedup key includes source so contextual/manual never collapse. */
 export const recordTooltipEvent = (
+    event: MouseEvent,
     phase: TooltipPhase,
     source: TooltipSource,
     context: string
@@ -56,11 +58,14 @@ export const recordTooltipEvent = (
         const key = `${phase}|${source}|${context}`;
         if (key === lastTooltipKey) return;
         lastTooltipKey = key;
+        // Coords prefix the context on show only; hide carries no context. The
+        // key (above) excludes coords so mousemove jitter still de-dups.
+        const coords = phase === 'show' ? `${eventCoords(event)} ` : '';
         push({
             ts: Date.now(),
             type: 'tooltip',
             summary: `${phase} · ${source}`,
-            context: context || undefined
+            context: `${coords}${context}` || undefined
         });
     } catch {
         /* diagnostics must never break the visual */
