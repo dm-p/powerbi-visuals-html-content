@@ -3,7 +3,7 @@ import {
     decodeSvgDataUriPayload,
     hasDangerousSvgPayload,
     isSafeImageDataUri
-} from '../src/svg-payload-scan';
+} from '../src/sanitize/svg-payload-scan';
 
 /**
  * Unit tests for the shared SVG-payload defense-in-depth helpers used

@@ -15,7 +15,7 @@ import {
     hasDangerousSvgPayload,
     isSafeImageDataUri,
     SAFE_IMAGE_MIME_TYPES
-} from '../svg-payload-scan';
+} from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
 
