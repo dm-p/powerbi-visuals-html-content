@@ -13,23 +13,30 @@ import { RenderFormat } from '../types';
 import { sanitizeCss } from './css';
 import {
     hasDangerousSvgPayload,
-    isSafeImageDataUri,
     SAFE_IMAGE_MIME_TYPES
 } from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
-// Per-tag attribute-policy constants now live in attribute-policy.ts (moved
-// there alongside the pure gate functions). The hook below still references
-// them inline this task. Runtime-only import cycle: attribute-policy.ts
-// imports `getSanitizedDataUri` from here — safe because neither side touches
-// the other during module initialization.
+// The per-tag attribute-policy constants and the ten gate functions live in
+// attribute-policy.ts. The attribute hook below is now a thin dispatcher over
+// those gates; it only needs SVG_TAGS (to build the AttrContext) plus the gate
+// functions and the gate contract types. Runtime-only import cycle:
+// attribute-policy.ts imports `getSanitizedDataUri` from here — safe because
+// neither side touches the other during module initialization.
 import {
     SVG_TAGS,
-    SVG_ATTRIBUTE_DENYLIST,
-    SMIL_TAGS,
-    SMIL_ATTRIBUTE_NAME_DENYLIST,
-    ALLOWED_ATTRIBUTES
+    normalizeUrlAttr,
+    hyperlinkToggle,
+    tagAllowlist,
+    urlScheme,
+    svgFunciri,
+    smilAttributeName,
+    dataUriAttr,
+    styleAttr,
+    xlinkJavascript,
+    scriptingPatterns
 } from './attribute-policy';
+import type { AttrContext, Verdict } from './attribute-policy';
 
 /**
  * Pre-process <style> tag bodies through sanitizeCss before handing off
@@ -201,9 +208,26 @@ function withSanitizerHooks<T>(
     purify.removeAllHooks();
 
     try {
-        // Hook 1: per-attribute sanitization. Per-tag allowlist enforcement,
-        // NFKC normalization on URL attributes, data: URI sanitization,
-        // inline style sanitization, dangerous-pattern check.
+        // Hook 1: per-attribute sanitization. The ten ordered gates in
+        // attribute-policy.ts are the security boundary — each is a
+        // behavior-preserving lift of a former inline guard clause (same
+        // regexes, literals, edge cases, and ORDER). This callback is now a
+        // thin dispatcher: it builds the AttrContext, runs the gates in order,
+        // and applies each Verdict. Do not change a gate's rule here — edit
+        // attribute-policy.ts (and its frozen sanitizer policy) on purpose.
+        const GATES = [
+            normalizeUrlAttr,
+            hyperlinkToggle,
+            tagAllowlist,
+            urlScheme,
+            svgFunciri,
+            smilAttributeName,
+            dataUriAttr,
+            styleAttr,
+            xlinkJavascript,
+            scriptingPatterns
+        ];
+
         purify.addHook(
             'uponSanitizeAttribute',
             (
@@ -222,350 +246,44 @@ function withSanitizerHooks<T>(
                 // drops the attribute rather than leaking through to
                 // DOMPurify's defaults.
                 try {
-                    const attrName: string = hookEvent.attrName.toLowerCase();
-                    const tagName: string = currentNode.tagName
+                    const tagName = currentNode.tagName
                         ? currentNode.tagName.toLowerCase()
                         : '';
-                    let value: string = hookEvent.attrValue;
-
-                    const isSvgTag = SVG_TAGS.has(tagName);
-
+                    const ctx: AttrContext = {
+                        attrName: hookEvent.attrName.toLowerCase(),
+                        tagName,
+                        value: hookEvent.attrValue,
+                        isSvgTag: SVG_TAGS.has(tagName),
+                        allowHyperlinks
+                    };
                     const snip = (v: string) =>
                         v.length > 80 ? v.slice(0, 80) + '…' : v;
-                    const dropAttr = (rule: string) =>
-                        recordRemoval({
-                            kind: 'attr',
-                            subject: `${attrName} on <${tagName}>`,
-                            rule,
-                            snippet: snip(value)
-                        });
-
-                    // NFKC normalize URL-bearing attribute values to defeat Unicode
-                    // obfuscation of dangerous schemes, and strip control characters
-                    // (browsers ignore C0 controls when parsing URLs, so e.g.
-                    // `java\x00script:` is parsed as `javascript:` and must be
-                    // rejected by the same scheme check).
-                    //
-                    // Scope:
-                    //   - HTML and SVG: href / src / xlink:href (URL attributes)
-                    //   - SMIL elements: to / from / values / by \u2014 animation
-                    //     value attributes that the scriptingPatterns substring
-                    //     scan further down checks. Without normalization,
-                    //     fullwidth-Unicode `to="\uFF4A\uFF41\uFF56\uFF41\uFF53\uFF43\uFF52\uFF49\uFF50\uFF54:..."` and
-                    //     control-char obfuscation (`j\x00avascript:`) would
-                    //     evade the substring scan.
-                    //   - SVG funciri-bearing presentation attributes:
-                    //     fill / stroke / cursor / mask / clip-path / filter /
-                    //     marker-start / marker-mid / marker-end. These accept
-                    //     `url(scheme:...)` references and are checked by the
-                    //     funciri loop below, but the pre-funciri value-text
-                    //     `scriptingPatterns` scan also runs against them.
-                    const isUrlAttr =
-                        attrName === 'href' ||
-                        attrName === 'src' ||
-                        attrName === 'xlink:href';
-                    const isSmilValueAttr =
-                        SMIL_TAGS.has(tagName) &&
-                        (attrName === 'to' ||
-                            attrName === 'from' ||
-                            attrName === 'values' ||
-                            attrName === 'by');
-                    const isSvgFunciriPresentation =
-                        isSvgTag &&
-                        (attrName === 'fill' ||
-                            attrName === 'stroke' ||
-                            attrName === 'cursor' ||
-                            attrName === 'mask' ||
-                            attrName === 'clip-path' ||
-                            attrName === 'filter' ||
-                            attrName === 'marker-start' ||
-                            attrName === 'marker-mid' ||
-                            attrName === 'marker-end');
-                    if (
-                        isUrlAttr ||
-                        isSmilValueAttr ||
-                        isSvgFunciriPresentation
-                    ) {
-                        value = value
-                            .normalize('NFKC')
-                            .replace(/[\x00-\x1F\x7F\uFFFD]/g, '');
-                        hookEvent.attrValue = value;
-                    }
-
-                    // Hyperlink toggle enforcement. When the format-pane
-                    // `hyperlinks` toggle is OFF, the visual must not expose
-                    // any clickable URL surface - strip `href` / `xlink:href`
-                    // from every `<a>` (HTML and SVG) so the rendered DOM
-                    // contains no surviving href attribute. The click handler
-                    // already suppresses navigation via preventDefault(); this
-                    // closes the residual attribute exposure that the MS
-                    // AppSource scanner flags. Other tag-name+href
-                    // combinations (SVG paint servers, <image>, SMIL) are
-                    // governed by their own scheme allowlists and are not
-                    // affected.
-                    //
-                    // GATE ORDERING: this check intentionally precedes the
-                    // per-tag allowlist below so the toggle is authoritative
-                    // for href on <a> regardless of what ALLOWED_ATTRIBUTES['a']
-                    // permits. Do not reorder without auditing
-                    // ALLOWED_ATTRIBUTES['a'] — a future allowlist edit that
-                    // adds or removes href must not invert this precedence.
-                    if (
-                        !allowHyperlinks &&
-                        tagName === 'a' &&
-                        (attrName === 'href' || attrName === 'xlink:href')
-                    ) {
-                        dropAttr('hyperlinks-disabled');
-                        hookEvent.keepAttr = false;
-                        return;
-                    }
-
-                    // Keep strict per-tag allowlist behavior for HTML tags. For SVG
-                    // tags, use a denylist so legitimate presentation/filter attrs are
-                    // not dropped whenever we miss a tag-specific entry.
-                    if (!isSvgTag) {
-                        const allowedForTag = ALLOWED_ATTRIBUTES[tagName] || [];
-                        const allowedGlobal = ALLOWED_ATTRIBUTES['*'] || [];
-                        const merged = [...allowedGlobal, ...allowedForTag];
-                        const isAllowed = merged.some((pattern) => {
-                            if (pattern.endsWith('-*')) {
-                                return attrName.startsWith(
-                                    pattern.slice(0, -1)
-                                );
+                    for (const gate of GATES) {
+                        const verdict: Verdict = gate(ctx);
+                        if (verdict.action === 'continue') {
+                            if (verdict.value !== undefined) {
+                                ctx.value = verdict.value;
+                                hookEvent.attrValue = verdict.value; // preserve mid-hook write-back (NFKC)
                             }
-                            return pattern === attrName;
-                        });
-                        if (!isAllowed) {
-                            dropAttr('attr-not-allowed');
+                            continue;
+                        }
+                        if (verdict.action === 'drop') {
+                            recordRemoval({
+                                kind: 'attr',
+                                subject: `${ctx.attrName} on <${ctx.tagName}>`,
+                                rule: verdict.rule,
+                                snippet: snip(ctx.value)
+                            });
                             hookEvent.keepAttr = false;
                             return;
                         }
-                    } else if (
-                        /^on[a-z]+$/i.test(attrName) ||
-                        SVG_ATTRIBUTE_DENYLIST.has(attrName)
-                    ) {
-                        dropAttr('svg-attr-denied');
-                        hookEvent.keepAttr = false;
+                        // verdict.action === 'keep'
+                        hookEvent.attrValue = verdict.value;
                         return;
                     }
-                    // For SVG tags, attrs that survive all the enforcement checks below
-                    // get `forceKeepAttr = true` set at the end of the hook — DOMPurify's
-                    // built-in attr allowlist would otherwise drop legitimate
-                    // presentation/filter attrs (stdDeviation, fill-opacity, etc.).
-                    // Setting it early would override later `keepAttr = false` from URL
-                    // scheme / scripting-pattern checks, leaking attacker-controlled URLs.
-
-                    // Per-tag URL scheme enforcement. VisualConstants.allowedSchemesByTag
-                    // specifies which schemes each tag is allowed to use (e.g. img: only
-                    // data:, a: only http/https). For SVG tags carrying URL-bearing
-                    // attributes, default-deny when no entry exists — a missing entry
-                    // means the tag was added to allowedTags without a matching scheme
-                    // policy, which would otherwise leak attacker-controlled URLs (issue
-                    // surfaced by code review on this branch for feImage / pattern /
-                    // gradients / filter). HTML tags fall through to the data: URI
-                    // sanitizer below by design.
-                    if (
-                        attrName === 'src' ||
-                        attrName === 'href' ||
-                        attrName === 'xlink:href'
-                    ) {
-                        const schemesByTag =
-                            VisualConstants.allowedSchemesByTag[tagName];
-                        if (schemesByTag) {
-                            const schemeMatch = value.match(
-                                /^([a-z][a-z0-9+.\-]*)\s*:/i
-                            );
-                            const scheme = schemeMatch
-                                ? schemeMatch[1].toLowerCase()
-                                : '';
-                            if (!schemesByTag.includes(scheme)) {
-                                dropAttr('disallowed-url-scheme');
-                                hookEvent.keepAttr = false;
-                                return;
-                            }
-                        } else if (isSvgTag) {
-                            // Default-deny: SVG tag without an allowedSchemesByTag entry.
-                            dropAttr('svg-url-scheme-default-deny');
-                            hookEvent.keepAttr = false;
-                            return;
-                        }
-                    }
-
-                    // SVG funciri value-scheme enforcement. Many SVG presentation
-                    // attributes (mask, clip-path, filter, marker-*, fill, stroke,
-                    // cursor) accept `url(...)` references. Validate the embedded
-                    // scheme the same way we validate URL-bearing attribute names —
-                    // empty (fragment-only #id) or `data:` are allowed; everything
-                    // else (`http:`, `https:`, etc.) is dropped. Applies to every SVG
-                    // attribute value EXCEPT `style` — for `style`, the CSS sanitizer
-                    // (declaration-list mode) handles per-property url() validation
-                    // and we want partial-survival behavior (drop only the offending
-                    // declaration, keep the rest).
-                    if (isSvgTag && attrName !== 'style') {
-                        // Iterate EVERY url() token in the value, not
-                        // just the first. SMIL animation values
-                        // (`values`, `to`, `from`, `by`) and a few
-                        // CSS-shaped SVG attributes can carry multiple
-                        // url() tokens separated by `;` or `,` — e.g.
-                        // `values="url(data:image/png;base64,AAA);
-                        // url(https://attacker.example/track)"` on an
-                        // <animate attributeName="fill">. A single
-                        // value.match() finds only the first
-                        // occurrence, so a smuggled later url() with
-                        // an external scheme would slip through (the
-                        // scriptingPatterns scan does not include
-                        // `https:`). The exec-loop with the global
-                        // flag forces every url() token to clear the
-                        // gate.
-                        const urlTokenRegex =
-                            /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/gi;
-                        let urlTokenMatch: RegExpExecArray | null;
-                        while (
-                            (urlTokenMatch = urlTokenRegex.exec(value)) !== null
-                        ) {
-                            const fullUrl = (
-                                urlTokenMatch[1] ??
-                                urlTokenMatch[2] ??
-                                urlTokenMatch[3] ??
-                                ''
-                            ).trim();
-                            if (!fullUrl) continue;
-                            const schemeMatch = fullUrl.match(
-                                /^([a-z][a-z0-9+.\-]*):/i
-                            );
-                            // No scheme — fragment-only (#id) or
-                            // relative ref. Both safe; no fetch.
-                            if (!schemeMatch) continue;
-                            const scheme = schemeMatch[1].toLowerCase();
-                            if (scheme !== 'data') {
-                                dropAttr('svg-funciri-scheme');
-                                hookEvent.keepAttr = false;
-                                return;
-                            }
-                            // Scheme is `data:` — run the shared
-                            // image-data-URI safety check (MIME
-                            // allowlist + base64 enforcement +
-                            // svg+xml payload scan, recursive on
-                            // nested data:image/svg+xml inner
-                            // hrefs). Mirrors the gate already
-                            // applied to top-level `src`/`href`
-                            // (getSanitizedDataUri) and CSS `url()`
-                            // values (isSafeImageDataUri via
-                            // hasUnsafeFunction).
-                            if (!isSafeImageDataUri(fullUrl)) {
-                                dropAttr('svg-funciri-unsafe-data');
-                                hookEvent.keepAttr = false;
-                                return;
-                            }
-                        }
-                    }
-
-                    // SMIL attributeName enforcement. SMIL animation
-                    // elements declare which property they animate via
-                    // `attributeName="..."`. If the value names a URL-
-                    // bearing attribute (href, xlink:href, src, ...) or
-                    // the bulk `style` attribute, an attacker can use the
-                    // animation to rewrite the property at runtime,
-                    // bypassing static URL/scheme sanitization. Drop the
-                    // attributeName attribute when the value is denied —
-                    // the SMIL element survives but has nothing to
-                    // animate, so the bypass is neutralised. Animation
-                    // targeting safe presentation/geometry properties
-                    // passes through untouched.
-                    if (
-                        SMIL_TAGS.has(tagName) &&
-                        attrName === 'attributename' &&
-                        // Trim before lookup — Set.has is exact-match but
-                        // browsers (and the SMIL animator) trim and lowercase
-                        // attributeName values before resolving them. A
-                        // padded value like `attributeName=" href "` would
-                        // otherwise survive the gate while still binding
-                        // the animation to `href` at runtime.
-                        SMIL_ATTRIBUTE_NAME_DENYLIST.has(
-                            value.trim().toLowerCase()
-                        )
-                    ) {
-                        dropAttr('smil-attributename');
-                        hookEvent.keepAttr = false;
-                        return;
-                    }
-
-                    // data: URI sanitization for src/href/xlink:href.
-                    // For SVG tags, do NOT set forceKeepAttr after mutating attrValue —
-                    // DOMPurify short-circuits the setAttribute call when forceKeepAttr
-                    // is true (purify.cjs.js:1136), losing the sanitized value.
-                    // DOMPurify's built-in SVG attr allowlist already keeps
-                    // src / href / xlink:href / style on SVG tags, so the mutation
-                    // lands via the normal post-hook setAttribute path.
-                    if (
-                        (attrName === 'src' ||
-                            attrName === 'href' ||
-                            attrName === 'xlink:href') &&
-                        value.startsWith('data:')
-                    ) {
-                        const sanitized = getSanitizedDataUri(value);
-                        if (sanitized === 'data:,' || sanitized === '') {
-                            dropAttr('data-uri');
-                            hookEvent.keepAttr = false;
-                            return;
-                        }
-                        hookEvent.attrValue = sanitized;
-                        return;
-                    }
-
-                    // Inline style sanitization. Same forceKeepAttr/setAttribute caveat
-                    // as the data: branch above — leave forceKeepAttr unset so the
-                    // sanitized value is written back by DOMPurify's normal flow.
-                    if (attrName === 'style') {
-                        const sanitizedStyle = sanitizeCss(
-                            value,
-                            'declaration-list'
-                        );
-                        if (sanitizedStyle === '') {
-                            dropAttr('inline-style');
-                            hookEvent.keepAttr = false;
-                            return;
-                        }
-                        // Normalize whitespace around the property/value separator
-                        // and trailing semicolons. sanitize-html previously re-serialized
-                        // through postcss after our hook ran, which collapsed `color: red`
-                        // to `color:red`. Without that second pass we mimic the same
-                        // normalization here so the harness fixtures (which encode the
-                        // post-postcss-default form) keep matching.
-                        hookEvent.attrValue = sanitizedStyle
-                            .split(';')
-                            .map((d) =>
-                                d.trim().replace(/^([^:]+?)\s*:\s*/, '$1:')
-                            )
-                            .filter((d) => d.length > 0)
-                            .join(';');
-                        return;
-                    }
-
-                    // Defense-in-depth: drop xlink:href if it carries javascript:
-                    if (
-                        attrName === 'xlink:href' &&
-                        /^javascript\s*:/i.test(value)
-                    ) {
-                        dropAttr('xlink-javascript');
-                        hookEvent.keepAttr = false;
-                        return;
-                    }
-
-                    // Defense-in-depth: scriptingPatterns check on the value
-                    const lowerValue = value.toLowerCase();
-                    const hasDangerous = VisualConstants.scriptingPatterns.some(
-                        (p) => lowerValue.includes(p.toLowerCase())
-                    );
-                    if (hasDangerous) {
-                        dropAttr('dangerous-pattern');
-                        hookEvent.keepAttr = false;
-                        return;
-                    }
-
-                    // SVG tag, all enforcement checks passed: force-keep so DOMPurify's
-                    // built-in attr allowlist doesn't drop legitimate SVG attrs.
-                    if (isSvgTag) {
+                    // All gates passed: force-keep so DOMPurify's built-in
+                    // allowlist doesn't drop legit SVG attrs.
+                    if (ctx.isSvgTag) {
                         hookEvent.forceKeepAttr = true;
                     }
                 } catch (err) {
@@ -588,7 +306,6 @@ function withSanitizerHooks<T>(
                 }
             }
         );
-
         // Hook 2: <style>-tag backstop. Run sanitizeCss on the text content
         // as a defense-in-depth backstop. preprocessStyleTags already
         // sanitized the body via regex extraction, but if the regex was
