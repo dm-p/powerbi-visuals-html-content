@@ -475,6 +475,32 @@ describe('renderPanel', () => {
         expect(picks).toContain('update');
     });
 
+    it('falls back to "all" when the remembered filter is no longer a known type', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            // 'drill' was renamed to 'context-menu'; an old snapshot may still
+            // carry it. It must not hide every row.
+            snap({
+                eventsFilter: 'drill',
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'context-menu', summary: 'd' }
+                ]
+            })
+        );
+        el.querySelectorAll<HTMLElement>('.hc-evt').forEach((row) =>
+            expect(row.style.display).not.toBe('none')
+        );
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-events-filter"][value="all"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+    });
+
     it('events Clear empties the display and reports onClearEvents', () => {
         const el = document.createElement('div');
         let cleared = 0;

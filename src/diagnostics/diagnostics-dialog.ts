@@ -264,8 +264,12 @@ const eventsTab = (
     const rows = el('div', 'hc-console-lines hc-evt-rows');
 
     // Type filter (single-select radios: All + each type). Memoized via the
-    // snapshot so the pick is sticky across opens.
-    const initialType = s.eventsFilter ?? 'all';
+    // snapshot so the pick is sticky across opens. Fall back to 'all' if the
+    // remembered value is no longer a known type (e.g. a renamed event) — else
+    // applyFilter would hide every row with no matching radio to recover.
+    const initialType = EVENT_TYPES.some((t) => t.type === s.eventsFilter)
+        ? (s.eventsFilter as string)
+        : 'all';
     function applyFilter(type: string): void {
         rows.querySelectorAll<HTMLElement>('.hc-evt').forEach((r) => {
             r.style.display =
