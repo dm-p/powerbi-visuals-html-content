@@ -70,6 +70,16 @@ import {
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
+// Shape the diagnostics dialog reports back via setResult / close → resultState.
+type DiagnosticsResultState = {
+    lastTab?: string;
+    clearConsole?: boolean;
+    clearEvents?: boolean;
+    consoleFilter?: string;
+    eventsFilter?: string;
+    launchDoc?: 'sanitization' | 'acceptedTags';
+};
+
 export class Visual implements IVisual {
     // The root element for the entire visual
     private container: Selection<HTMLDivElement, any, any, any>;
@@ -252,11 +262,30 @@ export class Visual implements IVisual {
                 options.dataViews?.[0]
             );
 
-        // Diagnostics is active only when the toggle is on, the host supports
-        // modal dialogs, AND the report is being edited (ViewMode.Edit = 1 /
-        // InFocusEdit = 2). View mode never shows the icon or records — keeping
-        // diagnostics out of the consumer experience. `diagActive` gates the
-        // icon, the console install, and the capture brackets alike.
+        const diagActive = this.resolveDiagnosticsActivation(options);
+
+        try {
+            this.renderUpdate(options, viewModel, diagActive);
+        } catch (e) {
+            this.handleUpdateFailure(options, e);
+        }
+    }
+
+    /**
+     * Resolve whether diagnostics is active for this update and apply the
+     * activation side effects (events armed, console install + update record,
+     * icon visibility). Returns the resolved `diagActive` flag for the caller
+     * to gate the capture brackets.
+     *
+     * Diagnostics is active only when the toggle is on, the host supports
+     * modal dialogs, AND the report is being edited (ViewMode.Edit = 1 /
+     * InFocusEdit = 2). View mode never shows the icon or records — keeping
+     * diagnostics out of the consumer experience. `diagActive` gates the
+     * icon, the console install, and the capture brackets alike.
+     */
+    private resolveDiagnosticsActivation(
+        options: VisualUpdateOptions
+    ): boolean {
         const diagActive = shouldShowDiagnosticsIcon(
             this.formattingSettings.contentFormatting
                 .contentFormattingCardBehavior.enableDiagnostics.value,
@@ -274,67 +303,84 @@ export class Visual implements IVisual {
             );
         }
         setIconVisibility(this.diagnosticsIcon, diagActive);
+        return diagActive;
+    }
 
-        try {
-            this.events.renderingStarted(options);
-            if (
-                powerbi.VisualUpdateType.Data ===
-                (options.type & powerbi.VisualUpdateType.Data)
-            ) {
-                this.updateStatus(
-                    this.localisationManager.getDisplayName(
-                        'Status_Mapping_DataView'
-                    )
-                );
-                this.viewModelHandler.validateDataView(options.dataViews);
-                viewModel.isValid &&
-                    this.viewModelHandler.mapDataView(
-                        options.dataViews,
-                        this.formattingSettings,
-                        this.host
-                    );
-                this.updateStatus();
-            }
-            this.formattingSettings.handlePropertyVisibility(viewModel);
-            this.landingPageHandler.handleLandingPage(
-                viewModel.isValid,
-                this.host
+    /**
+     * Main render dispatch for a successful update: signal rendering start,
+     * map the data view (when the update carries Data), resolve landing page /
+     * validity, then run the orchestrator inside the diagnostics capture
+     * brackets and signal rendering finished. Throws on an invalid view model;
+     * the caller's catch handles cleanup.
+     */
+    private renderUpdate(
+        options: VisualUpdateOptions,
+        viewModel: IViewModel,
+        diagActive: boolean
+    ): void {
+        this.events.renderingStarted(options);
+        if (
+            powerbi.VisualUpdateType.Data ===
+            (options.type & powerbi.VisualUpdateType.Data)
+        ) {
+            this.updateStatus(
+                this.localisationManager.getDisplayName(
+                    'Status_Mapping_DataView'
+                )
             );
-            if (!viewModel.isValid) {
-                throw new Error('View model mapping error');
-            }
-            if (diagActive) beginCapture();
-            try {
-                this.orchestrator.render(
-                    options,
-                    viewModel,
-                    this.formattingSettings
+            this.viewModelHandler.validateDataView(options.dataViews);
+            viewModel.isValid &&
+                this.viewModelHandler.mapDataView(
+                    options.dataViews,
+                    this.formattingSettings,
+                    this.host
                 );
-            } finally {
-                // Always disarm the sink, even if render throws: this keeps the
-                // capture up to the failure point (useful for diagnosing the
-                // throw) and prevents the sink staying armed into later renders.
-                if (diagActive) this.lastSanitizerCapture = endCapture();
-            }
-            this.events.renderingFinished(options);
-        } catch (e) {
-            this.events.renderingFailed(options, e);
-            // Clear any partially-rendered DOM from the failed update so the
-            // next update starts clean. (The reconcile stash can't be left
-            // inconsistent here: it is stamped only AFTER a node's content is
-            // rendered, so a mid-render throw leaves changed nodes un-stamped
-            // and they re-render next reconcile regardless of this wipe.)
-            this.contentContainer.selectAll('*').remove();
             this.updateStatus();
-            // Drop the cached template container so the next update rebuilds
-            // against a clean, freshly-resolved container rather than reusing a
-            // stale one whose DOM was just wiped.
-            this.templateContainer = undefined;
-            // Reset orchestrator state to match the now-empty container, so the
-            // next update rebuilds from scratch rather than skipping a
-            // viewport-only render against stale cached state.
-            this.orchestrator.reset();
         }
+        this.formattingSettings.handlePropertyVisibility(viewModel);
+        this.landingPageHandler.handleLandingPage(viewModel.isValid, this.host);
+        if (!viewModel.isValid) {
+            throw new Error('View model mapping error');
+        }
+        if (diagActive) beginCapture();
+        try {
+            this.orchestrator.render(options, viewModel, this.formattingSettings);
+        } finally {
+            // Always disarm the sink, even if render throws: this keeps the
+            // capture up to the failure point (useful for diagnosing the
+            // throw) and prevents the sink staying armed into later renders.
+            if (diagActive) this.lastSanitizerCapture = endCapture();
+        }
+        this.events.renderingFinished(options);
+    }
+
+    /**
+     * Cleanup for a failed update: signal rendering failed, wipe the
+     * partially-rendered DOM, reset status, and drop the cached state so the
+     * next update rebuilds from scratch.
+     */
+    private handleUpdateFailure(
+        options: VisualUpdateOptions,
+        e: unknown
+    ): void {
+        // `reason?: string` on the host API; the original inline catch passed
+        // the (implicitly-any) throw straight through, so cast to preserve it.
+        this.events.renderingFailed(options, e as string);
+        // Clear any partially-rendered DOM from the failed update so the
+        // next update starts clean. (The reconcile stash can't be left
+        // inconsistent here: it is stamped only AFTER a node's content is
+        // rendered, so a mid-render throw leaves changed nodes un-stamped
+        // and they re-render next reconcile regardless of this wipe.)
+        this.contentContainer.selectAll('*').remove();
+        this.updateStatus();
+        // Drop the cached template container so the next update rebuilds
+        // against a clean, freshly-resolved container rather than reusing a
+        // stale one whose DOM was just wiped.
+        this.templateContainer = undefined;
+        // Reset orchestrator state to match the now-empty container, so the
+        // next update rebuilds from scratch rather than skipping a
+        // viewport-only render against stale cached state.
+        this.orchestrator.reset();
     }
 
     /**
@@ -364,46 +410,7 @@ export class Visual implements IVisual {
             // so the next populated render is a fresh rebuild that re-resolves
             // the body wrapper.
             renderEmptyOrRaw: (viewModel, settings) => {
-                this.contentContainer.selectAll('*').remove();
-                this.templateContainer = undefined;
-                const behavior =
-                    settings.contentFormatting.contentFormattingCardBehavior;
-                if (viewModel.isEmpty) {
-                    this.updateStatus(
-                        settings.contentFormatting.contentFormattingCardNoData
-                            .noDataMessage.value,
-                        behavior.showRawHtml.value
-                    );
-                } else {
-                    // Populated content but showRawHtml is on: render entries via
-                    // the template engine (so the raw view reflects the templated
-                    // output) then replace with the raw view (resolveForRawHtml
-                    // wipes the content + adds the textarea).
-                    this.templateContainer = resolveTemplateContainer(
-                        this.contentContainer.node() as HTMLElement,
-                        viewModel.bodyTemplate,
-                        { allowHyperlinks: behavior.hyperlinks.value }
-                    );
-                    renderTemplatedEntries(
-                        this.templateContainer,
-                        viewModel.htmlEntries,
-                        {
-                            format: behavior.format.value as RenderFormat,
-                            allowHyperlinks: behavior.hyperlinks.value,
-                            hasSelection: viewModel.hasSelection
-                        } as TemplatedRenderOptions
-                    );
-                    resolveForRawHtml(
-                        this.styleSheetContainer,
-                        this.contentContainer,
-                        settings
-                    );
-                }
-                resolveHyperlinkHandling(
-                    this.host,
-                    this.container,
-                    behavior.hyperlinks.value
-                );
+                this.renderEmptyOrRaw(viewModel, settings);
             },
             // Full rebuild: re-resolve the template container (this clears
             // #htmlContent and re-parses the body — that IS the rebuild wipe),
@@ -417,45 +424,112 @@ export class Visual implements IVisual {
             // body change (static OR CF) trips the fingerprint and forces a
             // rebuild, so the cached container is always body-current.
             reconcile: (viewModel, settings) => {
-                const behavior =
-                    settings.contentFormatting.contentFormattingCardBehavior;
-                this.updateStatus();
-                if (!this.templateContainer) {
-                    // No baseline (shouldn't happen — rebuild always seeds it).
-                    // Fall back to a full rebuild against a clean container.
-                    this.rebuildPopulated(viewModel, settings);
-                    return;
-                }
-                const { merged } = reconcileTemplatedEntries(
-                    this.templateContainer,
-                    viewModel.htmlEntries,
-                    {
-                        format: behavior.format.value as RenderFormat,
-                        allowHyperlinks: behavior.hyperlinks.value,
-                        hasSelection: viewModel.hasSelection
-                    } as TemplatedRenderOptions
-                );
-                this.finalizePopulatedRender(merged, viewModel, settings);
+                this.reconcilePopulated(viewModel, settings);
             },
             bindInteractivity: (viewModel) => {
-                if (this.host.hostCapabilities.allowInteractions) {
-                    this.interactivity.bind(<
-                        IHtmlBehaviorOptions<SelectableDataPoint>
-                    >{
-                        behavior: this.behavior,
-                        dataPoints: viewModel.htmlEntries,
-                        clearCatcherSelection: this.container,
-                        pointSelection: this.dataElements,
-                        viewModel,
-                        hideTooltip: () =>
-                            this.host.tooltipService.hide({
-                                immediately: true,
-                                isTouchEvent: false
-                            })
-                    });
-                }
+                this.bindInteractivity(viewModel);
             }
         };
+    }
+
+    /**
+     * No-data message or raw-HTML textarea render path. Clears content first
+     * (state-kind reset) and invalidates the cached template container so the
+     * next populated render is a fresh rebuild that re-resolves the body
+     * wrapper.
+     */
+    private renderEmptyOrRaw(
+        viewModel: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ): void {
+        this.contentContainer.selectAll('*').remove();
+        this.templateContainer = undefined;
+        const behavior =
+            settings.contentFormatting.contentFormattingCardBehavior;
+        if (viewModel.isEmpty) {
+            this.updateStatus(
+                settings.contentFormatting.contentFormattingCardNoData
+                    .noDataMessage.value,
+                behavior.showRawHtml.value
+            );
+        } else {
+            // Populated content but showRawHtml is on: render entries via
+            // the template engine (so the raw view reflects the templated
+            // output) then replace with the raw view (resolveForRawHtml
+            // wipes the content + adds the textarea).
+            this.templateContainer = resolveTemplateContainer(
+                this.contentContainer.node() as HTMLElement,
+                viewModel.bodyTemplate,
+                { allowHyperlinks: behavior.hyperlinks.value }
+            );
+            renderTemplatedEntries(this.templateContainer, viewModel.htmlEntries, {
+                format: behavior.format.value as RenderFormat,
+                allowHyperlinks: behavior.hyperlinks.value,
+                hasSelection: viewModel.hasSelection
+            } as TemplatedRenderOptions);
+            resolveForRawHtml(
+                this.styleSheetContainer,
+                this.contentContainer,
+                settings
+            );
+        }
+        resolveHyperlinkHandling(
+            this.host,
+            this.container,
+            behavior.hyperlinks.value
+        );
+    }
+
+    /**
+     * Reconcile render path: reuse the cached template container and re-render
+     * ONLY the changed/entered rows (unchanged rows keep their exact node so
+     * inline iframes survive). Falls back to a full rebuild when no baseline
+     * container exists.
+     */
+    private reconcilePopulated(
+        viewModel: IViewModel,
+        settings: VisualFormattingSettingsModel
+    ): void {
+        const behavior =
+            settings.contentFormatting.contentFormattingCardBehavior;
+        this.updateStatus();
+        if (!this.templateContainer) {
+            // No baseline (shouldn't happen — rebuild always seeds it).
+            // Fall back to a full rebuild against a clean container.
+            this.rebuildPopulated(viewModel, settings);
+            return;
+        }
+        const { merged } = reconcileTemplatedEntries(
+            this.templateContainer,
+            viewModel.htmlEntries,
+            {
+                format: behavior.format.value as RenderFormat,
+                allowHyperlinks: behavior.hyperlinks.value,
+                hasSelection: viewModel.hasSelection
+            } as TemplatedRenderOptions
+        );
+        this.finalizePopulatedRender(merged, viewModel, settings);
+    }
+
+    /**
+     * Bind data-point interactivity (cross-filter selection + tooltip hide)
+     * against the rendered data elements, when the host allows interactions.
+     */
+    private bindInteractivity(viewModel: IViewModel): void {
+        if (this.host.hostCapabilities.allowInteractions) {
+            this.interactivity.bind(<IHtmlBehaviorOptions<SelectableDataPoint>>{
+                behavior: this.behavior,
+                dataPoints: viewModel.htmlEntries,
+                clearCatcherSelection: this.container,
+                pointSelection: this.dataElements,
+                viewModel,
+                hideTooltip: () =>
+                    this.host.tooltipService.hide({
+                        immediately: true,
+                        isTouchEvent: false
+                    })
+            });
+        }
     }
 
     /**
@@ -592,12 +666,22 @@ export class Visual implements IVisual {
             return;
         }
         this.diagOpening = true;
+        const snapshot = this.buildDiagnosticsSnapshot();
+        this.showDiagnosticsDialog(snapshot);
+    }
+
+    /**
+     * Build the bounded diagnostics snapshot handed to the modal dialog:
+     * the serialized raw HTML, last sanitizer capture, console/events buffers,
+     * localized labels, and the sticky tab/filter state.
+     */
+    private buildDiagnosticsSnapshot(): ReturnType<typeof buildSnapshot> {
         const rawHtml = getDiagnosticsRawHtml(
             this.styleSheetContainer,
             this.contentContainer,
             this.formattingSettings.stylesheet
         );
-        const snapshot = buildSnapshot({
+        return buildSnapshot({
             rawHtml,
             sanitizer: this.lastSanitizerCapture,
             console: consoleSnapshot(),
@@ -608,6 +692,17 @@ export class Visual implements IVisual {
             consoleFilter: this.lastConsoleFilter,
             eventsFilter: this.lastEventsFilter
         });
+    }
+
+    /**
+     * Open the host modal dialog with the supplied snapshot and handle the
+     * dialog result: persist the sticky tab/filter state, service console/
+     * events clear requests, and launch any requested doc URL. Clears the
+     * re-entrancy guard in both the resolve and reject paths.
+     */
+    private showDiagnosticsDialog(
+        snapshot: ReturnType<typeof buildSnapshot>
+    ): void {
         void this.host
             .openModalDialog(
                 VisualConstants.diagnostics.dialogId,
@@ -626,48 +721,66 @@ export class Visual implements IVisual {
             )
             .then((result) => {
                 this.diagOpening = false;
-                // The dialog reports its state via setResult / close →
-                // resultState: the last tab (so we reopen there), a console
-                // clear request, and a doc-link launch (mapped to our own URL).
-                const rs = result?.resultState as
-                    | {
-                          lastTab?: string;
-                          clearConsole?: boolean;
-                          clearEvents?: boolean;
-                          consoleFilter?: string;
-                          eventsFilter?: string;
-                          launchDoc?: 'sanitization' | 'acceptedTags';
-                      }
-                    | undefined;
-                if (rs?.lastTab) {
-                    this.lastDiagnosticsTab = rs.lastTab;
-                }
-                // Remember the filter picks so they're sticky on the next open.
-                if (rs?.consoleFilter) {
-                    this.lastConsoleFilter = rs.consoleFilter;
-                }
-                if (rs?.eventsFilter) {
-                    this.lastEventsFilter = rs.eventsFilter;
-                }
-                if (rs?.clearConsole) {
-                    clearConsoleBuffer();
-                }
-                if (rs?.clearEvents) {
-                    clearEventsBuffer();
-                }
-                if (rs?.launchDoc) {
-                    // Map the doc KEY to our own constant URL — launchUrl can
-                    // only ever open one of our documented pages.
-                    const url = VisualConstants.diagnostics.docs[rs.launchDoc];
-                    if (url) {
-                        this.host.launchUrl(url);
-                    }
-                }
+                this.applyDiagnosticsResult(result);
             })
             .catch(() => {
                 this.diagOpening = false;
                 /* dialog dismissed / unsupported; keep the current state */
             });
+    }
+
+    /**
+     * Apply the dialog's reported result state: the dialog reports its state
+     * via setResult / close → resultState — the last tab (so we reopen there),
+     * the sticky console/events filters, console/events clear requests, and a
+     * doc-link launch (mapped to our own URL).
+     */
+    private applyDiagnosticsResult(result: { resultState?: unknown }): void {
+        const rs = result?.resultState as DiagnosticsResultState | undefined;
+        this.persistDiagnosticsState(rs);
+        this.runDiagnosticsResultActions(rs);
+    }
+
+    /**
+     * Persist the sticky dialog state (last tab + console/events filter picks)
+     * so the next open restores them.
+     */
+    private persistDiagnosticsState(
+        rs: DiagnosticsResultState | undefined
+    ): void {
+        if (rs?.lastTab) {
+            this.lastDiagnosticsTab = rs.lastTab;
+        }
+        // Remember the filter picks so they're sticky on the next open.
+        if (rs?.consoleFilter) {
+            this.lastConsoleFilter = rs.consoleFilter;
+        }
+        if (rs?.eventsFilter) {
+            this.lastEventsFilter = rs.eventsFilter;
+        }
+    }
+
+    /**
+     * Service the dialog's action requests: console/events buffer clears and a
+     * doc-link launch (mapped to our own constant URL).
+     */
+    private runDiagnosticsResultActions(
+        rs: DiagnosticsResultState | undefined
+    ): void {
+        if (rs?.clearConsole) {
+            clearConsoleBuffer();
+        }
+        if (rs?.clearEvents) {
+            clearEventsBuffer();
+        }
+        if (rs?.launchDoc) {
+            // Map the doc KEY to our own constant URL — launchUrl can
+            // only ever open one of our documented pages.
+            const url = VisualConstants.diagnostics.docs[rs.launchDoc];
+            if (url) {
+                this.host.launchUrl(url);
+            }
+        }
     }
 
     /**

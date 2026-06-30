@@ -31,7 +31,8 @@ import valueParser, {
     FunctionNode
 } from 'postcss-value-parser';
 import { isSafeImageDataUri } from './svg-payload-scan';
-import { recordRemoval } from './diagnostics/diagnostics-sink';
+import { recordRemoval } from '../diagnostics/diagnostics-sink';
+import { SCHEME_REGEXES } from './dangerous-patterns';
 
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
@@ -55,20 +56,19 @@ const ALLOWED_AT_RULES = new Set<string>([
  * The `behavior:` pattern is anchored to a declaration boundary so it
  * doesn't false-positive on compound property names like `scroll-behavior`
  * or `overflow-behavior`.
+ *
+ * Exported (test-only) so the dangerous-patterns superset guard can assert
+ * this denylist never narrows after the pattern-list unification. It is an
+ * internal denylist — exposing it for the guard is harmless.
  */
-const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
+export const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
     /@import/i,
     /@font-face/i,
     /@namespace/i,
     /expression\s*\(/i,
-    /javascript\s*:/i,
-    /vbscript\s*:/i,
-    /livescript\s*:/i,
-    /mocha\s*:/i,
-    /data\s*:\s*text\/html/i,
-    /data\s*:\s*text\/javascript/i,
-    /data\s*:\s*application\/javascript/i,
-    /data\s*:\s*application\/x-javascript/i,
+    // The 8 shared dangerous-scheme regexes, spread verbatim from the
+    // canonical source so this list cannot drift from the others.
+    ...SCHEME_REGEXES,
     /-moz-binding/i,
     /(^|[;{\s])behavior\s*:/i,
     /progid\s*:/i
@@ -78,15 +78,13 @@ function finalPassIsClean(serialized: string): boolean {
     return !DEFENSE_IN_DEPTH_PATTERNS.some((p) => p.test(serialized));
 }
 
-const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
-    /javascript\s*:/i,
-    /vbscript\s*:/i,
-    /livescript\s*:/i,
-    /mocha\s*:/i,
-    /data\s*:\s*text\/html/i,
-    /data\s*:\s*text\/javascript/i,
-    /data\s*:\s*application\/javascript/i,
-    /data\s*:\s*application\/x-javascript/i,
+// Exported (test-only) so the dangerous-patterns superset guard can assert
+// this denylist never narrows after the pattern-list unification. It is an
+// internal denylist — exposing it for the guard is harmless.
+export const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
+    // The 8 shared dangerous-scheme regexes, spread verbatim from the
+    // canonical source so this list cannot drift from the others.
+    ...SCHEME_REGEXES,
     // Intentionally broad: matches `data:image` anywhere in the value,
     // including inside string literals (e.g. content: "data:image/png example").
     // The url()-token pre-strip above prevents false positives for safe
@@ -111,31 +109,43 @@ function hasDangerousSchemeInValue(value: string): boolean {
     return DANGEROUS_SCHEME_PATTERNS.some((p) => p.test(stripped));
 }
 
-function hasDangerousSelector(selector: string): boolean {
-    if (/javascript\s*:/i.test(selector)) return true;
-    // Reject control characters in 0x00-0x1F EXCEPT the whitespace
-    // controls that the CSS spec treats as valid: TAB (0x09), LF (0x0A),
-    // FF (0x0C), CR (0x0D). Multi-line comma-separated selectors
-    //
-    //   .a,
-    //   .b { ... }
-    //
-    // are normal real-world formatting and must not be dropped by this
-    // check (issue #143 report — multi-line layout
-    // selectors silently disappeared because of the over-broad range).
+/**
+ * Reject control characters in 0x00-0x1F EXCEPT the whitespace controls that
+ * the CSS spec treats as valid: TAB (0x09), LF (0x0A), FF (0x0C), CR (0x0D).
+ * Multi-line comma-separated selectors
+ *
+ *   .a,
+ *   .b { ... }
+ *
+ * are normal real-world formatting and must not be dropped by this check
+ * (issue #143 report — multi-line layout selectors silently disappeared
+ * because of the over-broad range).
+ */
+function isExemptWhitespaceControl(code: number): boolean {
+    // The whitespace controls the CSS spec treats as valid:
+    // TAB (0x09), LF (0x0A), FF (0x0C), CR (0x0D).
+    return (
+        code === 0x09 ||
+        code === 0x0a ||
+        code === 0x0c ||
+        code === 0x0d
+    );
+}
+
+function hasForbiddenControlChar(selector: string): boolean {
     for (let i = 0; i < selector.length; i++) {
         const code = selector.charCodeAt(i);
-        if (
-            code <= 0x1f &&
-            code !== 0x09 && // TAB
-            code !== 0x0a && // LF
-            code !== 0x0c && // FF
-            code !== 0x0d // CR
-        ) {
+        if (code <= 0x1f && !isExemptWhitespaceControl(code)) {
             return true;
         }
     }
     return false;
+}
+
+function hasDangerousSelector(selector: string): boolean {
+    return (
+        /javascript\s*:/i.test(selector) || hasForbiddenControlChar(selector)
+    );
 }
 
 const DENIED_FUNCTIONS = new Set<string>([
@@ -174,6 +184,14 @@ function isFragmentOnlyUrl(rawUrl: string): boolean {
     return rawUrl.trim().startsWith('#');
 }
 
+function isUnsafeUrlFunction(fn: FunctionNode): boolean {
+    const arg = extractUrlArgument(fn);
+    if (isFragmentOnlyUrl(arg)) {
+        return false;
+    }
+    return !isSafeImageDataUri(arg);
+}
+
 function hasUnsafeFunction(nodes: ValueNode[]): boolean {
     for (const node of nodes) {
         if (node.type !== 'function') continue;
@@ -181,13 +199,7 @@ function hasUnsafeFunction(nodes: ValueNode[]): boolean {
         const name = fn.value.toLowerCase();
         if (DENIED_FUNCTIONS.has(name)) return true;
         if (name === 'url') {
-            const arg = extractUrlArgument(fn);
-            if (isFragmentOnlyUrl(arg)) {
-                continue;
-            }
-            if (!isSafeImageDataUri(arg)) {
-                return true;
-            }
+            if (isUnsafeUrlFunction(fn)) return true;
             continue;
         }
         // Recurse into every function's children so denied functions
@@ -213,6 +225,83 @@ export type SanitizeCssMode = 'declaration-list' | 'stylesheet';
  * warning is emitted via console.warn — partial recovery from a malformed
  * input is too risky.
  */
+/**
+ * Drop at-rules that are not on the allowlist. Applies in both modes.
+ */
+function dropDisallowedAtRules(root: Root): void {
+    root.walkAtRules((atRule) => {
+        if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
+            recordRemoval({
+                kind: 'css',
+                subject: `@${atRule.name}`,
+                rule: 'blocked-at-rule'
+            });
+            atRule.remove();
+        }
+    });
+}
+
+/**
+ * Drop rules whose selector is dangerous. Stylesheet mode only — the
+ * declaration-list mode has no real selectors (the synthetic wrapper rule is
+ * not walked as a dangerous selector candidate).
+ */
+function dropDangerousRules(root: Root): void {
+    root.walkRules((rule) => {
+        if (hasDangerousSelector(rule.selector)) {
+            recordRemoval({
+                kind: 'css',
+                subject: rule.selector.slice(0, 80),
+                rule: 'dangerous-selector'
+            });
+            rule.remove();
+        }
+    });
+}
+
+/**
+ * Drop declarations whose property or value violates the rule set. Applies in
+ * both modes.
+ */
+function dropDangerousDeclarations(root: Root): void {
+    root.walkDecls((decl: Declaration) => {
+        if (isDangerousDeclaration(decl)) {
+            recordRemoval({
+                kind: 'css',
+                subject: decl.prop,
+                rule: 'blocked-declaration',
+                snippet: (decl.value || '').slice(0, 80)
+            });
+            decl.remove();
+        }
+    });
+}
+
+/**
+ * Serialize the surviving AST back to CSS. In declaration-list mode the
+ * synthetic `__sanitize__{...}` wrapper rule is serialized whole (so postcss
+ * inserts the ';' separators) and the wrapper braces are stripped; if the
+ * wrapper is gone, the empty string is returned. In stylesheet mode the root
+ * is stringified directly.
+ */
+function serializeCss(root: Root, mode: SanitizeCssMode): string {
+    if (mode === 'declaration-list') {
+        const synthetic = root.first;
+        if (!synthetic || synthetic.type !== 'rule') {
+            return '';
+        }
+        // Serialize the whole synthetic rule so postcss's stringify inserts
+        // separators (';') between declarations, then strip the wrapper
+        // braces. Joining per-node toString() by hand would drop the
+        // separators because Declaration.toString() does NOT include the
+        // trailing semicolon — that's the container's job, not the node's.
+        const full = synthetic.toString();
+        const match = full.match(/^[^{]*\{([\s\S]*)\}\s*$/);
+        return match ? match[1].trim() : '';
+    }
+    return root.toString();
+}
+
 export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
     if (input == null || input === '') {
         return '';
@@ -229,59 +318,13 @@ export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
         return '';
     }
 
-    root.walkAtRules((atRule) => {
-        if (!ALLOWED_AT_RULES.has(atRule.name.toLowerCase())) {
-            recordRemoval({
-                kind: 'css',
-                subject: `@${atRule.name}`,
-                rule: 'blocked-at-rule'
-            });
-            atRule.remove();
-        }
-    });
-
+    dropDisallowedAtRules(root);
     if (mode === 'stylesheet') {
-        root.walkRules((rule) => {
-            if (hasDangerousSelector(rule.selector)) {
-                recordRemoval({
-                    kind: 'css',
-                    subject: rule.selector.slice(0, 80),
-                    rule: 'dangerous-selector'
-                });
-                rule.remove();
-            }
-        });
+        dropDangerousRules(root);
     }
+    dropDangerousDeclarations(root);
 
-    root.walkDecls((decl: Declaration) => {
-        if (isDangerousDeclaration(decl)) {
-            recordRemoval({
-                kind: 'css',
-                subject: decl.prop,
-                rule: 'blocked-declaration',
-                snippet: (decl.value || '').slice(0, 80)
-            });
-            decl.remove();
-        }
-    });
-
-    let output: string;
-    if (mode === 'declaration-list') {
-        const synthetic = root.first;
-        if (!synthetic || synthetic.type !== 'rule') {
-            return '';
-        }
-        // Serialize the whole synthetic rule so postcss's stringify inserts
-        // separators (';') between declarations, then strip the wrapper
-        // braces. Joining per-node toString() by hand would drop the
-        // separators because Declaration.toString() does NOT include the
-        // trailing semicolon — that's the container's job, not the node's.
-        const full = synthetic.toString();
-        const match = full.match(/^[^{]*\{([\s\S]*)\}\s*$/);
-        output = match ? match[1].trim() : '';
-    } else {
-        output = root.toString();
-    }
+    const output = serializeCss(root, mode);
 
     if (!finalPassIsClean(output)) {
         recordRemoval({
