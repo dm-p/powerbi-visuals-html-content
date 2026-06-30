@@ -1845,7 +1845,8 @@ describe('tooltip host-event instrumentation', () => {
                 (e) =>
                     e.type === 'tooltip' &&
                     e.summary === 'show · contextual' &&
-                    e.context === 'Region="East"'
+                    // show context is coord-prefixed: '@ (x,y) Region="East"'
+                    e.context?.endsWith('Region="East"')
             )
         ).toBe(true);
     });
@@ -1896,7 +1897,8 @@ describe('tooltip host-event instrumentation', () => {
                 (e) =>
                     e.type === 'tooltip' &&
                     e.summary === 'show · manual' &&
-                    e.context === 'Manual="X"'
+                    // show context is coord-prefixed: '@ (x,y) Manual="X"'
+                    e.context?.endsWith('Manual="X"')
             )
         ).toBe(true);
     });

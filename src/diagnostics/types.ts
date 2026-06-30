@@ -2,7 +2,7 @@
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error';
 
-export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'drill';
+export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'context-menu';
 export type TooltipPhase = 'show' | 'hide';
 export type TooltipSource = 'contextual' | 'manual';
 
@@ -80,7 +80,7 @@ export interface DiagnosticsLabels {
     evtUpdate: string;
     evtCrossFilter: string;
     evtTooltip: string;
-    evtDrill: string;
+    evtContextMenu: string;
     /** Radio-filter "show everything" option (Console + Events). */
     filterAll: string;
 }
@@ -105,7 +105,7 @@ export interface DiagnosticsSnapshot {
      * dialog falls back to the first tab when this is absent or unavailable.
      */
     initialTab?: string;
-    /** Captured visual host events (update/cross-filter/tooltip/drill). */
+    /** Captured visual host events (update/cross-filter/tooltip/context-menu). */
     events: HostEvent[];
     /**
      * Remembered Console level filter for the session ('all' or a single level),

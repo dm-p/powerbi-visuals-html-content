@@ -9,6 +9,9 @@ import {
 } from '../src/diagnostics/event-recorder';
 import { VisualConstants } from '../src/visual-constants';
 
+// recordTooltipEvent reads clientX/clientY for the show-coords prefix.
+const ev = (clientX = 10, clientY = 20) => ({ clientX, clientY }) as any;
+
 beforeEach(() => resetForTests());
 
 describe('event recorder arming', () => {
@@ -26,19 +29,19 @@ describe('event recorder arming', () => {
     });
     it('disarming stops recording', () => {
         setArmed(true);
-        recordEvent('drill', 'a');
+        recordEvent('context-menu', 'a');
         setArmed(false);
-        recordEvent('drill', 'b');
+        recordEvent('context-menu', 'b');
         expect(snapshot()).toHaveLength(1);
     });
     it('recordTooltipEvent is a no-op when disarmed and does not poison the dedup key', () => {
         // Disarmed: nothing recorded, and lastTooltipKey must NOT be set.
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         expect(snapshot()).toEqual([]);
         // After arming, the SAME show must still record — proving the dedup key
         // was not written during the disarmed call.
         setArmed(true);
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
 });
@@ -65,39 +68,48 @@ describe('tooltip de-duplication (Decision 9/10)', () => {
     beforeEach(() => setArmed(true));
     const sums = () => snapshot().map((e) => e.summary + '|' + (e.context ?? ''));
 
-    it('collapses consecutive identical shows', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
-        recordTooltipEvent('show', 'contextual', 'A');
+    it('collapses consecutive identical shows even when coords differ', () => {
+        // The dedup key excludes coords, so mousemove jitter still collapses.
+        recordTooltipEvent(ev(10, 20), 'show', 'contextual', 'A');
+        recordTooltipEvent(ev(99, 88), 'show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
+    it('prefixes show context with coords; hide stays bare', () => {
+        recordTooltipEvent(ev(10, 20), 'show', 'contextual', 'A');
+        recordTooltipEvent(ev(10, 20), 'hide', 'contextual', '');
+        expect(snapshot().map((e) => e.context)).toEqual([
+            '@ (10,20) A',
+            undefined
+        ]);
+    });
     it('re-enables an identical show after an intervening hide', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
-        recordTooltipEvent('hide', 'contextual', '');
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'hide', 'contextual', '');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(3);
     });
     it('records a show over different data', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
-        recordTooltipEvent('show', 'contextual', 'B');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'B');
         expect(snapshot()).toHaveLength(2);
     });
     it('does NOT re-enable across an intervening non-tooltip event', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         recordEvent('update', 'type=Resize');
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         // update recorded; the second identical show suppressed → 2 total
         expect(snapshot()).toHaveLength(2);
-        expect(sums()).toEqual(['show · contextual|A', 'type=Resize|']);
+        expect(sums()).toEqual(['show · contextual|@ (10,20) A', 'type=Resize|']);
     });
     it('does NOT dedup contextual vs manual with the same context', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
-        recordTooltipEvent('show', 'manual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'manual', 'A');
         expect(snapshot()).toHaveLength(2);
     });
     it('clear resets the dedup key so the next show logs', () => {
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         clear();
-        recordTooltipEvent('show', 'contextual', 'A');
+        recordTooltipEvent(ev(), 'show', 'contextual', 'A');
         expect(snapshot()).toHaveLength(1);
     });
 });

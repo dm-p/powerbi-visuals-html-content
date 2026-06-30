@@ -33,7 +33,7 @@ const labels = {
     evtUpdate: 'update',
     evtCrossFilter: 'cross-filter',
     evtTooltip: 'tooltip',
-    evtDrill: 'drill',
+    evtContextMenu: 'context-menu',
     filterAll: 'all'
 };
 
@@ -413,25 +413,27 @@ describe('renderPanel', () => {
             snap({
                 events: [
                     { ts: 0, type: 'update', summary: 'u' },
-                    { ts: 0, type: 'drill', summary: 'd' }
+                    { ts: 0, type: 'context-menu', summary: 'd' }
                 ]
             })
         );
         const updateRow = el.querySelector(
             '.hc-evt.hc-evt-update'
         ) as HTMLElement;
-        const drillRow = el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement;
+        const ctxRow = el.querySelector(
+            '.hc-evt.hc-evt-context-menu'
+        ) as HTMLElement;
         // Default 'all' → both visible.
         expect(updateRow.style.display).not.toBe('none');
-        expect(drillRow.style.display).not.toBe('none');
-        // Pick the 'drill' radio → only drill visible.
-        const drillRadio = el.querySelector(
-            'input[name="hc-events-filter"][value="drill"]'
+        expect(ctxRow.style.display).not.toBe('none');
+        // Pick the 'context-menu' radio → only context-menu visible.
+        const ctxRadio = el.querySelector(
+            'input[name="hc-events-filter"][value="context-menu"]'
         ) as HTMLInputElement;
-        drillRadio.checked = true;
-        drillRadio.dispatchEvent(new Event('change'));
+        ctxRadio.checked = true;
+        ctxRadio.dispatchEvent(new Event('change'));
         expect(updateRow.style.display).toBe('none');
-        expect(drillRow.style.display).not.toBe('none');
+        expect(ctxRow.style.display).not.toBe('none');
     });
 
     it('events filter restores the remembered pick and reports changes', () => {
@@ -440,27 +442,27 @@ describe('renderPanel', () => {
         renderPanel(
             el,
             snap({
-                eventsFilter: 'drill',
+                eventsFilter: 'context-menu',
                 events: [
                     { ts: 0, type: 'update', summary: 'u' },
-                    { ts: 0, type: 'drill', summary: 'd' }
+                    { ts: 0, type: 'context-menu', summary: 'd' }
                 ]
             }),
             { onEventsFilter: (t) => picks.push(t) }
         );
-        // Remembered 'drill' applied on open.
+        // Remembered 'context-menu' applied on open.
         expect(
             (el.querySelector('.hc-evt.hc-evt-update') as HTMLElement).style
                 .display
         ).toBe('none');
         expect(
-            (el.querySelector('.hc-evt.hc-evt-drill') as HTMLElement).style
-                .display
+            (el.querySelector('.hc-evt.hc-evt-context-menu') as HTMLElement)
+                .style.display
         ).not.toBe('none');
         expect(
             (
                 el.querySelector(
-                    'input[name="hc-events-filter"][value="drill"]'
+                    'input[name="hc-events-filter"][value="context-menu"]'
                 ) as HTMLInputElement
             ).checked
         ).toBe(true);
@@ -471,6 +473,32 @@ describe('renderPanel', () => {
         updateRadio.checked = true;
         updateRadio.dispatchEvent(new Event('change'));
         expect(picks).toContain('update');
+    });
+
+    it('falls back to "all" when the remembered filter is no longer a known type', () => {
+        const el = document.createElement('div');
+        renderPanel(
+            el,
+            // 'drill' was renamed to 'context-menu'; an old snapshot may still
+            // carry it. It must not hide every row.
+            snap({
+                eventsFilter: 'drill',
+                events: [
+                    { ts: 0, type: 'update', summary: 'u' },
+                    { ts: 0, type: 'context-menu', summary: 'd' }
+                ]
+            })
+        );
+        el.querySelectorAll<HTMLElement>('.hc-evt').forEach((row) =>
+            expect(row.style.display).not.toBe('none')
+        );
+        expect(
+            (
+                el.querySelector(
+                    'input[name="hc-events-filter"][value="all"]'
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
     });
 
     it('events Clear empties the display and reports onClearEvents', () => {

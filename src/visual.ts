@@ -622,7 +622,7 @@ export class Visual implements IVisual {
             evtUpdate: t('Diagnostics_EvtUpdate'),
             evtCrossFilter: t('Diagnostics_EvtCrossFilter'),
             evtTooltip: t('Diagnostics_EvtTooltip'),
-            evtDrill: t('Diagnostics_EvtDrill'),
+            evtContextMenu: t('Diagnostics_EvtContextMenu'),
             filterAll: t('Diagnostics_FilterAll')
         };
     }
