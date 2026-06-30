@@ -56,8 +56,12 @@ const ALLOWED_AT_RULES = new Set<string>([
  * The `behavior:` pattern is anchored to a declaration boundary so it
  * doesn't false-positive on compound property names like `scroll-behavior`
  * or `overflow-behavior`.
+ *
+ * Exported (test-only) so the dangerous-patterns superset guard can assert
+ * this denylist never narrows after the pattern-list unification. It is an
+ * internal denylist — exposing it for the guard is harmless.
  */
-const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
+export const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
     /@import/i,
     /@font-face/i,
     /@namespace/i,
@@ -74,7 +78,10 @@ function finalPassIsClean(serialized: string): boolean {
     return !DEFENSE_IN_DEPTH_PATTERNS.some((p) => p.test(serialized));
 }
 
-const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
+// Exported (test-only) so the dangerous-patterns superset guard can assert
+// this denylist never narrows after the pattern-list unification. It is an
+// internal denylist — exposing it for the guard is harmless.
+export const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
     // The 8 shared dangerous-scheme regexes, spread verbatim from the
     // canonical source so this list cannot drift from the others.
     ...SCHEME_REGEXES,
