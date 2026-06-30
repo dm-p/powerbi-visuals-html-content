@@ -27,7 +27,9 @@ export function resolveBodyTemplate(
 ): string {
     const fallback = settings.templates.templatesCardMain.bodyTemplate.value;
     return dataViewObjects.getValue<string>(
-        dataView?.metadata?.objects,
+        // getValue tolerates absent objects (returns the fallback); its type
+        // wants a non-undefined map, so assert past the optional chain.
+        dataView?.metadata?.objects as powerbi.DataViewObjects,
         { objectName: TEMPLATES_OBJECT, propertyName: 'bodyTemplate' },
         fallback
     );

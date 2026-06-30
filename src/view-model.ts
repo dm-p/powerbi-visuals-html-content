@@ -55,7 +55,7 @@ interface ITooltipColumn {
  * Visual view model and necessary logic to manage its state.
  */
 export class ViewModelHandler {
-    viewModel: IViewModel;
+    viewModel!: IViewModel;
 
     constructor() {
         this.reset();
@@ -217,7 +217,7 @@ export class ViewModelHandler {
      */
     private getTooltipValues(
         tooltipColumns: ITooltipColumn[],
-        row: PrimitiveValue[]
+        row: (PrimitiveValue | null)[]
     ): VisualTooltipDataItem[] {
         return tooltipColumns.map(({ column, index, formatter }) => ({
             displayName: column.displayName,

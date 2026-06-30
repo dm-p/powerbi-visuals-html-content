@@ -40,10 +40,10 @@ export interface IHtmlBehaviorOptions<
 export class BehaviorManager<
     SelectableDataPoint extends BaseDataPoint
 > implements IInteractiveBehavior {
-    // Interactivity options
-    protected options: IHtmlBehaviorOptions<SelectableDataPoint>;
-    // Handles selection event delegation to the visual host
-    protected selectionHandler: ISelectionHandler;
+    // Interactivity options (assigned in bindEvents, not the constructor)
+    protected options!: IHtmlBehaviorOptions<SelectableDataPoint>;
+    // Handles selection event delegation to the visual host (assigned in bindEvents)
+    protected selectionHandler!: ISelectionHandler;
 
     /**
      * Apply click behavior to selections as necessary.
@@ -131,7 +131,9 @@ export class BehaviorManager<
             d ? this.pointContext(d) || undefined : 'background'
         );
         event &&
-            this.selectionHandler.handleContextMenu(d, {
+            // null d is the intended "background" right-click; the host's
+            // handleContextMenu tolerates it even though its type wants a point.
+            this.selectionHandler.handleContextMenu(d as IHtmlEntry, {
                 x: event.clientX,
                 y: event.clientY
             });

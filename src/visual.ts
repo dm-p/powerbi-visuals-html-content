@@ -91,8 +91,8 @@ export class Visual implements IVisual {
     private contentContainer: Selection<HTMLDivElement, any, any, any>;
     // Visual host services
     private host: IVisualHost;
-    // Parsed visual settings
-    private formattingSettings: VisualFormattingSettingsModel;
+    // Parsed visual settings (assigned each update, not in the constructor)
+    private formattingSettings!: VisualFormattingSettingsModel;
     // Formatting settings service
     private formattingSettingsService: FormattingSettingsService;
     // Handle rendering events
@@ -156,7 +156,13 @@ export class Visual implements IVisual {
     private diagOpening = false;
 
     // Runs when the visual is initialised
-    constructor(options: VisualConstructorOptions) {
+    constructor(options?: VisualConstructorOptions) {
+        // The generated plugin types create()'s options as optional; Power BI
+        // always supplies them at runtime. Guard once so the rest of the
+        // constructor sees a definitely-assigned options.
+        if (!options) {
+            throw new Error('VisualConstructorOptions are required');
+        }
         this.container = select(options.element)
             .append('div')
             .attr('id', VisualConstants.dom.viewerIdSelector);
@@ -793,7 +799,7 @@ export class Visual implements IVisual {
         };
         document.body.onfocus = () => {
             if (!this.bodyFocusedWithClick) {
-                this.contentContainer.node().focus();
+                this.contentContainer.node()?.focus();
             }
             this.bodyFocusedWithClick = false;
         };
@@ -808,9 +814,10 @@ export class Visual implements IVisual {
     private updateStatus(message?: string, showRawHtml?: boolean) {
         this.statusContainer.selectAll('*').remove();
         if (message) {
-            this.statusContainer.append('div').append(function () {
-                return this.appendChild(getParsedHtmlAsDom(message, 'html'));
-            });
+            this.statusContainer
+                .append('div')
+                .node()
+                ?.appendChild(getParsedHtmlAsDom(message, 'html'));
         }
         if (showRawHtml) {
             resolveForRawHtml(
