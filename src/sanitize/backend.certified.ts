@@ -13,10 +13,8 @@ import { RenderFormat } from '../types';
 import { sanitizeCss } from './css';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
-// Re-exported for back-compat: `getSanitizedDataUri` now lives in `./data-uri`
-// (relocated to break the former runtime-only import cycle with
-// attribute-policy.ts). Importers should prefer `./data-uri` directly.
-export { getSanitizedDataUri } from './data-uri';
+// `getSanitizedDataUri` lives in `./data-uri` (relocated to break the former
+// runtime-only import cycle with attribute-policy.ts); import it from there.
 // The per-tag attribute-policy constants and the ten gate functions live in
 // attribute-policy.ts. The attribute hook below is now a thin dispatcher over
 // those gates; it only needs SVG_TAGS (to build the AttrContext) plus the gate

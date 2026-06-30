@@ -318,7 +318,7 @@ export const VisualConstants = {
         a: ['http', 'https'],
         // For AppSource certification, img and SVG image tags must NOT load
         // external resources. Only data: URIs are permitted (sanitized by
-        // getSanitizedDataUri in sanitize/backend.certified.ts).
+        // getSanitizedDataUri in sanitize/data-uri.ts).
         img: ['data'],
         image: ['data'],
         // SVG filter primitive that accepts an external image source.

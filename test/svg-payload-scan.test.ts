@@ -7,8 +7,8 @@ import {
 
 /**
  * Unit tests for the shared SVG-payload defense-in-depth helpers used
- * by both `getSanitizedDataUri` (sanitize-pipeline.ts) and
- * `isSafeImageDataUri` (css-sanitizer.ts). Pipeline-level integration
+ * by both `getSanitizedDataUri` (sanitize/data-uri.ts) and
+ * `isSafeImageDataUri` (sanitize/css.ts). Pipeline-level integration
  * coverage lives in `test/sanitize-pipeline.test.ts` and the CSP corpus;
  * this file pins the regex / decode logic directly so a bypass found in
  * either consumer can be reproduced without going through DOMPurify or
