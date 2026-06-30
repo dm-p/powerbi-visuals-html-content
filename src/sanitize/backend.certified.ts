@@ -11,18 +11,18 @@ import { marked } from 'marked';
 import { VisualConstants } from '../visual-constants';
 import { RenderFormat } from '../types';
 import { sanitizeCss } from './css';
-import {
-    hasDangerousSvgPayload,
-    SAFE_IMAGE_MIME_TYPES
-} from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SanitizeOptions } from './options';
+// Re-exported for back-compat: `getSanitizedDataUri` now lives in `./data-uri`
+// (relocated to break the former runtime-only import cycle with
+// attribute-policy.ts). Importers should prefer `./data-uri` directly.
+export { getSanitizedDataUri } from './data-uri';
 // The per-tag attribute-policy constants and the ten gate functions live in
 // attribute-policy.ts. The attribute hook below is now a thin dispatcher over
 // those gates; it only needs SVG_TAGS (to build the AttrContext) plus the gate
-// functions and the gate contract types. Runtime-only import cycle:
-// attribute-policy.ts imports `getSanitizedDataUri` from here — safe because
-// neither side touches the other during module initialization.
+// functions and the gate contract types. attribute-policy.ts no longer imports
+// anything from this module's runtime exports (the former cycle via
+// `getSanitizedDataUri` is gone — that function now lives in `./data-uri`).
 import {
     SVG_TAGS,
     normalizeUrlAttr,
@@ -195,6 +195,72 @@ const eventHandlerAttrName = (element: Element): string | null => {
     return null;
 };
 
+/**
+ * <style>-tag backstop body (verbatim from `uponSanitizeElement`). Re-run
+ * sanitizeCss on a <style> element's textContent. preprocessStyleTags already
+ * sanitized the body via regex extraction, but if the regex was defeated (e.g.
+ * by a '>' inside an attribute value or an unclosed tag), this catches the
+ * fallthrough. No-op for non-<style> nodes.
+ */
+const reSanitizeStyleContent = (currentNode: Node): void => {
+    if (
+        currentNode.nodeName &&
+        currentNode.nodeName.toLowerCase() === 'style'
+    ) {
+        const raw = currentNode.textContent || '';
+        if (raw.trim()) {
+            const sanitized = sanitizeCss(raw, 'stylesheet');
+            currentNode.textContent = sanitized;
+        }
+    }
+};
+
+/**
+ * Phase 1 of the two-phase on*-handler element drop (verbatim from
+ * `uponSanitizeElement`). EMPTY an on*-handler element's subtree here — before
+ * DOMPurify's disallowed-tag KEEP_CONTENT hoist can lift a child out of the
+ * element (phase 2 removes the element in afterSanitizeElements). Without this,
+ * a disallowed container like `<marquee onstart="…">x</marquee>` has its `x`
+ * hoisted to the parent before phase 2 runs, so the strict "drop the ENTIRE
+ * element + content" rule would leak the child content. Emptying (vs detaching
+ * the element) keeps `currentNode` parented through the rest of the element
+ * walk, so DOMPurify's own namespace/forced-removal checks never hit a
+ * parentless node — the 3.4.x "could not be detached" throw that a direct
+ * removeChild here would trigger on an SVG child.
+ */
+const emptyEventHandlerSubtree = (currentNode: Node): void => {
+    if (currentNode.nodeType === 1 /* ELEMENT_NODE */) {
+        const el = currentNode as Element;
+        if (eventHandlerAttrName(el)) {
+            while (el.firstChild) {
+                el.removeChild(el.firstChild);
+            }
+        }
+    }
+};
+
+/**
+ * Phase 2 of the two-phase on*-handler element drop (verbatim from
+ * `afterSanitizeElements`). If `element` carries an on* event-handler
+ * attribute, drop the ENTIRE element (its subtree was already emptied in
+ * phase 1) — stricter than DOMPurify's default of merely stripping the
+ * attribute, and a backstop for any handler name DOMPurify's own allowlist
+ * misses.
+ */
+const dropEventHandlerElement = (element: Element): void => {
+    const handler = eventHandlerAttrName(element);
+    if (handler) {
+        recordRemoval({
+            kind: 'element',
+            subject: `<${element.nodeName.toLowerCase()}> (${handler})`,
+            rule: 'event-handler'
+        });
+        if (element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    }
+};
+
 function withSanitizerHooks<T>(
     run: (purify: DOMPurifyType) => T,
     options?: SanitizeOptions
@@ -319,38 +385,12 @@ function withSanitizerHooks<T>(
             // than let an unsanitized body through.
             try {
                 if (!currentNode) return;
-                if (
-                    currentNode.nodeName &&
-                    currentNode.nodeName.toLowerCase() === 'style'
-                ) {
-                    const raw = currentNode.textContent || '';
-                    if (raw.trim()) {
-                        const sanitized = sanitizeCss(raw, 'stylesheet');
-                        currentNode.textContent = sanitized;
-                    }
-                }
-
-                // on*-handler container: EMPTY the subtree here — before
-                // DOMPurify's disallowed-tag KEEP_CONTENT hoist can lift a
-                // child out of the element. Phase 1 of the two-phase
-                // event-handler-element drop (phase 2 removes the element in
-                // afterSanitizeElements). Without this, a disallowed container
-                // like `<marquee onstart="…">x</marquee>` has its `x` hoisted
-                // to the parent before phase 2 runs, so the strict
-                // "drop the ENTIRE element + content" rule would leak the
-                // child content. Emptying (vs detaching the element) keeps
-                // `currentNode` parented through the rest of the element walk,
-                // so DOMPurify's own namespace/forced-removal checks never hit
-                // a parentless node — the 3.4.x "could not be detached" throw
-                // that a direct removeChild here would trigger on an SVG child.
-                if (currentNode.nodeType === 1 /* ELEMENT_NODE */) {
-                    const el = currentNode as Element;
-                    if (eventHandlerAttrName(el)) {
-                        while (el.firstChild) {
-                            el.removeChild(el.firstChild);
-                        }
-                    }
-                }
+                // <style>-tag backstop: re-sanitize the body via sanitizeCss.
+                reSanitizeStyleContent(currentNode);
+                // Phase 1 of the two-phase on*-handler element drop: empty the
+                // subtree before DOMPurify's KEEP_CONTENT hoist runs (phase 2
+                // removes the element in afterSanitizeElements).
+                emptyEventHandlerSubtree(currentNode);
             } catch (err) {
                 console.warn(
                     'uponSanitizeElement hook error, removing element:',
@@ -390,18 +430,7 @@ function withSanitizerHooks<T>(
                 ) {
                     return;
                 }
-                const element = currentNode as Element;
-                const handler = eventHandlerAttrName(element);
-                if (handler) {
-                    recordRemoval({
-                        kind: 'element',
-                        subject: `<${element.nodeName.toLowerCase()}> (${handler})`,
-                        rule: 'event-handler'
-                    });
-                    if (element.parentNode) {
-                        element.parentNode.removeChild(element);
-                    }
-                }
+                dropEventHandlerElement(currentNode as Element);
             } catch (err) {
                 console.warn(
                     'afterSanitizeElements hook error, removing element:',
@@ -432,6 +461,54 @@ function withSanitizerHooks<T>(
  * `withSanitizerHooks`' `run`, since `purify.removed` is reset on the
  * next `sanitize` call.
  */
+/**
+ * Map a single entry from DOMPurify's `removed` log to the removal record the
+ * diagnostics sink expects, or `null` when the entry is neither an element nor
+ * an attribute removal. Verbatim element-vs-attribute branch lifted out of
+ * `recordCoreRemovals` so that loop stays flat.
+ */
+type CoreRemovalRecord = Parameters<typeof recordRemoval>[0];
+
+/** True when `r` is a non-null object carrying property `key`. */
+const isObjectWith = (r: unknown, key: string): boolean =>
+    !!r && typeof r === 'object' && key in r;
+
+/** Map a DOMPurify `removed` element entry to its tag removal record. */
+const mapRemovedElement = (r: unknown): CoreRemovalRecord => {
+    const el = (r as { element: { nodeName?: string } }).element;
+    const name = el?.nodeName
+        ? `<${String(el.nodeName).toLowerCase()}>`
+        : '<node>';
+    return {
+        kind: 'tag',
+        subject: name,
+        rule: 'forbidden-or-unknown-tag'
+    };
+};
+
+/** Map a DOMPurify `removed` attribute entry to its attr removal record. */
+const mapRemovedAttribute = (r: unknown): CoreRemovalRecord => {
+    const a = r as {
+        attribute?: { name?: string };
+        from?: { nodeName?: string };
+    };
+    const an = a.attribute?.name ?? 'attr';
+    const fn = a.from?.nodeName
+        ? `<${String(a.from.nodeName).toLowerCase()}>`
+        : '';
+    return {
+        kind: 'attr',
+        subject: `${an} on ${fn}`.trim(),
+        rule: 'dompurify-core'
+    };
+};
+
+const mapRemovedEntry = (r: unknown): CoreRemovalRecord | null => {
+    if (isObjectWith(r, 'element')) return mapRemovedElement(r);
+    if (isObjectWith(r, 'attribute')) return mapRemovedAttribute(r);
+    return null;
+};
+
 const recordCoreRemovals = (purify: DOMPurifyType): void => {
     // Defense-in-depth on a frozen security boundary: this runs OUTSIDE the
     // sanitizer hooks' try/catch, so any unexpected throw here must never be
@@ -441,30 +518,9 @@ const recordCoreRemovals = (purify: DOMPurifyType): void => {
         const removed = (purify as unknown as { removed?: unknown[] }).removed;
         if (!Array.isArray(removed)) return;
         for (const r of removed) {
-            if (r && typeof r === 'object' && 'element' in r) {
-                const el = (r as { element: { nodeName?: string } }).element;
-                const name = el?.nodeName
-                    ? `<${String(el.nodeName).toLowerCase()}>`
-                    : '<node>';
-                recordRemoval({
-                    kind: 'tag',
-                    subject: name,
-                    rule: 'forbidden-or-unknown-tag'
-                });
-            } else if (r && typeof r === 'object' && 'attribute' in r) {
-                const a = r as {
-                    attribute?: { name?: string };
-                    from?: { nodeName?: string };
-                };
-                const an = a.attribute?.name ?? 'attr';
-                const fn = a.from?.nodeName
-                    ? `<${String(a.from.nodeName).toLowerCase()}>`
-                    : '';
-                recordRemoval({
-                    kind: 'attr',
-                    subject: `${an} on ${fn}`.trim(),
-                    rule: 'dompurify-core'
-                });
+            const record = mapRemovedEntry(r);
+            if (record) {
+                recordRemoval(record);
             }
         }
     } catch {
@@ -553,68 +609,6 @@ export const sanitizeFragmentInPlace = (
             }
         });
     }, options);
-};
-
-/**
- * Sanitize a data: URI for use in img src / href / xlink:href attributes.
- * Only allows specific safe image MIME types AND requires the URI to be
- * base64-encoded.
- */
-export const getSanitizedDataUri = (dataUri: string): string => {
-    if (!dataUri || !dataUri.startsWith('data:')) {
-        return dataUri;
-    }
-
-    const mimeMatch = dataUri.match(/^data:([^;,]+)/i);
-    if (!mimeMatch) {
-        // No extractable MIME type (e.g. 'data:,payload', 'data:;base64,...').
-        // RFC 2397 defaults missing MIME to text/plain — not on our allowlist.
-        console.warn('Blocked data URI with no extractable MIME type');
-        return 'data:,';
-    }
-
-    const mimeType = mimeMatch[1].toLowerCase();
-    // Reuse the shared SAFE_IMAGE_MIME_TYPES set from svg-payload-scan.ts
-    // so this entry point and isSafeImageDataUri stay in lockstep.
-    if (!SAFE_IMAGE_MIME_TYPES.has(mimeType)) {
-        console.warn(
-            `Blocked data URI with unsafe MIME type: ${mimeType.slice(0, 64)}`
-        );
-        return 'data:,';
-    }
-
-    // Real binary images (png/jpeg/gif/webp/bmp) must be base64-encoded —
-    // a non-base64 data:image/png is always smuggled non-binary content.
-    // SVG is text by spec and DAX measures legitimately emit
-    // `data:image/svg+xml;utf8,<svg ...>` (and the bare comma form), so
-    // the base64 requirement is bypassed for image/svg+xml. Browsers
-    // sandbox SVG loaded via <img>/<svg image>/<feImage> — script and
-    // external resource references inside the SVG do not execute in
-    // image-loading context (issue #143 follow-up).
-    if (mimeType !== 'image/svg+xml' && !/^data:[^,]*;base64,/i.test(dataUri)) {
-        console.warn(
-            `Blocked data:${mimeType} URI: missing base64 encoding (smuggled non-binary content)`
-        );
-        return 'data:,';
-    }
-
-    // Defense-in-depth content scan for image/svg+xml. Modern Chromium
-    // sandboxes SVG loaded via <img>/<image>/<feImage>/CSS url(), so
-    // embedded scripts and event handlers do not execute in image
-    // contexts. The sandbox guarantee is the load-bearing security
-    // boundary — but it isn't uniform across every rendering surface a
-    // Power BI report ends up in (older WebView2, mobile renderers,
-    // export-to-PDF pipelines, etc.). Block payloads that contain
-    // patterns the sandbox would normally neuter, so a future
-    // sandbox-weak surface still rejects them at the sanitizer.
-    if (mimeType === 'image/svg+xml' && hasDangerousSvgPayload(dataUri)) {
-        console.warn(
-            'Blocked data:image/svg+xml URI: payload contains script, event handler, foreignObject, or external href'
-        );
-        return 'data:,';
-    }
-
-    return dataUri;
 };
 
 /**

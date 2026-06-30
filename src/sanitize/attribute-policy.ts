@@ -6,17 +6,14 @@
 //
 // This module also OWNS the per-tag attribute-policy constants (SVG_TAGS,
 // SMIL_TAGS, the denylists, and ALLOWED_ATTRIBUTES); `backend.certified.ts`
-// imports them back. (Circular runtime-only import — see the note on
-// `getSanitizedDataUri` below.)
+// imports them back. There is no longer any cycle: `getSanitizedDataUri` now
+// lives in its own module (`./data-uri`), so this file imports it from there
+// rather than from `backend.certified.ts`.
 
 import { VisualConstants } from '../visual-constants';
 import { isSafeImageDataUri } from './svg-payload-scan';
 import { sanitizeCss } from './css';
-// Runtime-only cyclic import: `getSanitizedDataUri` is referenced solely
-// inside `dataUriAttr` (never during module init), and the constants this
-// module exports are referenced by `backend.certified.ts` only inside its
-// hook body (never during init), so the ES-module cycle resolves cleanly.
-import { getSanitizedDataUri } from './backend.certified';
+import { getSanitizedDataUri } from './data-uri';
 
 // --- Shared per-tag attribute-policy constants ------------------------------
 
