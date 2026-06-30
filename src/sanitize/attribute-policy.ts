@@ -105,6 +105,36 @@ export const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
     'attributename'
 ]);
 
+// Attribute-name sets used by the gates below. Each is exactly the set of
+// string literals that the corresponding gate previously OR-chained inline;
+// `Set.has()` is behavior-equivalent to an `=== a || === b || ...` chain for
+// string membership.
+
+// URL-bearing attribute names (href / src / xlink:href). Used by
+// normalizeUrlAttr (isUrlAttr), urlScheme, and dataUriAttr.
+const URL_ATTRS = new Set<string>(['href', 'src', 'xlink:href']);
+
+// The href-family subset consulted by hyperlinkToggle: only href /
+// xlink:href (NOT src). Kept as its own 2-member set to preserve the exact
+// original condition.
+const HYPERLINK_ATTRS = new Set<string>(['href', 'xlink:href']);
+
+// SMIL animation value attributes gated by normalizeUrlAttr on SMIL tags.
+const SMIL_VALUE_ATTRS = new Set<string>(['to', 'from', 'values', 'by']);
+
+// SVG presentation attributes that resolve via url(#id) funciri references.
+const SVG_FUNCIRI_ATTRS = new Set<string>([
+    'fill',
+    'stroke',
+    'cursor',
+    'mask',
+    'clip-path',
+    'filter',
+    'marker-start',
+    'marker-mid',
+    'marker-end'
+]);
+
 export const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     '*': [
         'class',
@@ -183,30 +213,19 @@ export const CONTINUE: Verdict = { action: 'continue' };
  * Verbatim lift of the hook's `isUrlAttr / isSmilValueAttr /
  * isSvgFunciriPresentation` computation + the `.normalize('NFKC').replace(...)`.
  */
-export const normalizeUrlAttr = (ctx: AttrContext): Verdict => {
+const isUrlBearingAttr = (ctx: AttrContext): boolean => {
     const { attrName, tagName, isSvgTag } = ctx;
-    const isUrlAttr =
-        attrName === 'href' ||
-        attrName === 'src' ||
-        attrName === 'xlink:href';
-    const isSmilValueAttr =
-        SMIL_TAGS.has(tagName) &&
-        (attrName === 'to' ||
-            attrName === 'from' ||
-            attrName === 'values' ||
-            attrName === 'by');
-    const isSvgFunciriPresentation =
-        isSvgTag &&
-        (attrName === 'fill' ||
-            attrName === 'stroke' ||
-            attrName === 'cursor' ||
-            attrName === 'mask' ||
-            attrName === 'clip-path' ||
-            attrName === 'filter' ||
-            attrName === 'marker-start' ||
-            attrName === 'marker-mid' ||
-            attrName === 'marker-end');
-    if (isUrlAttr || isSmilValueAttr || isSvgFunciriPresentation) {
+    if (URL_ATTRS.has(attrName)) {
+        return true;
+    }
+    if (SMIL_TAGS.has(tagName) && SMIL_VALUE_ATTRS.has(attrName)) {
+        return true;
+    }
+    return isSvgTag && SVG_FUNCIRI_ATTRS.has(attrName);
+};
+
+export const normalizeUrlAttr = (ctx: AttrContext): Verdict => {
+    if (isUrlBearingAttr(ctx)) {
         const value = ctx.value
             .normalize('NFKC')
             .replace(/[\x00-\x1F\x7F�]/g, '');
@@ -221,11 +240,10 @@ export const normalizeUrlAttr = (ctx: AttrContext): Verdict => {
  */
 export const hyperlinkToggle = (ctx: AttrContext): Verdict => {
     const { attrName, tagName, allowHyperlinks } = ctx;
-    if (
-        !allowHyperlinks &&
-        tagName === 'a' &&
-        (attrName === 'href' || attrName === 'xlink:href')
-    ) {
+    if (allowHyperlinks || tagName !== 'a') {
+        return CONTINUE;
+    }
+    if (HYPERLINK_ATTRS.has(attrName)) {
         return { action: 'drop', rule: 'hyperlinks-disabled' };
     }
     return CONTINUE;
@@ -267,11 +285,7 @@ export const tagAllowlist = (ctx: AttrContext): Verdict => {
  */
 export const urlScheme = (ctx: AttrContext): Verdict => {
     const { attrName, tagName, value, isSvgTag } = ctx;
-    if (
-        attrName === 'src' ||
-        attrName === 'href' ||
-        attrName === 'xlink:href'
-    ) {
+    if (URL_ATTRS.has(attrName)) {
         const schemesByTag = VisualConstants.allowedSchemesByTag[tagName];
         if (schemesByTag) {
             const schemeMatch = value.match(/^([a-z][a-z0-9+.\-]*)\s*:/i);
@@ -328,11 +342,10 @@ export const svgFunciri = (ctx: AttrContext): Verdict => {
  */
 export const smilAttributeName = (ctx: AttrContext): Verdict => {
     const { attrName, tagName, value } = ctx;
-    if (
-        SMIL_TAGS.has(tagName) &&
-        attrName === 'attributename' &&
-        SMIL_ATTRIBUTE_NAME_DENYLIST.has(value.trim().toLowerCase())
-    ) {
+    if (!SMIL_TAGS.has(tagName) || attrName !== 'attributename') {
+        return CONTINUE;
+    }
+    if (SMIL_ATTRIBUTE_NAME_DENYLIST.has(value.trim().toLowerCase())) {
         return { action: 'drop', rule: 'smil-attributename' };
     }
     return CONTINUE;
@@ -343,12 +356,7 @@ export const smilAttributeName = (ctx: AttrContext): Verdict => {
  * sanitizes to empty; otherwise keeps the sanitized value.
  */
 export const dataUriAttr = (ctx: AttrContext): Verdict => {
-    if (
-        (ctx.attrName === 'src' ||
-            ctx.attrName === 'href' ||
-            ctx.attrName === 'xlink:href') &&
-        ctx.value.startsWith('data:')
-    ) {
+    if (URL_ATTRS.has(ctx.attrName) && ctx.value.startsWith('data:')) {
         const sanitized = getSanitizedDataUri(ctx.value);
         if (sanitized === 'data:,' || sanitized === '') {
             return { action: 'drop', rule: 'data-uri' };
