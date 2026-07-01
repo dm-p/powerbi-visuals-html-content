@@ -1,6 +1,7 @@
 import { Edition } from '../visual-config.generated';
 import { githubIcon, heartIcon, coffeeIcon } from './icons';
 
+/** Localised display strings for every text slot on the splash. */
 export interface LandingLabels {
     headline: string;
     body: string;
@@ -15,6 +16,7 @@ export interface LandingLabels {
     openDocs: string;
 }
 
+/** Outbound link targets for the splash's buttons and links. */
 export interface LandingUrls {
     docs: string;
     quickStart: string;
@@ -24,6 +26,7 @@ export interface LandingUrls {
     coffee: string;
 }
 
+/** Everything buildSplash needs to render one splash instance. */
 export interface SplashOptions {
     edition: Edition;
     version: string;
@@ -33,12 +36,14 @@ export interface SplashOptions {
     onLaunch: (url: string) => void;
 }
 
+/** Per-edition branding: name suffix and accent colour for the title. */
 interface EditionPresentation {
     suffix: string;
     suffixClass: string;
     accentVar: string;
 }
 
+/** Arguments for the iconLink builder: an icon button that opens a URL. */
 interface IconLinkOptions {
     cls: string;
     key: string;
@@ -48,6 +53,7 @@ interface IconLinkOptions {
     onLaunch: (url: string) => void;
 }
 
+/** Arguments for the textLink builder: a text button that opens a URL. */
 interface TextLinkOptions {
     cls: string;
     text: string;
@@ -55,6 +61,7 @@ interface TextLinkOptions {
     onLaunch: (url: string) => void;
 }
 
+/** Branding lookup: resolves each edition to its EditionPresentation. */
 const PRESENTATION: Record<Edition, EditionPresentation> = {
     flagship: {
         suffix: '',
@@ -73,6 +80,10 @@ const PRESENTATION: Record<Edition, EditionPresentation> = {
     }
 };
 
+/**
+ * Element factory: createElement with an optional class and text content.
+ * Shared by every builder so the DOM is assembled without innerHTML.
+ */
 const node = (
     doc: Document,
     tag: string,
@@ -85,6 +96,10 @@ const node = (
     return n;
 };
 
+/**
+ * Builds an icon-only button that invokes onLaunch(url) when clicked. Uses a
+ * <button> (not <a>) with title/aria-label so it is accessible and cert-safe.
+ */
 const iconLink = (
     doc: Document,
     opts: IconLinkOptions
@@ -100,6 +115,10 @@ const iconLink = (
     return a;
 };
 
+/**
+ * Builds a text button that invokes onLaunch(url) when clicked. A <button>
+ * rather than an <a> so navigation stays under the host's control.
+ */
 const textLink = (
     doc: Document,
     opts: TextLinkOptions
@@ -111,6 +130,10 @@ const textLink = (
     return b;
 };
 
+/**
+ * Builds the header band: accent bar, product mark, edition-suffixed title
+ * with version, and the GitHub/sponsor/coffee icon links.
+ */
 const buildHeader = (doc: Document, opts: SplashOptions): HTMLElement => {
     const { edition, version, markUrl, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
@@ -176,6 +199,10 @@ const buildHeader = (doc: Document, opts: SplashOptions): HTMLElement => {
     return header;
 };
 
+/**
+ * Builds the body container holding the watermark image. buildSplash appends
+ * the hero and footer into it afterwards.
+ */
 const buildBody = (doc: Document, opts: SplashOptions): HTMLElement => {
     const { edition, markUrl } = opts;
     const p = PRESENTATION[edition];
@@ -191,6 +218,10 @@ const buildBody = (doc: Document, opts: SplashOptions): HTMLElement => {
     return body;
 };
 
+/**
+ * Builds the hero: headline, lede and compact body copy beside the Values
+ * drop-zone cue that prompts the user to bind a field.
+ */
 const buildHero = (doc: Document, opts: SplashOptions): HTMLElement => {
     const { edition, version, markUrl, labels, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
@@ -224,6 +255,10 @@ const buildHero = (doc: Document, opts: SplashOptions): HTMLElement => {
     return hero;
 };
 
+/**
+ * Builds the footer: quick-start and what's-new links, the sandbox note with
+ * its docs link, and the open-docs action.
+ */
 const buildFooter = (doc: Document, opts: SplashOptions): HTMLElement => {
     const { edition, labels, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
@@ -276,6 +311,11 @@ const buildFooter = (doc: Document, opts: SplashOptions): HTMLElement => {
     return footer;
 };
 
+/**
+ * Assembles the full splash tree: sets the edition accent on the root, then
+ * appends the header and the body (hero + footer). The entry point for the
+ * landing module.
+ */
 export const buildSplash = (
     doc: Document,
     opts: SplashOptions

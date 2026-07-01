@@ -145,10 +145,12 @@ export interface TemplateContainer {
     anchor: Comment | null;
 }
 
-// Internal sentinel value for the body-template content slot. Substituted
-// in for the user's `{{content}}` token as an HTML comment before parsing
-// (comments are valid in every content model and are not foster-parented),
-// then re-used as the persistent anchor comment after sanitization.
+/**
+ * Internal sentinel value for the body-template content slot. Substituted
+ * in for the user's `{{content}}` token as an HTML comment before parsing
+ * (comments are valid in every content model and are not foster-parented),
+ * then re-used as the persistent anchor comment after sanitization.
+ */
 const SLOT_MARKER = VisualConstants.dom.contentSlotMarker;
 
 /**
@@ -510,8 +512,11 @@ export function shouldDimPoint(hasSelection: boolean, isSelected: boolean) {
     return hasSelection && !isSelected;
 }
 
-// JS property stashed on each entry node recording the content last rendered
-// into it, so a reconcile can skip nodes whose content is unchanged.
+/**
+ * JS property stashed on each entry node recording the content last
+ * rendered into it, so a reconcile can skip nodes whose content is
+ * unchanged.
+ */
 const RENDERED_CONTENT_PROP = '__renderedContent';
 
 /**
@@ -525,15 +530,23 @@ export function stampRenderedContent(
     selection.property(RENDERED_CONTENT_PROP, (d: IHtmlEntry) => d.content);
 }
 
-// Base widened from HTMLDivElement to HTMLElement: the legacy reconcile
-// (reconcileVisualDataToDom) always builds a `<div>` row root, but the Unit 6
-// templated reconcile derives the row root from the row template, so it can be
-// any element (e.g. a `<tr>`). The `__renderedContent` content-diff stash is
-// shared by both paths.
+/**
+ * Base widened from HTMLDivElement to HTMLElement: the legacy reconcile
+ * (reconcileVisualDataToDom) always builds a `<div>` row root, but the
+ * Unit 6 templated reconcile derives the row root from the row template,
+ * so it can be any element (e.g. a `<tr>`). The `__renderedContent`
+ * content-diff stash is shared by both paths.
+ */
 interface IRenderedEntryNode extends HTMLElement {
     __renderedContent?: string;
 }
 
+/**
+ * Result of `reconcileVisualDataToDom`: `merged` is the full enter+update
+ * selection (for binding handlers); `toRender` is the subset that needs
+ * (re)rendering — newly entered nodes plus retained nodes whose content
+ * changed.
+ */
 export interface ReconcileResult {
     merged: Selection<HTMLDivElement, IHtmlEntry, any, any>;
     toRender: Selection<HTMLDivElement, IHtmlEntry, any, any>;
@@ -613,11 +626,19 @@ export interface TemplatedRenderOptions {
 export const rowRenderKey = (d: IHtmlEntry): string =>
     `${d.rowTemplate} ${d.content}`;
 
-// A row template with no {{row}} token leaves substitute() with nothing to
-// replace: it returns the template unchanged, so every row renders as an empty
-// wrapper and the row content is silently dropped. Warn once per offending
-// template so a multi-row visual doesn't flood the console on every update.
+/**
+ * Row templates already warned about, so the token-less warning fires at
+ * most once per offending template. A row template with no {{row}} token
+ * leaves substitute() with nothing to replace: it returns the template
+ * unchanged, so every row renders as an empty wrapper and the row content
+ * is silently dropped. De-duping here stops a multi-row visual flooding
+ * the console on every update.
+ */
 const warnedTokenlessRowTemplates = new Set<string>();
+/**
+ * Warn (once per template) when a row template omits the {{row}} token, so
+ * the silent-empty-row failure mode is surfaced to the author.
+ */
 function warnIfRowTemplateHasNoToken(rowTemplate: string): void {
     const hasToken = ROW_TOKEN.test(rowTemplate);
     ROW_TOKEN.lastIndex = 0; // ROW_TOKEN is global; .test() advances lastIndex

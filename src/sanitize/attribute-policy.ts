@@ -32,11 +32,19 @@ export type AttributeAllowlist = {
     [tag: string]: string[];
 };
 
-// Derived from VisualConstants.svgTags so adding/removing an SVG tag
-// in one place updates both the allowed-tags list and the sanitizer's
-// HTML-vs-SVG branch.
+/**
+ * Derived from VisualConstants.svgTags so adding/removing an SVG tag
+ * in one place updates both the allowed-tags list and the sanitizer's
+ * HTML-vs-SVG branch.
+ */
 export const SVG_TAGS = new Set<string>(VisualConstants.svgTags);
 
+/**
+ * Attribute names refused on every SVG tag by the tagAllowlist gate,
+ * alongside the on* event-handler pattern. These URL- and content-bearing
+ * attributes have no legitimate use on the allowed SVG surface and are
+ * dropped unconditionally.
+ */
 export const SVG_ATTRIBUTE_DENYLIST = new Set<string>([
     'srcdoc',
     'formaction',
@@ -47,35 +55,37 @@ export const SVG_ATTRIBUTE_DENYLIST = new Set<string>([
     'srcset'
 ]);
 
-// SMIL animation elements (<animate>, <animateMotion>,
-// <animateTransform>, <set>) accept an `attributeName="..."` value
-// that names the property to animate at runtime. Without this
-// denylist, an attacker could declare `attributeName="href"` and
-// rewrite a sanitized URL to `javascript:` after the DOM is live —
-// the well-known SMIL sanitizer-bypass primitive. We refuse animation
-// that targets URL-bearing attributes (href / xlink:href / src and
-// the four URL-form-action variants), the bulk `style` attribute
-// (animating `style` replaces the entire inline style string,
-// re-introducing url() declarations the static sanitizer never saw),
-// any of the SVG presentation attributes that resolve via `url(#id)`
-// references (cursor, clip-path, mask, filter, marker-*), and the
-// meta `attributeName` itself (animating attributeName lets the
-// animation target a different attribute later). Animation that
-// targets safe presentation / geometry properties (opacity,
-// transform, fill, stroke, cx, cy, d, etc.) is unconstrained.
-//
-// IMPORTANT — gate ordering for SMIL animation *values*:
-// Once attributeName passes this denylist, the actual animation
-// values carried in `to`, `from`, `values`, `by` are gated SOLELY by
-// the `scriptingPatterns` substring scan further down the hook (the
-// `dangerousPatterns.some(p => lowerValue.includes(p))` check). That
-// gate is what blocks `to="javascript:..."`, `to="vbscript:..."`,
-// `from="data:text/html,..."`, etc. on SMIL elements. The funciri
-// scheme check fires only when the value contains a literal `url(...)`
-// wrapper, so a bare-scheme `to="javascript:..."` does not trip it.
-// If `scriptingPatterns` is ever weakened or made opt-out for any
-// subset of SVG tags, these four SMIL value attributes need their
-// own explicit gate.
+/**
+ * SMIL animation elements (<animate>, <animateMotion>,
+ * <animateTransform>, <set>) accept an `attributeName="..."` value
+ * that names the property to animate at runtime. Without this
+ * denylist, an attacker could declare `attributeName="href"` and
+ * rewrite a sanitized URL to `javascript:` after the DOM is live —
+ * the well-known SMIL sanitizer-bypass primitive. We refuse animation
+ * that targets URL-bearing attributes (href / xlink:href / src and
+ * the four URL-form-action variants), the bulk `style` attribute
+ * (animating `style` replaces the entire inline style string,
+ * re-introducing url() declarations the static sanitizer never saw),
+ * any of the SVG presentation attributes that resolve via `url(#id)`
+ * references (cursor, clip-path, mask, filter, marker-*), and the
+ * meta `attributeName` itself (animating attributeName lets the
+ * animation target a different attribute later). Animation that
+ * targets safe presentation / geometry properties (opacity,
+ * transform, fill, stroke, cx, cy, d, etc.) is unconstrained.
+ *
+ * IMPORTANT — gate ordering for SMIL animation *values*:
+ * Once attributeName passes this denylist, the actual animation
+ * values carried in `to`, `from`, `values`, `by` are gated SOLELY by
+ * the `scriptingPatterns` substring scan further down the hook (the
+ * `dangerousPatterns.some(p => lowerValue.includes(p))` check). That
+ * gate is what blocks `to="javascript:..."`, `to="vbscript:..."`,
+ * `from="data:text/html,..."`, etc. on SMIL elements. The funciri
+ * scheme check fires only when the value contains a literal `url(...)`
+ * wrapper, so a bare-scheme `to="javascript:..."` does not trip it.
+ * If `scriptingPatterns` is ever weakened or made opt-out for any
+ * subset of SVG tags, these four SMIL value attributes need their
+ * own explicit gate.
+ */
 export const SMIL_TAGS = new Set<string>([
     'animate',
     'animatemotion',
@@ -83,6 +93,12 @@ export const SMIL_TAGS = new Set<string>([
     'set'
 ]);
 
+/**
+ * Animation targets the smilAttributeName gate refuses: an
+ * `attributeName` naming any of these drops the attribute. Covers the
+ * URL-bearing, style, funciri-presentation, and meta `attributename`
+ * targets whose danger is detailed in the SMIL_TAGS block above.
+ */
 export const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
     'href',
     'xlink:href',
@@ -110,19 +126,23 @@ export const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
 // `Set.has()` is behavior-equivalent to an `=== a || === b || ...` chain for
 // string membership.
 
-// URL-bearing attribute names (href / src / xlink:href). Used by
-// normalizeUrlAttr (isUrlAttr), urlScheme, and dataUriAttr.
+/**
+ * URL-bearing attribute names (href / src / xlink:href). Used by
+ * normalizeUrlAttr (isUrlAttr), urlScheme, and dataUriAttr.
+ */
 const URL_ATTRS = new Set<string>(['href', 'src', 'xlink:href']);
 
-// The href-family subset consulted by hyperlinkToggle: only href /
-// xlink:href (NOT src). Kept as its own 2-member set to preserve the exact
-// original condition.
+/**
+ * The href-family subset consulted by hyperlinkToggle: only href /
+ * xlink:href (NOT src). Kept as its own 2-member set to preserve the exact
+ * original condition.
+ */
 const HYPERLINK_ATTRS = new Set<string>(['href', 'xlink:href']);
 
-// SMIL animation value attributes gated by normalizeUrlAttr on SMIL tags.
+/** SMIL animation value attributes gated by normalizeUrlAttr on SMIL tags. */
 const SMIL_VALUE_ATTRS = new Set<string>(['to', 'from', 'values', 'by']);
 
-// SVG presentation attributes that resolve via url(#id) funciri references.
+/** SVG presentation attributes that resolve via url(#id) funciri references. */
 const SVG_FUNCIRI_ATTRS = new Set<string>([
     'fill',
     'stroke',
@@ -135,6 +155,12 @@ const SVG_FUNCIRI_ATTRS = new Set<string>([
     'marker-end'
 ]);
 
+/**
+ * The concrete per-tag HTML attribute allowlist consulted by the
+ * tagAllowlist gate. The `'*'` entry lists globals allowed on every tag;
+ * each tag key adds the tag-specific attributes permitted by the HTML spec.
+ * SVG tags are intentionally absent — see the in-body note below.
+ */
 export const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
     '*': [
         'class',
@@ -190,6 +216,11 @@ export const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
 
 // --- Gate contract ----------------------------------------------------------
 
+/**
+ * The immutable input each gate receives: the attribute under inspection
+ * plus the tag context and the two policy flags (isSvgTag selects the
+ * SVG-vs-HTML branch, allowHyperlinks drives the hyperlink toggle).
+ */
 export interface AttrContext {
     attrName: string; // already lower-cased
     tagName: string; // already lower-cased ('' if absent)
@@ -198,6 +229,12 @@ export interface AttrContext {
     allowHyperlinks: boolean;
 }
 
+/**
+ * A gate's outcome. `drop` removes the attribute (with a rule label for
+ * removal accounting), `keep` finalizes it with a possibly-rewritten value,
+ * and `continue` falls through to the next gate — optionally updating the
+ * working value carried forward.
+ */
 export type Verdict =
     | { action: 'drop'; rule: string } // hook: recordRemoval + keepAttr=false + return
     | { action: 'keep'; value: string } // hook: set attrValue + return (final keep)
@@ -224,6 +261,12 @@ const isUrlBearingAttr = (ctx: AttrContext): boolean => {
     return isSvgTag && SVG_FUNCIRI_ATTRS.has(attrName);
 };
 
+/**
+ * URL-bearing attribute normalization. For `href` / `src` / `xlink:href`
+ * (and the SMIL value and SVG funciri attrs), NFKC-normalize the value and
+ * strip control characters so later scheme checks see a canonical string;
+ * non-URL attrs pass through unchanged.
+ */
 export const normalizeUrlAttr = (ctx: AttrContext): Verdict => {
     if (isUrlBearingAttr(ctx)) {
         const value = ctx.value

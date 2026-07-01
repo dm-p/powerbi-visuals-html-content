@@ -9,6 +9,11 @@ import { VisualConstants } from './visual-constants';
 import { IViewModel } from './view-model';
 import { shouldUseStylesheet } from './domain-utils';
 
+/**
+ * Root formatting model: aggregates every settings card the properties pane
+ * shows, and drives cross-card property visibility (e.g. hiding default body
+ * styling when a stylesheet is used) via handlePropertyVisibility.
+ */
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     contentFormatting = new ContentFormattingSettings();
     stylesheet = new StylesheetSettings();
@@ -44,6 +49,10 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     }
 }
 
+/**
+ * Content Formatting card: groups behavior, no-data, and default body styling
+ * for how bound HTML is rendered.
+ */
 export class ContentFormattingSettings extends FormattingSettingsCompositeCard {
     name = 'contentFormatting';
     displayNameKey = 'Objects_ContentFormatting';
@@ -59,6 +68,10 @@ export class ContentFormattingSettings extends FormattingSettingsCompositeCard {
     ];
 }
 
+/**
+ * Behavior group: render format, render lifecycle mode, show-raw-HTML,
+ * diagnostics, hyperlinks, and text selection.
+ */
 class ContentFormattingCardBehavior extends FormattingSettingsGroup {
     name = 'contentFormatting-behavior';
     displayNameKey = 'Objects_ContentFormatting_Behavior';
@@ -118,6 +131,7 @@ class ContentFormattingCardBehavior extends FormattingSettingsGroup {
     ];
 }
 
+/** No-data group: the message shown when no rows are bound. */
 class ContentFormattingCardNoData extends FormattingSettingsGroup {
     name = 'contentFormatting-noData';
     displayNameKey = 'Objects_ContentFormatting_NoDataMessage';
@@ -133,6 +147,12 @@ class ContentFormattingCardNoData extends FormattingSettingsGroup {
     slices: Array<FormattingSettingsSlice> = [this.noDataMessage];
 }
 
+/**
+ * Default body styling group: font family/size/color and alignment applied to
+ * the body when the author supplies no inline styling, plus the toggle that
+ * forces these to override inline `style` (paste-cleanup, issue #144). Hidden
+ * when a custom stylesheet or show-raw-HTML is active.
+ */
 class ContentFormattingCardDefaultBodyStyling extends FormattingSettingsGroup {
     name = 'contentFormatting-defaultBodyStyling';
     displayNameKey = 'Objects_ContentFormatting_DefaultBodyStyling';
@@ -192,6 +212,7 @@ class ContentFormattingCardDefaultBodyStyling extends FormattingSettingsGroup {
     ];
 }
 
+/** Stylesheet card: holds the custom CSS applied to the HTML body. */
 export class StylesheetSettings extends FormattingSettingsCompositeCard {
     name = 'stylesheet';
     displayNameKey = 'Objects_Stylesheet';
@@ -200,6 +221,7 @@ export class StylesheetSettings extends FormattingSettingsCompositeCard {
     groups: Array<FormattingSettingsGroup> = [this.stylesheetCardMain];
 }
 
+/** Main stylesheet group: the custom-CSS text area for the HTML body. */
 class StylesheetCardMain extends FormattingSettingsGroup {
     name = 'stylesheet-main';
     // Custom stylesheet for the HTML body
@@ -213,6 +235,7 @@ class StylesheetCardMain extends FormattingSettingsGroup {
     slices: Array<FormattingSettingsSlice> = [this.stylesheet];
 }
 
+/** Cross-filter card: enables and tunes selection-driven cross-filtering. */
 export class CrossFilterSettings extends FormattingSettingsCompositeCard {
     name = 'crossFilter';
     displayNameKey = 'Objects_CrossFilter';
@@ -221,6 +244,10 @@ export class CrossFilterSettings extends FormattingSettingsCompositeCard {
     groups: Array<FormattingSettingsGroup> = [this.crossFilterCardMain];
 }
 
+/**
+ * Main cross-filter group: the enable toggle plus the non-selected
+ * transparency toggle and percentage.
+ */
 class CrossFilterCardMain extends FormattingSettingsGroup {
     name = 'crossFilter-main';
     // Whether to enable cross-filtering
@@ -256,6 +283,7 @@ class CrossFilterCardMain extends FormattingSettingsGroup {
     ];
 }
 
+/** Templates card: the body and per-row templates wrapping rendered content. */
 export class TemplatesSettings extends FormattingSettingsCompositeCard {
     name = 'templates';
     displayNameKey = 'Objects_Templates';
@@ -264,6 +292,10 @@ export class TemplatesSettings extends FormattingSettingsCompositeCard {
     groups: Array<FormattingSettingsGroup> = [this.templatesCardMain];
 }
 
+/**
+ * Main templates group: the single-value body template (static or CF
+ * apply-to-all) and the static per-row wrapper template.
+ */
 class TemplatesCardMain extends FormattingSettingsGroup {
     name = 'templates-main';
     // Body template: single value (applies once) — static or CF "apply to all".

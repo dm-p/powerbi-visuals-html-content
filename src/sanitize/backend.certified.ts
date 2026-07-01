@@ -71,6 +71,10 @@ export function preprocessStyleTags(input: string): string {
  */
 type DOMPurifyFactory = DOMPurifyType & ((win: Window) => DOMPurifyType);
 
+/**
+ * Cached DOMPurify singleton, lazily populated by `getPurify` on first
+ * use and reused for every subsequent sanitize. `null` until bound.
+ */
 let purifyInstance: DOMPurifyType | null = null;
 /**
  * Lazily bind DOMPurify to the current window. In a real browser the
@@ -90,20 +94,22 @@ function getPurify(): DOMPurifyType {
     return purifyInstance;
 }
 
-// ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
-// built-in default attr allowlist would otherwise pre-strip legitimate
-// SVG presentation/filter attrs (stdDeviation, fill-opacity, etc.)
-// before our uponSanitizeAttribute hook can decide. Per-tag enforcement
-// is fully delegated to the hook: HTML tags use the strict per-tag
-// allowlist in ALLOWED_ATTRIBUTES; SVG tags use a denylist plus URL
-// scheme rules. Removing ALLOWED_ATTR is a deliberate trade — we lose
-// one defense-in-depth layer and depend entirely on the hook's
-// contract for attribute decisions.
-//
-// Module-level so both the string entry point (getSanitizedContent)
-// and the in-context entry point (parseAndSanitizeInContext) share an
-// identical policy. parseAndSanitizeInContext spreads this object and
-// overrides only IN_PLACE.
+/**
+ * ALLOWED_ATTR is intentionally absent from this config. DOMPurify's
+ * built-in default attr allowlist would otherwise pre-strip legitimate
+ * SVG presentation/filter attrs (stdDeviation, fill-opacity, etc.)
+ * before our uponSanitizeAttribute hook can decide. Per-tag enforcement
+ * is fully delegated to the hook: HTML tags use the strict per-tag
+ * allowlist in ALLOWED_ATTRIBUTES; SVG tags use a denylist plus URL
+ * scheme rules. Removing ALLOWED_ATTR is a deliberate trade — we lose
+ * one defense-in-depth layer and depend entirely on the hook's
+ * contract for attribute decisions.
+ *
+ * Module-level so both the string entry point (getSanitizedContent)
+ * and the in-context entry point (parseAndSanitizeInContext) share an
+ * identical policy. parseAndSanitizeInContext spreads this object and
+ * overrides only IN_PLACE.
+ */
 const dpConfig: Config = {
     ALLOWED_TAGS: VisualConstants.allowedTags,
     // Allow data: in URL-bearing attrs (sanitized in the hook).
@@ -137,29 +143,41 @@ const dpConfig: Config = {
     RETURN_DOM_FRAGMENT: false
 };
 
-// In-place root-node eligibility, derived from dpConfig so there is no
-// second tag policy to drift. DOMPurify refuses to sanitize a node in
-// place when the *root* node it is handed is not allowed or is forbidden
-// (purify.ts: `if (!ALLOWED_TAGS[tag] || FORBID_TAGS[tag]) throw 'root
-// node is forbidden and cannot be sanitized in-place'`). Its effective
-// allow-set is ALLOWED_TAGS ∪ ADD_TAGS, lower-cased via transformCaseFunc
-// (text/html parser). We mirror that exactly: an element child is
-// in-place-sanitizable iff its lower-cased tag is in the allow-set and
-// not in the forbid-set. A top-level child that is NOT eligible (e.g. a
-// <script> that survived createContextualFragment as a direct fragment
-// child) is removed outright — the same outcome the string path
-// (getSanitizedContent) produces for a forbidden/disallowed element,
-// keeping the two entry points at parity and fail-closed.
-// dpConfig assigns string[] literals; cast narrows DOMPurify's string[]|fn type.
+/**
+ * In-place root-node eligibility, derived from dpConfig so there is no
+ * second tag policy to drift. DOMPurify refuses to sanitize a node in
+ * place when the *root* node it is handed is not allowed or is forbidden
+ * (purify.ts: `if (!ALLOWED_TAGS[tag] || FORBID_TAGS[tag]) throw 'root
+ * node is forbidden and cannot be sanitized in-place'`). Its effective
+ * allow-set is ALLOWED_TAGS ∪ ADD_TAGS, lower-cased via transformCaseFunc
+ * (text/html parser). We mirror that exactly: an element child is
+ * in-place-sanitizable iff its lower-cased tag is in the allow-set and
+ * not in the forbid-set. A top-level child that is NOT eligible (e.g. a
+ * <script> that survived createContextualFragment as a direct fragment
+ * child) is removed outright — the same outcome the string path
+ * (getSanitizedContent) produces for a forbidden/disallowed element,
+ * keeping the two entry points at parity and fail-closed.
+ * dpConfig assigns string[] literals; cast narrows DOMPurify's string[]|fn type.
+ */
 const IN_PLACE_ALLOWED_ROOT_TAGS = new Set<string>(
     [
         ...((dpConfig.ALLOWED_TAGS as string[]) ?? []),
         ...((dpConfig.ADD_TAGS as string[]) ?? [])
     ].map((t) => t.toLowerCase())
 );
+/**
+ * Forbid-set counterpart to IN_PLACE_ALLOWED_ROOT_TAGS: dpConfig's
+ * FORBID_TAGS, lower-cased. A root tag present here is never eligible for
+ * in-place sanitize even if it also appears in the allow-set.
+ */
 const IN_PLACE_FORBIDDEN_ROOT_TAGS = new Set<string>(
     ((dpConfig.FORBID_TAGS as string[]) ?? []).map((t) => t.toLowerCase())
 );
+/**
+ * True when `el`'s lower-cased tag is in the in-place allow-set and not
+ * in the forbid-set — i.e. DOMPurify will accept it as an in-place root
+ * rather than throwing "root node is forbidden".
+ */
 const isInPlaceSanitizableRoot = (el: Element): boolean => {
     const tag = el.tagName ? el.tagName.toLowerCase() : '';
     return (
@@ -491,6 +509,10 @@ const mapRemovedAttribute = (r: unknown): CoreRemovalRecord => {
     };
 };
 
+/**
+ * Dispatch a single DOMPurify `removed` entry to the element or attribute
+ * mapper, or return null when it is neither (nothing to record).
+ */
 const mapRemovedEntry = (r: unknown): CoreRemovalRecord | null => {
     if (isObjectWith(r, 'element')) return mapRemovedElement(r);
     if (isObjectWith(r, 'attribute')) return mapRemovedAttribute(r);

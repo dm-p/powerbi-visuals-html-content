@@ -7,9 +7,11 @@ import {
     SCHEME_SUBSTRINGS
 } from './sanitize/dangerous-patterns';
 
-// HTML element names the visual permits in sanitized output. Lowercase
-// to match DOMPurify's normalization. Anything not in this list (or
-// `svgTags`) is dropped entirely by the sanitizer.
+/**
+ * HTML element names the visual permits in sanitized output. Lowercase
+ * to match DOMPurify's normalization. Anything not in this list (or
+ * `svgTags`) is dropped entirely by the sanitizer.
+ */
 const htmlTags = [
     // HTML — block + sectioning
     'address',
@@ -97,28 +99,30 @@ const htmlTags = [
     'style'
 ];
 
-// SVG element names the visual permits. Drives both the allowed-tags
-// list AND the sanitizer's HTML-vs-SVG branch (denylist for SVG,
-// allowlist for HTML), so this is the single source of truth.
-//
-// SMIL animation elements (animate, animatemotion, animatetransform,
-// set) are permitted but locked down by two enforcement layers in
-// sanitize/backend.certified.ts:
-//   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
-//      VisualConstants.allowedSchemesByTag), so the element's own
-//      href / xlink:href can only point at same-document fragments.
-//   2. SMIL_ATTRIBUTE_NAME_DENYLIST rejects animation that targets
-//      URL-bearing or sanitizer-bypass attributes (href, xlink:href,
-//      src, mask, clip-path, filter, marker-*, cursor, style, and
-//      the meta attributeName itself). The well-known SMIL bypass —
-//      `<animate attributeName="href" to="javascript:..."/>` to
-//      rewrite a sanitized URL post-load — is closed by this gate.
-//      Animation targeting safe presentation/geometry properties
-//      (opacity, transform, fill, stroke, cx, cy, d, etc.) is
-//      unrestricted.
-//
-// <use> is intentionally excluded — same-document references can pull
-// in attacker-controlled subtrees that bypass the sanitizer.
+/**
+ * SVG element names the visual permits. Drives both the allowed-tags
+ * list AND the sanitizer's HTML-vs-SVG branch (denylist for SVG,
+ * allowlist for HTML), so this is the single source of truth.
+ *
+ * SMIL animation elements (animate, animatemotion, animatetransform,
+ * set) are permitted but locked down by two enforcement layers in
+ * sanitize/backend.certified.ts:
+ *   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
+ *      VisualConstants.allowedSchemesByTag), so the element's own
+ *      href / xlink:href can only point at same-document fragments.
+ *   2. SMIL_ATTRIBUTE_NAME_DENYLIST rejects animation that targets
+ *      URL-bearing or sanitizer-bypass attributes (href, xlink:href,
+ *      src, mask, clip-path, filter, marker-*, cursor, style, and
+ *      the meta attributeName itself). The well-known SMIL bypass —
+ *      `<animate attributeName="href" to="javascript:..."/>` to
+ *      rewrite a sanitized URL post-load — is closed by this gate.
+ *      Animation targeting safe presentation/geometry properties
+ *      (opacity, transform, fill, stroke, cx, cy, d, etc.) is
+ *      unrestricted.
+ *
+ * <use> is intentionally excluded — same-document references can pull
+ * in attacker-controlled subtrees that bypass the sanitizer.
+ */
 const svgTags = [
     // SVG — root, structural, shape
     'svg',
@@ -184,6 +188,12 @@ const svgTags = [
     'set'
 ];
 
+/**
+ * Central bag of compile-time constants for the visual: identity/edition,
+ * landing-page URLs, formatting defaults (mirroring the settings), DOM
+ * id/class selectors, diagnostics caps, and the sanitizer allowlists /
+ * denylists. Single source of truth consumed across the codebase.
+ */
 export const VisualConstants = {
     visual: RESOLVED_VISUAL,
     edition: EDITION,

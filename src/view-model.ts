@@ -34,6 +34,11 @@ export interface IViewModel {
     htmlEntries: IHtmlEntry[];
 }
 
+/**
+ * One rendered entry (row) of the view model: a selectable data point
+ * carrying the bound content, the row template applied to it, and its
+ * tooltip items.
+ */
 export interface IHtmlEntry extends SelectableDataPoint {
     content: string;
     rowTemplate: string;

@@ -4,7 +4,15 @@ import type powerbi from 'powerbi-visuals-api';
 import { dataViewObjects } from 'powerbi-visuals-utils-dataviewutils';
 import { VisualFormattingSettingsModel } from './visual-settings';
 
+/**
+ * Body-template placeholder matched and replaced with the content slot.
+ * Global so every occurrence in a template is substituted.
+ */
 export const CONTENT_TOKEN = /\{\{\s*content\s*\}\}/g;
+/**
+ * Row-template placeholder matched and replaced with each row's content.
+ * Global so every occurrence in a template is substituted.
+ */
 export const ROW_TOKEN = /\{\{\s*row\s*\}\}/g;
 
 /** Replace every `token` occurrence with `value`; function replacer prevents
@@ -18,6 +26,10 @@ export function substitute(
     return template.replace(token, () => value);
 }
 
+/**
+ * Name of the formatting object holding template properties, used to read
+ * the per-visual conditional-formatting body template from the data view.
+ */
 const TEMPLATES_OBJECT = 'templates';
 
 /** Single body template: per-`metadata.objects` CF value, else static value. */

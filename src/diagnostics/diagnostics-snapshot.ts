@@ -21,6 +21,11 @@ export const shouldShowDiagnosticsIcon = (
     isEditMode: boolean
 ): boolean => enabled && allowModalDialog === true && isEditMode;
 
+/**
+ * Assemble the immutable snapshot handed to the dialog, capping `rawHtml` at
+ * the configured byte limit and recording whether it was truncated (authors
+ * can push multi-MB content, which the dialog must not try to render whole).
+ */
 export const buildSnapshot = (input: {
     rawHtml: string;
     sanitizer: SanitizerCapture;
@@ -92,6 +97,7 @@ export const isDiagnosticsHotkey = (e: {
     !e.shiftKey &&
     e.key.toLowerCase() === 'd';
 
+/** Show or hide the diagnostics icon without disturbing its layout. */
 export const setIconVisibility = (btn: HTMLElement, visible: boolean): void => {
     // inline-block (not block) keeps the button's hit-area content-sized. The
     // visual also absolutely-positions the icon via CSS (#htmlDiagnosticsToggle

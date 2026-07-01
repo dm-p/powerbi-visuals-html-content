@@ -62,8 +62,13 @@ const buildRadioFilter = (
     return group;
 };
 
+/** Console levels offered as filter options, in severity order. */
 const CONSOLE_LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
 
+/**
+ * Host-event types offered as Events-tab filter options, each paired with its
+ * localized label key. Order defines the radio order in the toolbar.
+ */
 const EVENT_TYPES: { type: HostEventType; label: keyof DiagnosticsLabels }[] = [
     { type: 'update', label: 'evtUpdate' },
     { type: 'cross-filter', label: 'evtCrossFilter' },
@@ -71,6 +76,8 @@ const EVENT_TYPES: { type: HostEventType; label: keyof DiagnosticsLabels }[] = [
     { type: 'context-menu', label: 'evtContextMenu' }
 ];
 
+/** Create an element with an optional class and text content — the terse DOM
+ * builder the pure renderer leans on instead of innerHTML (cert-safe). */
 const el = (tag: string, cls?: string, text?: string): HTMLElement => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -129,6 +136,11 @@ const sanitizerDocs = (
     return docs;
 };
 
+/**
+ * Build the Sanitizer tab: the doc banner as a frozen header over a scrolling
+ * body that lists each sanitizer entry (kind, subject/snippet, rule) as a
+ * table, with an overflow note when entries were dropped past the cap.
+ */
 const sanitizerTab = (
     s: DiagnosticsSnapshot,
     callbacks: PanelCallbacks
@@ -179,6 +191,7 @@ const sanitizerTab = (
     return wrap;
 };
 
+/** Left-pad a number with zeros to a fixed width (for HH:MM:SS.mmm parts). */
 const pad = (n: number, w = 2): string => String(n).padStart(w, '0');
 
 /** Local wall-clock HH:MM:SS.mmm for a captured console entry timestamp. */
@@ -189,6 +202,12 @@ const fmtTime = (ts: number): string => {
     )}.${pad(d.getMilliseconds(), 3)}`;
 };
 
+/**
+ * Build the Console tab: a frozen toolbar (Clear + single-select level filter)
+ * over a scrolling body of captured console lines. Filtering is in-dialog
+ * show/hide; the level pick is memoized via the snapshot so it sticks across
+ * opens. Clearing empties the display and reports the request to the caller.
+ */
 const consoleTab = (
     s: DiagnosticsSnapshot,
     callbacks: PanelCallbacks
@@ -256,6 +275,12 @@ const consoleTab = (
     return wrap;
 };
 
+/**
+ * Build the Events tab: a frozen toolbar (Clear + single-select type filter)
+ * over a scrolling body of recorded host events. Mirrors the Console tab; the
+ * type pick is memoized via the snapshot, falling back to 'all' if the
+ * remembered type is no longer known so no row is left orphaned/hidden.
+ */
 const eventsTab = (
     s: DiagnosticsSnapshot,
     callbacks: PanelCallbacks
@@ -358,6 +383,12 @@ const copyText = (text: string): void => {
     document.body.removeChild(staging);
 };
 
+/**
+ * Build the Raw HTML tab (the default): a frozen header pairing the info banner
+ * with a Copy button, an optional truncation note, then a scrolling body of the
+ * syntax-highlighted source. The source is built as DOM nodes (not innerHTML)
+ * to keep the certified visual's no-innerHTML posture; it is lossless.
+ */
 const rawTab = (s: DiagnosticsSnapshot): HTMLElement => {
     const wrap = el('div', 'hc-tabpanel hc-raw');
     // Frozen header row: the info banner grows to fill the width and the Copy
@@ -483,6 +514,14 @@ export const renderPanel = (
     callbacks.onTabChange?.(activeId);
 };
 
+/**
+ * Host entry point for the diagnostics modal. Given the dialog element, an
+ * initial-state snapshot, and the host's setResult/close, it fills the dialog
+ * height, renders the panel, and accumulates the result the visual reads on
+ * close: the last tab, console/events clear requests, filter picks, and (for a
+ * doc link) the doc key. Self-registers below so the packaged config resolves
+ * it by id.
+ */
 export class DiagnosticsDialog {
     static id = VisualConstants.diagnostics.dialogId;
     constructor(
@@ -539,6 +578,8 @@ export class DiagnosticsDialog {
     }
 }
 
+/** The global dialog registry the packaged config resolves dialogs from; the
+ * next two lines register DiagnosticsDialog under its id (no webpack entry). */
 const g = globalThis as unknown as { dialogRegistry?: Record<string, unknown> };
 g.dialogRegistry = g.dialogRegistry || {};
 g.dialogRegistry[DiagnosticsDialog.id] = DiagnosticsDialog;

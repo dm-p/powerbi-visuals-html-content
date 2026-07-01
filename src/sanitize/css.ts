@@ -34,6 +34,11 @@ import { isSafeImageDataUri } from './svg-payload-scan';
 import { recordRemoval } from '../diagnostics/diagnostics-sink';
 import { SCHEME_REGEXES } from './dangerous-patterns';
 
+/**
+ * At-rule allowlist enforced in stylesheet mode. Any `@rule` not named here is
+ * dropped; `@import`, `@font-face`, and `@namespace` are deliberately absent
+ * because they can fetch external resources or smuggle scripting.
+ */
 const ALLOWED_AT_RULES = new Set<string>([
     'media',
     'supports',
@@ -74,13 +79,22 @@ export const DEFENSE_IN_DEPTH_PATTERNS: RegExp[] = [
     /progid\s*:/i
 ];
 
+/**
+ * True when the serialized output trips none of the defense-in-depth
+ * patterns — i.e. the block survived the final safety-net pass.
+ */
 function finalPassIsClean(serialized: string): boolean {
     return !DEFENSE_IN_DEPTH_PATTERNS.some((p) => p.test(serialized));
 }
 
-// Exported (test-only) so the dangerous-patterns superset guard can assert
-// this denylist never narrows after the pattern-list unification. It is an
-// internal denylist — exposing it for the guard is harmless.
+/**
+ * Bare dangerous-scheme denylist for the CSS value scan: the shared scheme
+ * regexes plus a broad `data:image` catch.
+ *
+ * Exported (test-only) so the dangerous-patterns superset guard can assert
+ * this denylist never narrows after the pattern-list unification. It is an
+ * internal denylist — exposing it for the guard is harmless.
+ */
 export const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
     // The 8 shared dangerous-scheme regexes, spread verbatim from the
     // canonical source so this list cannot drift from the others.
@@ -94,6 +108,11 @@ export const DANGEROUS_SCHEME_PATTERNS: RegExp[] = [
     /data\s*:\s*image/i
 ];
 
+/**
+ * True when the value carries a bare dangerous scheme, checked after
+ * pre-stripping url() tokens so safe image data URIs inside url() do not
+ * false-positive.
+ */
 function hasDangerousSchemeInValue(value: string): boolean {
     // Strip url(...) tokens first — they are handled by the url() walker
     // in hasUnsafeUrl, and safe image data URIs inside url() must not
@@ -132,6 +151,10 @@ function isExemptWhitespaceControl(code: number): boolean {
     );
 }
 
+/**
+ * True when the selector contains any 0x00-0x1F control character that is not
+ * an exempt whitespace control.
+ */
 function hasForbiddenControlChar(selector: string): boolean {
     for (let i = 0; i < selector.length; i++) {
         const code = selector.charCodeAt(i);
@@ -142,20 +165,36 @@ function hasForbiddenControlChar(selector: string): boolean {
     return false;
 }
 
+/**
+ * True when a rule selector is dangerous: it names the `javascript:` scheme or
+ * carries a forbidden control character.
+ */
 function hasDangerousSelector(selector: string): boolean {
     return (
         /javascript\s*:/i.test(selector) || hasForbiddenControlChar(selector)
     );
 }
 
+/**
+ * CSS functions denied in any property value. `expression` and `-moz-binding`
+ * execute script in legacy engines; `attr` can exfiltrate attribute content
+ * into rendered CSS.
+ */
 const DENIED_FUNCTIONS = new Set<string>([
     'expression',
     '-moz-binding',
     'attr'
 ]);
 
+/**
+ * Property names denied outright, independent of their value.
+ */
 const DENIED_PROPERTY_NAMES = new Set<string>(['behavior', '-moz-binding']);
 
+/**
+ * Extract the argument of a `url()` function node — the first word or string
+ * child, trimmed. Returns the empty string when the token has no such child.
+ */
 function extractUrlArgument(node: FunctionNode): string {
     const child = node.nodes.find(
         (n) => n.type === 'word' || n.type === 'string'
@@ -172,6 +211,11 @@ function extractUrlArgument(node: FunctionNode): string {
 // top-level URL attribute path) share one predicate. See that
 // module's header for the contract.
 
+/**
+ * True for same-document fragment references like `url(#shadow)` — they
+ * resolve within the rendered document and never trigger a fetch, so they are
+ * safe to keep.
+ */
 function isFragmentOnlyUrl(rawUrl: string): boolean {
     // Same-document fragment references like url(#shadow), url(#g1) are
     // safe — they resolve within the rendered SVG / document and never
@@ -184,6 +228,10 @@ function isFragmentOnlyUrl(rawUrl: string): boolean {
     return rawUrl.trim().startsWith('#');
 }
 
+/**
+ * True when a `url()` token is unsafe: not a same-document fragment and not a
+ * safe image data URI.
+ */
 function isUnsafeUrlFunction(fn: FunctionNode): boolean {
     const arg = extractUrlArgument(fn);
     if (isFragmentOnlyUrl(arg)) {
@@ -192,6 +240,12 @@ function isUnsafeUrlFunction(fn: FunctionNode): boolean {
     return !isSafeImageDataUri(arg);
 }
 
+/**
+ * Walk a value's function nodes and return true if any is dangerous: a denied
+ * function, an unsafe `url()`, or a denied function nested inside a safe
+ * wrapper. Recurses into every function's children so payloads like
+ * `calc(100% - expression(...))` are caught.
+ */
 function hasUnsafeFunction(nodes: ValueNode[]): boolean {
     for (const node of nodes) {
         if (node.type !== 'function') continue;
@@ -210,6 +264,10 @@ function hasUnsafeFunction(nodes: ValueNode[]): boolean {
     return false;
 }
 
+/**
+ * True when a declaration's property is dangerous by name, or is `filter`
+ * carrying the legacy IE `progid:` value syntax.
+ */
 function hasDangerousProperty(prop: string, value: string): boolean {
     const propLower = prop.toLowerCase();
     if (DENIED_PROPERTY_NAMES.has(propLower)) return true;
@@ -217,6 +275,10 @@ function hasDangerousProperty(prop: string, value: string): boolean {
     return false;
 }
 
+/**
+ * The two sanitization modes: `declaration-list` for inline `style` attribute
+ * values, `stylesheet` for `<style>` content and the custom-stylesheet setting.
+ */
 export type SanitizeCssMode = 'declaration-list' | 'stylesheet';
 
 /**

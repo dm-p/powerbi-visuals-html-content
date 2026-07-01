@@ -70,7 +70,10 @@ import {
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
-// Shape the diagnostics dialog reports back via setResult / close → resultState.
+/**
+ * Shape the diagnostics dialog reports back via setResult / close →
+ * resultState.
+ */
 type DiagnosticsResultState = {
     lastTab?: string;
     clearConsole?: boolean;
@@ -80,6 +83,11 @@ type DiagnosticsResultState = {
     launchDoc?: 'sanitization' | 'acceptedTags';
 };
 
+/**
+ * Power BI custom-visual entry point: wires up the DOM containers, host
+ * services, interactivity, and diagnostics on construction, then renders each
+ * update through the RenderOrchestrator and surfaces the formatting model.
+ */
 export class Visual implements IVisual {
     // The root element for the entire visual
     private container: Selection<HTMLDivElement, any, any, any>;
