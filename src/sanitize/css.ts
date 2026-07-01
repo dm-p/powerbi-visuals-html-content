@@ -220,12 +220,6 @@ function hasDangerousProperty(prop: string, value: string): boolean {
 export type SanitizeCssMode = 'declaration-list' | 'stylesheet';
 
 /**
- * Sanitize a CSS input string and return the cleaned output. On parse
- * failure the input is dropped entirely (returns an empty string) and a
- * warning is emitted via console.warn — partial recovery from a malformed
- * input is too risky.
- */
-/**
  * Drop at-rules that are not on the allowlist. Applies in both modes.
  */
 function dropDisallowedAtRules(root: Root): void {
@@ -302,6 +296,12 @@ function serializeCss(root: Root, mode: SanitizeCssMode): string {
     return root.toString();
 }
 
+/**
+ * Sanitize a CSS input string and return the cleaned output. On parse
+ * failure the input is dropped entirely (returns an empty string) and a
+ * warning is emitted via console.warn — partial recovery from a malformed
+ * input is too risky.
+ */
 export function sanitizeCss(input: string, mode: SanitizeCssMode): string {
     if (input == null || input === '') {
         return '';

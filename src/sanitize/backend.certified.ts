@@ -61,12 +61,6 @@ export function preprocessStyleTags(input: string): string {
 }
 
 /**
- * Lazily bind DOMPurify to the current window. In a real browser the
- * default import is already pre-bound. Under jsdom we need to call
- * `DOMPurify(window)` once.
- */
-
-/**
  * The shape of the `DOMPurify` namespace export at runtime: it exposes
  * a fully-bound `DOMPurifyType` API (sanitize/addHook/etc.) AND is
  * callable as a factory that binds a fresh instance to a Window. The
@@ -78,6 +72,11 @@ export function preprocessStyleTags(input: string): string {
 type DOMPurifyFactory = DOMPurifyType & ((win: Window) => DOMPurifyType);
 
 let purifyInstance: DOMPurifyType | null = null;
+/**
+ * Lazily bind DOMPurify to the current window. In a real browser the
+ * default import is already pre-bound. Under jsdom we need to call
+ * `DOMPurify(window)` once.
+ */
 function getPurify(): DOMPurifyType {
     if (purifyInstance) return purifyInstance;
     const dp = DOMPurify as DOMPurifyFactory;
@@ -170,16 +169,6 @@ const isInPlaceSanitizableRoot = (el: Element): boolean => {
 };
 
 /**
- * Register the two sanitizer hooks (closing over `options.allowHyperlinks`),
- * run `run(purify)`, and always tear the hooks down afterward. Shared by
- * the string entry point (getSanitizedContent) and the in-context entry
- * point (parseAndSanitizeInContext) so both apply byte-identical policy.
- *
- * The hook bodies are the visual's security boundary — they are moved
- * here verbatim from the former getSanitizedContent body. Do not change
- * a rule here without changing the frozen sanitizer policy on purpose.
- */
-/**
  * If `element` carries any `on*` event-handler attribute, return that
  * attribute's name; otherwise null. Shared by the two-phase on*-element
  * drop (empty-in-`uponSanitizeElement` + remove-in-`afterSanitizeElements`).
@@ -259,6 +248,16 @@ const dropEventHandlerElement = (element: Element): void => {
     }
 };
 
+/**
+ * Register the two sanitizer hooks (closing over `options.allowHyperlinks`),
+ * run `run(purify)`, and always tear the hooks down afterward. Shared by
+ * the string entry point (getSanitizedContent) and the in-context entry
+ * point (parseAndSanitizeInContext) so both apply byte-identical policy.
+ *
+ * The hook bodies are the visual's security boundary — they are moved
+ * here verbatim from the former getSanitizedContent body. Do not change
+ * a rule here without changing the frozen sanitizer policy on purpose.
+ */
 function withSanitizerHooks<T>(
     run: (purify: DOMPurifyType) => T,
     options?: SanitizeOptions
@@ -451,15 +450,6 @@ function withSanitizerHooks<T>(
 }
 
 /**
- * Read DOMPurify's own `removed` log (forbidden/unknown tags and any
- * attributes its core dropped) and forward each entry to the passive
- * diagnostics sink. No-op when `removed` is absent or empty, and every
- * `recordRemoval` is itself a no-op unless capture is armed — so this
- * never changes sanitizer output. Must be called while still inside
- * `withSanitizerHooks`' `run`, since `purify.removed` is reset on the
- * next `sanitize` call.
- */
-/**
  * Map a single entry from DOMPurify's `removed` log to the removal record the
  * diagnostics sink expects, or `null` when the entry is neither an element nor
  * an attribute removal. Verbatim element-vs-attribute branch lifted out of
@@ -507,6 +497,15 @@ const mapRemovedEntry = (r: unknown): CoreRemovalRecord | null => {
     return null;
 };
 
+/**
+ * Read DOMPurify's own `removed` log (forbidden/unknown tags and any
+ * attributes its core dropped) and forward each entry to the passive
+ * diagnostics sink. No-op when `removed` is absent or empty, and every
+ * `recordRemoval` is itself a no-op unless capture is armed — so this
+ * never changes sanitizer output. Must be called while still inside
+ * `withSanitizerHooks`' `run`, since `purify.removed` is reset on the
+ * next `sanitize` call.
+ */
 const recordCoreRemovals = (purify: DOMPurifyType): void => {
     // Defense-in-depth on a frozen security boundary: this runs OUTSIDE the
     // sanitizer hooks' try/catch, so any unexpected throw here must never be
