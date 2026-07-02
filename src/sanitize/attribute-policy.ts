@@ -174,7 +174,11 @@ export const ALLOWED_ATTRIBUTES: AttributeAllowlist = {
         'data-*',
         'tabindex'
     ],
-    a: ['href', 'target', 'rel', 'download', 'hreflang', 'type'],
+    // `target` is intentionally omitted: DOMPurify strips it upstream as
+    // default tabnabbing protection, so it never reaches this hook — listing
+    // it here was dead. See the `hyperlinks-target-stripped-rel-preserved`
+    // fixture. `rel` is kept (allowlisted) and survives intact.
+    a: ['href', 'rel', 'download', 'hreflang', 'type'],
     img: ['src', 'alt', 'width', 'height', 'loading', 'decoding'],
     source: ['src', 'type', 'media'],
     table: ['align', 'valign'],
