@@ -1,9 +1,17 @@
 /** Shared types for the diagnostics dialog snapshot and its producers. */
 
+/** Severity of a captured console entry, mirroring the console method used. */
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error';
 
-export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'context-menu';
+/** Kind of visual-host event surfaced on the Events tab. */
+export type HostEventType =
+    | 'update'
+    | 'cross-filter'
+    | 'tooltip'
+    | 'context-menu';
+/** Whether a tooltip event is showing or hiding. */
 export type TooltipPhase = 'show' | 'hide';
+/** Origin of a tooltip: a data-point hover vs. a manually invoked tooltip. */
 export type TooltipSource = 'contextual' | 'manual';
 
 /** One captured visual-host event for the diagnostics Events tab. */
@@ -28,12 +36,14 @@ export interface SanitizerEntry {
     snippet?: string;
 }
 
+/** The full set of sanitizer removals for one render, plus any overflow. */
 export interface SanitizerCapture {
     entries: SanitizerEntry[];
     /** Count of removals dropped after the entry cap was reached. */
     overflow: number;
 }
 
+/** One captured console message for the diagnostics Console tab. */
 export interface ConsoleEntry {
     /** Unix epoch timestamp in milliseconds (Date.now()). */
     ts: number;
@@ -88,6 +98,12 @@ export interface DiagnosticsLabels {
 /** Doc pages the Sanitizer tab links to (launched by the visual via launchUrl). */
 export type DiagnosticsDocKey = 'sanitization' | 'acceptedTags';
 
+/**
+ * The complete, self-contained payload the visual hands to the diagnostics
+ * dialog. The dialog runs in its own iframe with no access to the visual's
+ * state, so everything it renders (captures, labels, remembered filters) is
+ * carried here.
+ */
 export interface DiagnosticsSnapshot {
     sanitizer: SanitizerCapture;
     console: ConsoleEntry[];

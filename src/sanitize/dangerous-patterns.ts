@@ -68,8 +68,9 @@ export const SCHEME_SUBSTRINGS: string[] = [
     'data:application/x-javascript',
     // All control characters (0x00-0x1F) for javascript obfuscation.
     // Generated, verified identical to the original literal run.
-    ...Array.from({ length: 0x20 }, (_, code) =>
-        `javas${String.fromCharCode(code)}cript`
+    ...Array.from(
+        { length: 0x20 },
+        (_, code) => `javas${String.fromCharCode(code)}cript`
     ),
     // CSS-based attacks.
     'expression(',

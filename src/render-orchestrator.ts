@@ -69,6 +69,11 @@ export function isEntryAffectingUpdate(
     return firstRender || hasDataBit || fingerprintChanged;
 }
 
+/**
+ * The render-path callbacks the orchestrator dispatches to. The visual
+ * supplies concrete closures (over its DOM state) via buildRenderSteps; the
+ * orchestrator decides which to invoke without knowing their internals.
+ */
 export interface RenderSteps {
     rebuild: (vm: IViewModel, settings: VisualFormattingSettingsModel) => void;
     reconcile: (
@@ -83,8 +88,14 @@ export interface RenderSteps {
     resolveContainer: (settings: VisualFormattingSettingsModel) => void;
 }
 
+/** Which render branch a given update resolves to. */
 type RenderKind = 'populated' | 'empty-or-raw';
 
+/**
+ * Tracks render lifecycle state across updates (first-render flag, last
+ * fingerprint, last kind) and chooses the rebuild / reconcile / viewport-only
+ * path per update, delegating the actual work to the injected RenderSteps.
+ */
 export class RenderOrchestrator {
     private firstRender = true;
     private lastFingerprint = '';

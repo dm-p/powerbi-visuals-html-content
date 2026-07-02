@@ -70,7 +70,10 @@ import {
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
 
-// Shape the diagnostics dialog reports back via setResult / close → resultState.
+/**
+ * Shape the diagnostics dialog reports back via setResult / close →
+ * resultState.
+ */
 type DiagnosticsResultState = {
     lastTab?: string;
     clearConsole?: boolean;
@@ -80,6 +83,11 @@ type DiagnosticsResultState = {
     launchDoc?: 'sanitization' | 'acceptedTags';
 };
 
+/**
+ * Power BI custom-visual entry point: wires up the DOM containers, host
+ * services, interactivity, and diagnostics on construction, then renders each
+ * update through the RenderOrchestrator and surfaces the formatting model.
+ */
 export class Visual implements IVisual {
     // The root element for the entire visual
     private container: Selection<HTMLDivElement, any, any, any>;
@@ -350,7 +358,11 @@ export class Visual implements IVisual {
         }
         if (diagActive) beginCapture();
         try {
-            this.orchestrator.render(options, viewModel, this.formattingSettings);
+            this.orchestrator.render(
+                options,
+                viewModel,
+                this.formattingSettings
+            );
         } finally {
             // Always disarm the sink, even if render throws: this keeps the
             // capture up to the failure point (useful for diagnosing the
@@ -468,11 +480,15 @@ export class Visual implements IVisual {
                 viewModel.bodyTemplate,
                 { allowHyperlinks: behavior.hyperlinks.value }
             );
-            renderTemplatedEntries(this.templateContainer, viewModel.htmlEntries, {
-                format: behavior.format.value as RenderFormat,
-                allowHyperlinks: behavior.hyperlinks.value,
-                hasSelection: viewModel.hasSelection
-            } as TemplatedRenderOptions);
+            renderTemplatedEntries(
+                this.templateContainer,
+                viewModel.htmlEntries,
+                {
+                    format: behavior.format.value as RenderFormat,
+                    allowHyperlinks: behavior.hyperlinks.value,
+                    hasSelection: viewModel.hasSelection
+                } as TemplatedRenderOptions
+            );
             resolveForRawHtml(
                 this.styleSheetContainer,
                 this.contentContainer,

@@ -3,10 +3,14 @@
 // theming (heart pink, coffee brown, GitHub hover) so they are inline rather
 // than <img> data URIs. Path data: GitHub Octicons mark, GitHub Sponsors heart,
 // a coffee-cup glyph.
+
+/** SVG namespace URI for createElementNS. */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-// All three icons are 16x16 and set fill/stroke on the root (paths inherit it),
-// so a path is just its `d`.
+/**
+ * All three icons are 16x16 and set fill/stroke on the root (paths inherit
+ * it), so a path is just its `d`.
+ */
 const svg = (
     doc: Document,
     paths: string[],
@@ -25,6 +29,7 @@ const svg = (
     return root;
 };
 
+/** GitHub Octicons mark, filled with currentColor. */
 export const githubIcon = (doc: Document): SVGSVGElement =>
     svg(
         doc,
@@ -34,6 +39,7 @@ export const githubIcon = (doc: Document): SVGSVGElement =>
         { fill: 'currentColor' }
     );
 
+/** GitHub Sponsors heart, filled with currentColor. */
 export const heartIcon = (doc: Document): SVGSVGElement =>
     svg(
         doc,
@@ -43,6 +49,7 @@ export const heartIcon = (doc: Document): SVGSVGElement =>
         { fill: 'currentColor' }
     );
 
+/** Coffee-cup glyph, stroked with currentColor. */
 export const coffeeIcon = (doc: Document): SVGSVGElement =>
     svg(
         doc,

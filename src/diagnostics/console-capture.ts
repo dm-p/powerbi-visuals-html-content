@@ -7,13 +7,26 @@
 import { ConsoleEntry, ConsoleLevel } from './types';
 import { VisualConstants } from '../visual-constants';
 
+/** Shape of a console method: variadic args in, nothing out. */
 type ConsoleFn = (...args: unknown[]) => void;
 
+/** The console levels teed into the ring buffer, in severity order. */
 const LEVELS: ConsoleLevel[] = ['log', 'info', 'warn', 'error'];
+/** Bounded ring buffer of captured entries; oldest are dropped past the cap. */
 const buffer: ConsoleEntry[] = [];
+/** Guards the one-time patch so install() is idempotent. */
 let installed = false;
+/**
+ * Original console methods, kept so the tee can always call through and
+ * resetForTests can restore them.
+ */
 const originals = new Map<ConsoleLevel, ConsoleFn>();
 
+/**
+ * Render one console argument to a single line, never throwing: strings pass
+ * through, Errors yield stack-or-message, everything else is JSON (falling
+ * back to String on cyclic/unserializable values).
+ */
 const stringify = (a: unknown): string => {
     if (typeof a === 'string') return a;
     // null / undefined → their literal names. JSON.stringify(undefined)
@@ -27,6 +40,10 @@ const stringify = (a: unknown): string => {
     }
 };
 
+/**
+ * Join, cap, and append one captured entry, evicting the oldest while the
+ * buffer exceeds its size cap.
+ */
 const push = (level: ConsoleLevel, args: unknown[]): void => {
     const text = args
         .map(stringify)
@@ -38,6 +55,11 @@ const push = (level: ConsoleLevel, args: unknown[]): void => {
     }
 };
 
+/**
+ * Patch the console levels once, teeing each call into the buffer before
+ * delegating to the original. Idempotent; capture failures are swallowed so a
+ * broken capture can never suppress a real log.
+ */
 export const install = (): void => {
     if (installed) return;
     installed = true;
@@ -55,6 +77,10 @@ export const install = (): void => {
     }
 };
 
+/**
+ * A defensive copy of the captured entries so callers can't mutate the live
+ * buffer.
+ */
 export const snapshot = (): ConsoleEntry[] => buffer.slice();
 
 /**

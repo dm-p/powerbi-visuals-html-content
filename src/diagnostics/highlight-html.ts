@@ -15,6 +15,7 @@
  */
 import { VisualConstants } from '../visual-constants';
 
+/** A classed <span> wrapping a single run of text (never innerHTML). */
 const span = (cls: string, text: string): HTMLSpanElement => {
     const s = document.createElement('span');
     s.className = cls;
@@ -22,12 +23,15 @@ const span = (cls: string, text: string): HTMLSpanElement => {
     return s;
 };
 
+/** True when `c` is an ASCII letter — used to tell a real tag from a bare '<'. */
 const isLetter = (c: string | undefined): boolean =>
     c !== undefined && /[a-zA-Z]/.test(c);
 
-// name="value" / name='value' attribute pairs within a single tag's body.
-// Both quote styles are colorized (authors use both). Operates on one tag's
-// worth of text, so it can never run away on whole-doc input.
+/**
+ * name="value" / name='value' attribute pairs within a single tag's body.
+ * Both quote styles are colorized (authors use both). Operates on one tag's
+ * worth of text, so it can never run away on whole-doc input.
+ */
 const ATTR = /([\w-]+)(=)("[^"]*"|'[^']*')/g;
 
 /** Append a tag body (between name and close delimiter), coloring attr pairs. */

@@ -1,6 +1,7 @@
 import { Edition } from '../visual-config.generated';
 import { githubIcon, heartIcon, coffeeIcon } from './icons';
 
+/** Localised display strings for every text slot on the splash. */
 export interface LandingLabels {
     headline: string;
     body: string;
@@ -15,6 +16,7 @@ export interface LandingLabels {
     openDocs: string;
 }
 
+/** Outbound link targets for the splash's buttons and links. */
 export interface LandingUrls {
     docs: string;
     quickStart: string;
@@ -24,6 +26,7 @@ export interface LandingUrls {
     coffee: string;
 }
 
+/** Everything buildSplash needs to render one splash instance. */
 export interface SplashOptions {
     edition: Edition;
     version: string;
@@ -33,12 +36,32 @@ export interface SplashOptions {
     onLaunch: (url: string) => void;
 }
 
+/** Per-edition branding: name suffix and accent colour for the title. */
 interface EditionPresentation {
     suffix: string;
     suffixClass: string;
     accentVar: string;
 }
 
+/** Arguments for the iconLink builder: an icon button that opens a URL. */
+interface IconLinkOptions {
+    cls: string;
+    key: string;
+    url: string;
+    title: string;
+    icon: SVGElement;
+    onLaunch: (url: string) => void;
+}
+
+/** Arguments for the textLink builder: a text button that opens a URL. */
+interface TextLinkOptions {
+    cls: string;
+    text: string;
+    url: string;
+    onLaunch: (url: string) => void;
+}
+
+/** Branding lookup: resolves each edition to its EditionPresentation. */
 const PRESENTATION: Record<Edition, EditionPresentation> = {
     flagship: {
         suffix: '',
@@ -57,6 +80,10 @@ const PRESENTATION: Record<Edition, EditionPresentation> = {
     }
 };
 
+/**
+ * Element factory: createElement with an optional class and text content.
+ * Shared by every builder so the DOM is assembled without innerHTML.
+ */
 const node = (
     doc: Document,
     tag: string,
@@ -69,15 +96,12 @@ const node = (
     return n;
 };
 
-const iconLink = (
-    doc: Document,
-    cls: string,
-    key: string,
-    url: string,
-    title: string,
-    icon: SVGElement,
-    onLaunch: (url: string) => void
-): HTMLElement => {
+/**
+ * Builds an icon-only button that invokes onLaunch(url) when clicked. Uses a
+ * <button> (not <a>) with title/aria-label so it is accessible and cert-safe.
+ */
+const iconLink = (doc: Document, opts: IconLinkOptions): HTMLElement => {
+    const { cls, key, url, title, icon, onLaunch } = opts;
     const a = node(doc, 'button', cls);
     a.setAttribute('type', 'button');
     a.setAttribute('title', title);
@@ -88,30 +112,26 @@ const iconLink = (
     return a;
 };
 
-const textLink = (
-    doc: Document,
-    cls: string,
-    text: string,
-    url: string,
-    onLaunch: (url: string) => void
-): HTMLElement => {
+/**
+ * Builds a text button that invokes onLaunch(url) when clicked. A <button>
+ * rather than an <a> so navigation stays under the host's control.
+ */
+const textLink = (doc: Document, opts: TextLinkOptions): HTMLElement => {
+    const { cls, text, url, onLaunch } = opts;
     const b = node(doc, 'button', cls, text);
     b.setAttribute('type', 'button');
     b.addEventListener('click', () => onLaunch(url));
     return b;
 };
 
-export const buildSplash = (
-    doc: Document,
-    opts: SplashOptions
-): HTMLElement => {
-    const { edition, version, markUrl, labels, urls, onLaunch } = opts;
+/**
+ * Builds the header band: accent bar, product mark, edition-suffixed title
+ * with version, and the GitHub/sponsor/coffee icon links.
+ */
+const buildHeader = (doc: Document, opts: SplashOptions): HTMLElement => {
+    const { edition, version, markUrl, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
 
-    const root = node(doc, 'div', 'hc-landing');
-    root.style.setProperty('--hc-edition-accent', p.accentVar);
-
-    // ---- Header ----
     const header = node(doc, 'div', 'hc-landing-header');
     header.appendChild(node(doc, 'div', 'hc-landing-accent'));
 
@@ -159,16 +179,28 @@ export const buildSplash = (
     for (const [mod, key, url, title, icon] of iconLinks) {
         const cls = `hc-landing-iconlink${mod ? ` hc-landing-iconlink${mod}` : ''}`;
         icons.appendChild(
-            iconLink(doc, cls, key, url, title, icon(), onLaunch)
+            iconLink(doc, {
+                cls,
+                key,
+                url,
+                title,
+                icon: icon(),
+                onLaunch
+            })
         );
     }
     header.appendChild(icons);
-    root.appendChild(header);
+    return header;
+};
 
-    // ---- Body ----
-    // In-flow hero (top) + footer (bottom). The body does not scroll itself —
-    // the host's OverlayScrollbars owns overflow. The watermark anchors to the
-    // body top and is clipped by .hc-landing's overflow.
+/**
+ * Builds the body container holding the watermark image. buildSplash appends
+ * the hero and footer into it afterwards.
+ */
+const buildBody = (doc: Document, opts: SplashOptions): HTMLElement => {
+    const { edition, markUrl } = opts;
+    const p = PRESENTATION[edition];
+
     const body = node(doc, 'div', 'hc-landing-body');
 
     const watermark = doc.createElement('img');
@@ -177,7 +209,17 @@ export const buildSplash = (
     watermark.alt = '';
     body.appendChild(watermark);
 
-    // Hero: headline + lede beside the Values cue. Grows to fill spare height.
+    return body;
+};
+
+/**
+ * Builds the hero: headline, lede and compact body copy beside the Values
+ * drop-zone cue that prompts the user to bind a field.
+ */
+const buildHero = (doc: Document, opts: SplashOptions): HTMLElement => {
+    const { edition, version, markUrl, labels, urls, onLaunch } = opts;
+    const p = PRESENTATION[edition];
+
     const hero = node(doc, 'div', 'hc-landing-hero');
     const copy = node(doc, 'div', 'hc-landing-copy');
     copy.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
@@ -203,28 +245,35 @@ export const buildSplash = (
     );
     cue.appendChild(drop);
     hero.appendChild(cue);
-    body.appendChild(hero);
 
-    // Footer (actions): full-width band that flows under the hero + graphic.
+    return hero;
+};
+
+/**
+ * Builds the footer: quick-start and what's-new links, the sandbox note with
+ * its docs link, and the open-docs action.
+ */
+const buildFooter = (doc: Document, opts: SplashOptions): HTMLElement => {
+    const { edition, labels, urls, onLaunch } = opts;
+    const p = PRESENTATION[edition];
+
     const footer = node(doc, 'div', 'hc-landing-footer');
     const links = node(doc, 'div', 'hc-landing-links');
     links.appendChild(
-        textLink(
-            doc,
-            'hc-landing-link hc-landing-link--brand',
-            labels.quickStart,
-            urls.quickStart,
+        textLink(doc, {
+            cls: 'hc-landing-link hc-landing-link--brand',
+            text: labels.quickStart,
+            url: urls.quickStart,
             onLaunch
-        )
+        })
     );
     links.appendChild(
-        textLink(
-            doc,
-            'hc-landing-link',
-            labels.whatsNew,
-            urls.changelog,
+        textLink(doc, {
+            cls: 'hc-landing-link',
+            text: labels.whatsNew,
+            url: urls.changelog,
             onLaunch
-        )
+        })
     );
     footer.appendChild(links);
 
@@ -235,25 +284,58 @@ export const buildSplash = (
         `${labels.sandboxNote} `
     );
     sandbox.appendChild(
-        textLink(
-            doc,
-            'hc-landing-sandbox-link',
-            labels.sandboxNoteLink,
-            urls.docs,
+        textLink(doc, {
+            cls: 'hc-landing-sandbox-link',
+            text: labels.sandboxNoteLink,
+            url: urls.docs,
             onLaunch
-        )
+        })
     );
     footer.appendChild(sandbox);
 
-    const openDocs = textLink(
-        doc,
-        'hc-landing-opendocs',
-        labels.openDocs,
-        urls.docs,
+    const openDocs = textLink(doc, {
+        cls: 'hc-landing-opendocs',
+        text: labels.openDocs,
+        url: urls.docs,
         onLaunch
-    );
+    });
     openDocs.appendChild(node(doc, 'span', undefined, ' ↗'));
     footer.appendChild(openDocs);
+
+    return footer;
+};
+
+/**
+ * Assembles the full splash tree: sets the edition accent on the root, then
+ * appends the header and the body (hero + footer). The entry point for the
+ * landing module.
+ */
+export const buildSplash = (
+    doc: Document,
+    opts: SplashOptions
+): HTMLElement => {
+    const { edition } = opts;
+    const p = PRESENTATION[edition];
+
+    const root = node(doc, 'div', 'hc-landing');
+    root.style.setProperty('--hc-edition-accent', p.accentVar);
+
+    // ---- Header ----
+    const header = buildHeader(doc, opts);
+    root.appendChild(header);
+
+    // ---- Body ----
+    // In-flow hero (top) + footer (bottom). The body does not scroll itself —
+    // the host's OverlayScrollbars owns overflow. The watermark anchors to the
+    // body top and is clipped by .hc-landing's overflow.
+    const body = buildBody(doc, opts);
+
+    // Hero: headline + lede beside the Values cue. Grows to fill spare height.
+    const hero = buildHero(doc, opts);
+    body.appendChild(hero);
+
+    // Footer (actions): full-width band that flows under the hero + graphic.
+    const footer = buildFooter(doc, opts);
     body.appendChild(footer);
 
     root.appendChild(body);

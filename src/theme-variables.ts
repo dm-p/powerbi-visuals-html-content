@@ -9,22 +9,27 @@
 import powerbi from 'powerbi-visuals-api';
 import ISandboxExtendedColorPalette = powerbi.extensibility.ISandboxExtendedColorPalette;
 
-// `colors` (the numbered data palette) is present on the host palette at
-// runtime but NOT declared on ISandboxExtendedColorPalette (only getColor is).
-// Reached via this narrow shape, mirroring Deneb's PowerBIColorPaletteExtension.
+/**
+ * `colors` (the numbered data palette) is present on the host palette at
+ * runtime but NOT declared on ISandboxExtendedColorPalette (only getColor is).
+ * Reached via this narrow shape, mirroring Deneb's
+ * PowerBIColorPaletteExtension.
+ */
 interface PaletteColors {
     colors?: { value?: string }[];
 }
 
-// Curated named contract: CSS variable suffix → the host palette member(s) to
-// read (first present & valid wins). Order is the public contract order. A
-// member that a theme doesn't define is simply absent and skipped.
-//
-// Variable names mirror the JSON theme schema keys, which is what theme authors
-// see (e.g. `good`/`bad`/`center`), even where the runtime palette member we
-// read is spelled differently — sentiment is `positive`/`negative` on the
-// runtime object but `good`/`bad` in the theme JSON. `max` lists the upstream
-// `maximium` typo first, then the correct `maximum` (the theme JSON spelling).
+/**
+ * Curated named contract: CSS variable suffix → the host palette member(s) to
+ * read (first present & valid wins). Order is the public contract order. A
+ * member that a theme doesn't define is simply absent and skipped.
+ *
+ * Variable names mirror the JSON theme schema keys, which is what theme authors
+ * see (e.g. `good`/`bad`/`center`), even where the runtime palette member we
+ * read is spelled differently — sentiment is `positive`/`negative` on the
+ * runtime object but `good`/`bad` in the theme JSON. `max` lists the upstream
+ * `maximium` typo first, then the correct `maximum` (the theme JSON spelling).
+ */
 const NAMED: { suffix: string; members: string[] }[] = [
     { suffix: 'fg', members: ['foreground'] },
     { suffix: 'fg-neutral-secondary', members: ['foregroundNeutralSecondary'] },
@@ -45,17 +50,26 @@ const NAMED: { suffix: string; members: string[] }[] = [
     { suffix: 'max', members: ['maximium', 'maximum'] }
 ];
 
-// Trust-boundary guard: only hex (#rgb/#rgba/#rrggbb/#rrggbbaa) or rgb()/rgba()
-// values are written into our <style>. Anything else (named colors the host
-// never emits, or an injection attempt like "red; }…") is dropped. Consistent
-// with the visual's CSS-sanitizer posture; cheap defense-in-depth.
+/**
+ * Trust-boundary guard: only hex (#rgb/#rgba/#rrggbb/#rrggbbaa) or
+ * rgb()/rgba() values are written into our <style>. Anything else (named
+ * colors the host never emits, or an injection attempt like "red; }…") is
+ * dropped. Consistent with the visual's CSS-sanitizer posture; cheap
+ * defense-in-depth.
+ */
 const COLOR_VALUE =
     /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\([0-9.,\s%]+\)$/i;
 
+/** True when `value` is a hex or rgb()/rgba() color safe to emit (see COLOR_VALUE). */
 export function isValidColorValue(value: string | undefined): boolean {
     return typeof value === 'string' && COLOR_VALUE.test(value.trim());
 }
 
+/**
+ * Build the `:root { --pbi-theme-* }` declaration block from the host palette:
+ * the numbered data colors (1-indexed) plus the curated NAMED members, keeping
+ * only values that pass isValidColorValue. Returns '' when nothing resolves.
+ */
 export function buildThemeVariablesCss(
     palette: ISandboxExtendedColorPalette
 ): string {

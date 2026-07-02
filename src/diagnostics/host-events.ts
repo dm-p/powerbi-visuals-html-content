@@ -11,8 +11,10 @@ export interface TooltipItem {
     value: string;
 }
 
-// VisualUpdateType is a bitflag enum; decode by name so we never hard-code its
-// numeric values (which are an API detail).
+/**
+ * VisualUpdateType is a bitflag enum; decode by name so we never hard-code its
+ * numeric values (which are an API detail).
+ */
 const UPDATE_FLAGS: ReadonlyArray<[number, string]> = [
     [powerbi.VisualUpdateType.Data, 'Data'],
     [powerbi.VisualUpdateType.Resize, 'Resize'],

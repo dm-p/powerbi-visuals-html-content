@@ -31,9 +31,11 @@ export function resolveHover(
     bindManualTooltips(dataElements, host);
 }
 
-// Shared tooltip-handler guard: if the hovered target is under a
-// `data-hc-suppress` (tooltip/all) subtree, hide any active tooltip and return
-// true so the caller bails before showing one.
+/**
+ * Shared tooltip-handler guard: if the hovered target is under a
+ * `data-hc-suppress` (tooltip/all) subtree, hide any active tooltip and return
+ * true so the caller bails before showing one.
+ */
 function tooltipSuppressed(
     event: Event,
     tooltipService: IVisualHost['tooltipService']

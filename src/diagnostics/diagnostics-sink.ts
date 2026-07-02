@@ -9,18 +9,31 @@
 import { SanitizerEntry, SanitizerCapture } from './types';
 import { VisualConstants } from '../visual-constants';
 
+/** Whether a capture window is open; while false recordRemoval is a no-op. */
 let armed = false;
+/** Removals collected during the current window, up to the entry cap. */
 let entries: SanitizerEntry[] = [];
+/** Count of removals dropped after the entry cap was reached this window. */
 let overflow = 0;
 
+/** Whether a capture window is currently open. */
 export const isArmed = (): boolean => armed;
 
+/**
+ * Open a fresh capture window, discarding any prior entries and overflow
+ * count.
+ */
 export const beginCapture = (): void => {
     armed = true;
     entries = [];
     overflow = 0;
 };
 
+/**
+ * Record one sanitizer removal. A no-op unless armed, so the sanitizer's
+ * behaviour is unchanged when diagnostics is off. Past the entry cap the entry
+ * is dropped and only the overflow count grows.
+ */
 export const recordRemoval = (e: SanitizerEntry): void => {
     if (!armed) return;
     // Self-guard: recordRemoval is called from inside frozen security

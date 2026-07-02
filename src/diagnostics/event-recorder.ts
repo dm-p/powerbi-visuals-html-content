@@ -10,16 +10,23 @@ import { HostEvent, HostEventType, TooltipPhase, TooltipSource } from './types';
 import { VisualConstants } from '../visual-constants';
 import { eventCoords } from './host-events';
 
+/** Whether recording is active. Set by the visual's diagActive gate; while
+ * false every entry point below is a no-op (zero cost off the diagnostics path). */
 let armed = false;
+/** The bounded ring buffer of captured host events (oldest dropped past cap). */
 let buffer: HostEvent[] = [];
-// Decision 9: dedup key of the LAST RECORDED tooltip event, so consecutive
-// identical (phase, source, context) tooltip events collapse to one.
+/**
+ * Decision 9: dedup key of the LAST RECORDED tooltip event, so consecutive
+ * identical (phase, source, context) tooltip events collapse to one.
+ */
 let lastTooltipKey: string | undefined;
 
+/** Arm or disarm recording; toggles the no-op gate for every entry point. */
 export const setArmed = (value: boolean): void => {
     armed = value;
 };
 
+/** Append an event and evict from the front until within the buffer cap. */
 const push = (e: HostEvent): void => {
     buffer.push(e);
     while (buffer.length > VisualConstants.diagnostics.eventBufferCap) {
@@ -27,8 +34,10 @@ const push = (e: HostEvent): void => {
     }
 };
 
-/** Record a host event. No-op unless armed. Self-guarded — never throws into
- *  the render/interaction paths that call it. */
+/**
+ * Record a host event. No-op unless armed. Self-guarded — never throws into
+ * the render/interaction paths that call it.
+ */
 export const recordEvent = (
     type: HostEventType,
     summary: string,
@@ -42,8 +51,10 @@ export const recordEvent = (
     }
 };
 
-/** Record a tooltip event with Decision 9/10 de-duplication. No-op unless
- *  armed. The dedup key includes source so contextual/manual never collapse. */
+/**
+ * Record a tooltip event with Decision 9/10 de-duplication. No-op unless
+ * armed. The dedup key includes source so contextual/manual never collapse.
+ */
 export const recordTooltipEvent = (
     event: MouseEvent,
     phase: TooltipPhase,
@@ -72,10 +83,13 @@ export const recordTooltipEvent = (
     }
 };
 
+/** A copy of the current event buffer for the diagnostics snapshot. */
 export const snapshot = (): HostEvent[] => buffer.slice();
 
-/** Empty the buffer (the Clear affordance) and reset tooltip dedup so the next
- *  show always logs. Does not disarm. */
+/**
+ * Empty the buffer (the Clear affordance) and reset tooltip dedup so the next
+ * show always logs. Does not disarm.
+ */
 export const clear = (): void => {
     buffer = [];
     lastTooltipKey = undefined;
