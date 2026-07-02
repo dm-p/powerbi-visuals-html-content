@@ -39,7 +39,7 @@ When renaming any user-facing name (data role, object/card title, feature name) 
    ```
 
    In this case: `Objects_CrossFilter_Description` and `Objects_CrossFilter_Enabled_Description` both still said "Granularity".
-3. **Grep docs and landing-page strings** — user guides walk through binding fields by display name (`docs/v2/HTML-Content-v2-Guide.md` said "put … your grouping column in **Granularity**").
+3. **Grep docs and landing-page strings — including uncommitted drafts** — user guides walk through binding fields by display name. Here the hit was in `docs/v2/HTML-Content-v2-Guide.md`, a draft v2 guide that was still untracked in the working tree at the time (it said "put … your grouping column in **Granularity**"); grep the working tree, not just tracked files, or in-flight docs ship stale.
 4. **Confirm capabilities fallbacks are placeholders** — this repo's literal `displayName`/`description` values in `capabilities.json` are placeholder text ("Sampling", "Sampling description.") only shown if localization fails; they follow the same placeholder pattern as every other role, so they stay as-is.
 5. **Leave internal identifiers alone** — `hasGranularity`, code comments, and test names are not user-facing; renaming them is optional churn, not correctness.
 
@@ -55,18 +55,20 @@ Stale prose references are worse than a missed rename of the primary key: the fo
 
 ## Examples
 
-The complete sweep for this rename touched three strings and one doc line:
+The complete sweep for this rename touched four strings and one doc line:
 
 ```diff
 - "Roles_Sampling": "Granularity",
 + "Roles_Sampling": "Context",
+- "Roles_Sampling_Description": "Because some results can aggregate to a single value, you can add a grouping value ...",
++ "Roles_Sampling_Description": "Use this to provide context for your data. Columns add row context, enabling grouping and interactivity ...",
 - "Objects_CrossFilter_Description": "... based on the Granularity of your dataset.",
 + "Objects_CrossFilter_Description": "... based on the Context of your dataset.",
 - "Objects_CrossFilter_Enabled_Description": "... if Granularity if provided.",
 + "Objects_CrossFilter_Enabled_Description": "... if Context is provided.",
 ```
 
-plus `docs/v2/HTML-Content-v2-Guide.md`: "put … your grouping column in **Context**."
+plus one line in `docs/v2/HTML-Content-v2-Guide.md` ("put … your grouping column in **Context**") — a draft guide not yet committed to the repo at the time of this sweep, so it lands with the v2 docs work rather than in the rename PR.
 
 ## Related
 
