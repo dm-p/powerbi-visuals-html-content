@@ -353,8 +353,7 @@ export const urlScheme = (ctx: AttrContext): Verdict => {
 export const svgFunciri = (ctx: AttrContext): Verdict => {
     const { attrName, value, isSvgTag } = ctx;
     if (isSvgTag && attrName !== 'style') {
-        const urlTokenRegex =
-            /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/gi;
+        const urlTokenRegex = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\)/gi;
         let urlTokenMatch: RegExpExecArray | null;
         while ((urlTokenMatch = urlTokenRegex.exec(value)) !== null) {
             const fullUrl = (

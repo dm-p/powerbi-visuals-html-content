@@ -100,10 +100,7 @@ const node = (
  * Builds an icon-only button that invokes onLaunch(url) when clicked. Uses a
  * <button> (not <a>) with title/aria-label so it is accessible and cert-safe.
  */
-const iconLink = (
-    doc: Document,
-    opts: IconLinkOptions
-): HTMLElement => {
+const iconLink = (doc: Document, opts: IconLinkOptions): HTMLElement => {
     const { cls, key, url, title, icon, onLaunch } = opts;
     const a = node(doc, 'button', cls);
     a.setAttribute('type', 'button');
@@ -119,10 +116,7 @@ const iconLink = (
  * Builds a text button that invokes onLaunch(url) when clicked. A <button>
  * rather than an <a> so navigation stays under the host's control.
  */
-const textLink = (
-    doc: Document,
-    opts: TextLinkOptions
-): HTMLElement => {
+const textLink = (doc: Document, opts: TextLinkOptions): HTMLElement => {
     const { cls, text, url, onLaunch } = opts;
     const b = node(doc, 'button', cls, text);
     b.setAttribute('type', 'button');

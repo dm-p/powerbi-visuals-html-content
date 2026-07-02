@@ -4,7 +4,11 @@
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error';
 
 /** Kind of visual-host event surfaced on the Events tab. */
-export type HostEventType = 'update' | 'cross-filter' | 'tooltip' | 'context-menu';
+export type HostEventType =
+    | 'update'
+    | 'cross-filter'
+    | 'tooltip'
+    | 'context-menu';
 /** Whether a tooltip event is showing or hiding. */
 export type TooltipPhase = 'show' | 'hide';
 /** Origin of a tooltip: a data-point hover vs. a manually invoked tooltip. */

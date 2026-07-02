@@ -143,12 +143,7 @@ function hasDangerousSchemeInValue(value: string): boolean {
 function isExemptWhitespaceControl(code: number): boolean {
     // The whitespace controls the CSS spec treats as valid:
     // TAB (0x09), LF (0x0A), FF (0x0C), CR (0x0D).
-    return (
-        code === 0x09 ||
-        code === 0x0a ||
-        code === 0x0c ||
-        code === 0x0d
-    );
+    return code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d;
 }
 
 /**

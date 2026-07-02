@@ -358,7 +358,11 @@ export class Visual implements IVisual {
         }
         if (diagActive) beginCapture();
         try {
-            this.orchestrator.render(options, viewModel, this.formattingSettings);
+            this.orchestrator.render(
+                options,
+                viewModel,
+                this.formattingSettings
+            );
         } finally {
             // Always disarm the sink, even if render throws: this keeps the
             // capture up to the failure point (useful for diagnosing the
@@ -476,11 +480,15 @@ export class Visual implements IVisual {
                 viewModel.bodyTemplate,
                 { allowHyperlinks: behavior.hyperlinks.value }
             );
-            renderTemplatedEntries(this.templateContainer, viewModel.htmlEntries, {
-                format: behavior.format.value as RenderFormat,
-                allowHyperlinks: behavior.hyperlinks.value,
-                hasSelection: viewModel.hasSelection
-            } as TemplatedRenderOptions);
+            renderTemplatedEntries(
+                this.templateContainer,
+                viewModel.htmlEntries,
+                {
+                    format: behavior.format.value as RenderFormat,
+                    allowHyperlinks: behavior.hyperlinks.value,
+                    hasSelection: viewModel.hasSelection
+                } as TemplatedRenderOptions
+            );
             resolveForRawHtml(
                 this.styleSheetContainer,
                 this.contentContainer,
