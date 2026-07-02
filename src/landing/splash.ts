@@ -9,10 +9,6 @@ export interface LandingLabels {
     whatsNew: string;
     sandboxNote: string;
     sandboxNoteLink: string;
-    valuesLabel: string;
-    valuesField: string;
-    valuesHint: string;
-    compactBody: string;
     openDocs: string;
 }
 

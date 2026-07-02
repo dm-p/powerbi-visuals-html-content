@@ -4,15 +4,11 @@ import { buildSplash, LandingLabels, LandingUrls } from '../src/landing/splash';
 
 const labels: LandingLabels = {
     headline: 'Ready when you are.',
-    body: 'Drop a measure or field that returns HTML into the Values well.',
+    body: 'Add a measure or field that returns HTML to the Values well.',
     quickStart: 'Quick start',
     whatsNew: "What's new",
     sandboxNote: 'Some browser features are limited inside the sandbox.',
     sandboxNoteLink: 'see the docs',
-    valuesLabel: 'Values',
-    valuesField: 'Report HTML',
-    valuesHint: 'drop a field here',
-    compactBody: 'Add a field with HTML to the Values well to render it here.',
     openDocs: 'Open the docs'
 };
 const urls: LandingUrls = {
