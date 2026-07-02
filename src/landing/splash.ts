@@ -314,7 +314,7 @@ export const buildSplash = (
     doc: Document,
     opts: SplashOptions
 ): HTMLElement => {
-    const { edition, version, markUrl, labels, urls, onLaunch } = opts;
+    const { edition } = opts;
     const p = PRESENTATION[edition];
 
     const root = node(doc, 'div', 'hc-landing');
