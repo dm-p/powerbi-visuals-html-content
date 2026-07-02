@@ -459,15 +459,12 @@
         z-index: 0;
         pointer-events: none;
     }
-    // Hero row: copy flows beside the Values cue (no overlap). Positioned so it
-    // paints above the watermark.
+    // Hero: headline + body message. Positioned so it paints above the
+    // watermark.
     .hc-landing-hero {
         position: relative;
         z-index: 1;
         flex: none;
-        display: flex;
-        gap: 12px;
-        align-items: flex-start;
     }
     // Footer pinned to the bottom so the body fills its height — the watermark
     // backdrop occupies the gap rather than empty whitespace.
@@ -476,10 +473,6 @@
         z-index: 1;
         flex: none;
         margin-top: auto;
-    }
-    .hc-landing-copy {
-        flex: 1;
-        min-width: 0;
     }
     .hc-landing-headline {
         font-size: 14pt;
@@ -528,62 +521,7 @@
         padding: 0;
     }
 
-    // In-flow flex item beside the copy (not absolute) so the copy reflows
-    // around it as the visual narrows, instead of being overlapped.
-    .hc-landing-values {
-        flex: none;
-        width: 150px;
-        background: var(--hc-bg2);
-        border: 1px solid var(--hc-stroke2);
-        border-radius: 10px;
-        padding: 13px;
-        box-shadow: var(--hc-shadow4);
-    }
-    .hc-landing-values-label {
-        font-size: 8pt;
-        font-weight: 700;
-        color: var(--hc-fg2);
-        margin-bottom: 9px;
-    }
-    .hc-landing-dropzone {
-        border: 1.6px dashed var(--hc-brand);
-        border-radius: 7px;
-        background: var(--hc-brand-tint);
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 7px;
-        align-items: center;
-    }
-    .hc-landing-chip {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        background: var(--hc-bg1);
-        border: 1px solid var(--hc-stroke1);
-        border-radius: 5px;
-        padding: 6px 8px;
-        box-shadow: var(--hc-shadow4);
-    }
-    .hc-landing-chip-text {
-        font-size: 8pt;
-        font-weight: 600;
-        color: var(--hc-fg1);
-        white-space: nowrap;
-    }
-    .hc-landing-chip-grip {
-        color: var(--hc-fg3);
-        font-size: 8pt;
-        letter-spacing: 1px;
-    }
-    .hc-landing-drophint {
-        font-size: 8pt;
-        font-weight: 600;
-        color: var(--hc-brand);
-    }
 
-    .hc-landing-compact-body,
     .hc-landing-opendocs {
         display: none;
     }
@@ -591,8 +529,6 @@
     // Collapse to the compact layout while there is still comfortable room for
     // the copy beside the Values cue — below this the two-column row gets cramped.
     @container (max-width: 360px) {
-        .hc-landing-values,
-        .hc-landing-lede,
         .hc-landing-links,
         .hc-landing-sandbox {
             display: none;
@@ -600,11 +536,10 @@
         .hc-landing-name {
             font-size: 8pt;
         }
-        .hc-landing-compact-body {
-            display: block;
-            font-size: 10pt;
-            line-height: 1.45;
-            color: var(--hc-fg2);
+        // Unified message: same string as the wide layout, tighter metrics.
+        // The width clamp is lifted — nothing competes for the row any more.
+        .hc-landing-lede {
+            max-width: none;
             margin: 6px 0 0;
         }
         .hc-landing-opendocs {
