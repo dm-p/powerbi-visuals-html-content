@@ -136,18 +136,19 @@ export function hasDangerousSvgPayload(
     if (decoded == null) return true;
     if (/<script\b/i.test(decoded)) return true;
     if (/<foreignObject\b/i.test(decoded)) return true;
-    // The boundary char before `on...` must include `"` and `'`, not
+    // The boundary char before `on...` must include `"`, `'`, and `/`, not
     // just whitespace — HTML5's lenient tokenizer accepts adjacent
-    // attributes when separated by a closing quote, e.g.
-    // `<svg id="x"onclick="alert(1)">`. The same lenient parsers run
-    // on the sandbox-weak surfaces this scan defends, so a
-    // whitespace-only boundary would let the handler through here
-    // while a downstream parser still fires it.
-    if (/[\s"']on[a-z]+\s*=/i.test(decoded)) return true;
-    // The boundary char before `href` / `xlink:href` must include `"`
-    // and `'`, not just whitespace and start-of-string — HTML5's lenient
-    // tokenizer accepts adjacent attributes when separated by a closing
-    // quote, e.g. `<image id="x"href="https://attacker.example/pixel">`.
+    // attributes when separated by a closing quote or a slash, e.g.
+    // `<svg id="x"onclick="alert(1)">` and `<svg/onload="alert(1)">`. The
+    // same lenient parsers run on the sandbox-weak surfaces this scan
+    // defends, so a whitespace-only boundary would let the handler through
+    // here while a downstream parser still fires it.
+    if (/[\s"'/]on[a-z]+\s*=/i.test(decoded)) return true;
+    // The boundary char before `href` / `xlink:href` must include `"`,
+    // `'`, and `/`, not just whitespace and start-of-string — HTML5's
+    // lenient tokenizer accepts adjacent attributes when separated by a
+    // closing quote or slash, e.g. `<image id="x"href="…">` and
+    // `<image/href="https://attacker.example/pixel">`.
     // The same lenient parsers run on the sandbox-weak surfaces this
     // scan defends, so a whitespace-only boundary would let an external
     // fetch through here while a downstream parser still initiated it.
@@ -166,7 +167,7 @@ export function hasDangerousSvgPayload(
  */
 function hasDangerousInnerHref(decoded: string, depth: number): boolean {
     const hrefMatches = decoded.match(
-        /(?:^|[\s"'])(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
+        /(?:^|[\s"'/])(?:xlink:)?href\s*=\s*["']?\s*([^"'\s>]+)/gi
     );
     if (!hrefMatches) return false;
     for (const raw of hrefMatches) {
@@ -230,10 +231,13 @@ export function isSafeImageDataUri(rawUrl: string): boolean {
 
 /**
  * Parse the MIME type and base64 flag from a `data:` URI header.
- * Returns null for empty / non-`data:` input. Extracted from
- * `isSafeImageDataUri`; the header-boundary computation and the
- * `;base64,` detection (against the original-case `rawUrl`) are
- * unchanged.
+ * Returns null for empty / non-`data:` input.
+ *
+ * The `;base64,` marker is detected anchored to the media-type segment
+ * (`^data:[^,]*;base64,`), matching `getSanitizedDataUri` in data-uri.ts.
+ * An unanchored `;base64,` test would match the marker anywhere in the
+ * URI — including inside the payload body — so `data:image/png,...;base64,`
+ * would be wrongly treated as base64-encoded and admitted.
  */
 function parseDataUriMime(
     rawUrl: string
@@ -248,6 +252,6 @@ function parseDataUriMime(
         comma === -1 ? url.length : comma
     );
     const mime = url.slice(5, end);
-    const isBase64 = /;base64,/i.test(rawUrl);
+    const isBase64 = /^data:[^,]*;base64,/i.test(url);
     return { mime, isBase64 };
 }
