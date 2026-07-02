@@ -108,3 +108,4 @@ The "tolerant whitespace around `base64`" branch above is a separate hardening �
   - `6efaf5b` — recursively scan nested data:image/svg+xml inner hrefs
   - `3d09584` — multi-agent code review (P1 bypasses + 8 P2 cleanups)
 - `MAX_PAYLOAD_SCAN_DEPTH = 4` in the same file ([src/svg-payload-scan.ts](../../../src/svg-payload-scan.ts)) is the analogous fail-closed guard for nested SVG payloads — same defensive posture, applied at the recursion boundary instead of the decode boundary
+- [Verify an audit finding's premise against the actual runtime before acting](../workflow-issues/verify-audit-finding-premise-before-acting-2026-07-02.md) — the canonical statement of the meta-rule this doc's Prevention bullet ("don't justify a relaxed decoder with a use case the decoder does not actually serve") is a specific instance of

@@ -95,3 +95,4 @@ The 2026-06-30 refactor (branch `refactor/sanitizer-health`):
 - [[regenerate-sanitizer-derived-artifacts-2026-06-30]] — the derived-artifact regen convention.
 - `docs/brainstorms/2026-06-30-sanitizer-complexity-and-dedup.md` — the design spec.
 - `docs/plans/2026-06-30-001-sanitizer-complexity-and-dedup-plan.md` — the implementation plan.
+- [Verify an audit finding's premise against the actual runtime before acting](../workflow-issues/verify-audit-finding-premise-before-acting-2026-07-02.md) — the canonical statement of the meta-rule; this doc's "verified equivalence by reading the diff, not trusting the green suite" is a specific instance of it.
