@@ -110,4 +110,5 @@ expect(isEntryAffectingUpdate(VUT.Resize | 64, false, false)).toBe(false); // no
 
 - Surfaced during WP-B (render lifecycle modes): commits `05950c4` (literal workaround) and `4823774` (corrected the comment's bit math). Plan: [docs/plans/2026-06-13-001-render-lifecycle-modes-plan.md](../../plans/2026-06-13-001-render-lifecycle-modes-plan.md) (API-facts section documents the same trap).
 - Upstream reference: [microsoft/PowerBI-visuals-tools#422](https://github.com/microsoft/PowerBI-visuals-tools/issues/422) — undocumented composite `VisualUpdateType` values (126/254; `All=510`).
-- No related in-repo issues; this is the library's first toolchain-layer (build-environment) learning, distinct from the runtime/visual-logic docs.
+- No related in-repo issues; this was the library's first toolchain-layer (build-environment) learning, distinct from the runtime/visual-logic docs.
+- Sibling toolchain-layer learning: [enforce-jsdoc-comment-convention-eslint-flat-config-2026-07-02.md](./enforce-jsdoc-comment-convention-eslint-flat-config-2026-07-02.md) — enforcing a JSDoc comment convention via eslint-plugin-jsdoc under ESLint 10 flat-config.
