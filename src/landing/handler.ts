@@ -80,10 +80,6 @@ export default class LandingPageHandler {
             whatsNew: get('Landing_WhatsNew'),
             sandboxNote: get('Landing_SandboxNote'),
             sandboxNoteLink: get('Landing_SandboxNoteLink'),
-            valuesLabel: get('Landing_ValuesLabel'),
-            valuesField: get('Landing_ValuesField'),
-            valuesHint: get('Landing_ValuesHint'),
-            compactBody: get('Landing_CompactBody'),
             openDocs: get('Landing_OpenDocs')
         };
 

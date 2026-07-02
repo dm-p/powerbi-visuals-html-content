@@ -4,15 +4,11 @@ import { buildSplash, LandingLabels, LandingUrls } from '../src/landing/splash';
 
 const labels: LandingLabels = {
     headline: 'Ready when you are.',
-    body: 'Drop a measure or field that returns HTML into the Values well.',
+    body: 'Add a measure or field that returns HTML to the Values well.',
     quickStart: 'Quick start',
     whatsNew: "What's new",
     sandboxNote: 'Some browser features are limited inside the sandbox.',
     sandboxNoteLink: 'see the docs',
-    valuesLabel: 'Values',
-    valuesField: 'Report HTML',
-    valuesHint: 'drop a field here',
-    compactBody: 'Add a field with HTML to the Values well to render it here.',
     openDocs: 'Open the docs'
 };
 const urls: LandingUrls = {
@@ -94,5 +90,22 @@ describe('buildSplash', () => {
         el.querySelectorAll('.hc-landing-iconlink svg').forEach((s) =>
             expect(s.namespaceURI).toBe('http://www.w3.org/2000/svg')
         );
+    });
+
+    it('renders a single unified body message and no Values cue', () => {
+        const el = buildSplash(doc, {
+            edition: 'standalone',
+            version: '2.0.0.0',
+            markUrl: 'x',
+            labels,
+            urls,
+            onLaunch: vi.fn()
+        });
+        expect(el.querySelector('.hc-landing-lede')?.textContent).toBe(
+            labels.body
+        );
+        expect(el.querySelector('.hc-landing-values')).toBeNull();
+        expect(el.querySelector('.hc-landing-dropzone')).toBeNull();
+        expect(el.querySelector('.hc-landing-compact-body')).toBeNull();
     });
 });
