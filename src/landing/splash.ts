@@ -213,39 +213,15 @@ const buildBody = (doc: Document, opts: SplashOptions): HTMLElement => {
 };
 
 /**
- * Builds the hero: headline, lede and compact body copy beside the Values
- * drop-zone cue that prompts the user to bind a field.
+ * Builds the hero: headline + the single body message. There is no drop cue —
+ * field drags never reach the sandboxed iframe, so an in-visual dropzone can
+ * never work (see docs/brainstorms/2026-07-02-landing-values-cue-removal.md).
  */
 const buildHero = (doc: Document, opts: SplashOptions): HTMLElement => {
-    const { edition, version, markUrl, labels, urls, onLaunch } = opts;
-    const p = PRESENTATION[edition];
-
+    const { labels } = opts;
     const hero = node(doc, 'div', 'hc-landing-hero');
-    const copy = node(doc, 'div', 'hc-landing-copy');
-    copy.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
-    copy.appendChild(node(doc, 'p', 'hc-landing-lede', labels.body));
-    copy.appendChild(
-        node(doc, 'p', 'hc-landing-compact-body', labels.compactBody)
-    );
-    hero.appendChild(copy);
-
-    const cue = node(doc, 'div', 'hc-landing-values');
-    const cueLabel = node(doc, 'div', 'hc-landing-values-label');
-    cueLabel.appendChild(node(doc, 'span', undefined, labels.valuesLabel));
-    cue.appendChild(cueLabel);
-    const drop = node(doc, 'div', 'hc-landing-dropzone');
-    const chip = node(doc, 'div', 'hc-landing-chip');
-    chip.appendChild(node(doc, 'span', 'hc-landing-chip-grip', '⠿'));
-    chip.appendChild(
-        node(doc, 'span', 'hc-landing-chip-text', labels.valuesField)
-    );
-    drop.appendChild(chip);
-    drop.appendChild(
-        node(doc, 'span', 'hc-landing-drophint', labels.valuesHint)
-    );
-    cue.appendChild(drop);
-    hero.appendChild(cue);
-
+    hero.appendChild(node(doc, 'h1', 'hc-landing-headline', labels.headline));
+    hero.appendChild(node(doc, 'p', 'hc-landing-lede', labels.body));
     return hero;
 };
 
@@ -330,7 +306,7 @@ export const buildSplash = (
     // body top and is clipped by .hc-landing's overflow.
     const body = buildBody(doc, opts);
 
-    // Hero: headline + lede beside the Values cue. Grows to fill spare height.
+    // Hero: headline + body message. Grows to fill spare height.
     const hero = buildHero(doc, opts);
     body.appendChild(hero);
 

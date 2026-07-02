@@ -95,4 +95,21 @@ describe('buildSplash', () => {
             expect(s.namespaceURI).toBe('http://www.w3.org/2000/svg')
         );
     });
+
+    it('renders a single unified body message and no Values cue', () => {
+        const el = buildSplash(doc, {
+            edition: 'standalone',
+            version: '2.0.0.0',
+            markUrl: 'x',
+            labels,
+            urls,
+            onLaunch: vi.fn()
+        });
+        expect(el.querySelector('.hc-landing-lede')?.textContent).toBe(
+            labels.body
+        );
+        expect(el.querySelector('.hc-landing-values')).toBeNull();
+        expect(el.querySelector('.hc-landing-dropzone')).toBeNull();
+        expect(el.querySelector('.hc-landing-compact-body')).toBeNull();
+    });
 });
