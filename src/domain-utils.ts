@@ -946,6 +946,19 @@ export const getRawHtml = (
     // the start of `raw`. pretty() trims it, but the catch fallback returns
     // raw verbatim — surfacing the artefact in the debug textarea.
     const raw = `${ssFragment}${ssFragment ? ' ' : ''}${domSerialize(contentNode)}`;
+    // Bound the beautify BEFORE it runs. pretty() (js-beautify) is super-linear
+    // and authors push multi-MB content, so over the cap we truncate and skip
+    // pretty() rather than freeze on the whole string. This makes the cap govern
+    // the expensive work instead of trailing it — the snapshot slice and the
+    // highlighter's plain-text fallback downstream protected only the DOM, not
+    // this CPU/allocation spike (and this path also runs on every render when
+    // "Show Raw HTML" is on, not just in the dialog).
+    // ponytail: still materializes the full walker string once (O(n)); make
+    // domSerialize itself budget-aware only if that allocation proves to matter.
+    const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
+    if (raw.length > cap) {
+        return raw.slice(0, cap);
+    }
     // pretty is kept for block-level indentation; verified that it
     // preserves literal `&` / `<` in attribute values rather than
     // re-encoding them. The try/catch is defense-in-depth — if

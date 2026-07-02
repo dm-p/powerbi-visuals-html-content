@@ -538,7 +538,7 @@ export class Visual implements IVisual {
      * against the rendered data elements, when the host allows interactions.
      */
     private bindInteractivity(viewModel: IViewModel): void {
-        if (this.host.hostCapabilities.allowInteractions) {
+        if (this.host.hostCapabilities?.allowInteractions) {
             this.interactivity.bind(<IHtmlBehaviorOptions<SelectableDataPoint>>{
                 behavior: this.behavior,
                 dataPoints: viewModel.htmlEntries,

@@ -623,6 +623,24 @@ describe('Domain Utils - Exported Functions', () => {
             expect(out).toContain('live');
         });
 
+        it('bounds output at the raw-HTML cap and skips pretty() for over-cap content', () => {
+            // Authors push multi-MB content; getRawHtml must cap BEFORE the
+            // super-linear pretty() runs, not leave the cap to a downstream
+            // consumer. Build content that serializes well past the cap.
+            const cap = VisualConstants.diagnostics.rawHtmlCapBytes;
+            const { styleSheetContainer, container } = buildContainers(
+                'x'.repeat(cap + 50_000)
+            );
+            const out = getRawHtml(
+                styleSheetContainer,
+                container,
+                buildStylesheetSettings()
+            );
+            expect(out.length).toBeLessThanOrEqual(cap);
+            // Not mangled: still begins with the serialized content element.
+            expect(out.startsWith('<div id="content">')).toBe(true);
+        });
+
         it('emits literal & in iframe src (regression for issue #76)', () => {
             const { styleSheetContainer, container } = buildContainers(
                 '<iframe src="https://example.com/?a=1&b=2"></iframe>'

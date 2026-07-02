@@ -45,10 +45,19 @@ const stringify = (a: unknown): string => {
  * buffer exceeds its size cap.
  */
 const push = (level: ConsoleLevel, args: unknown[]): void => {
+    const cap = VisualConstants.diagnostics.consoleLineCap;
+    // Cap each arg as it is rendered, not just the joined result. Authors push
+    // multi-MB content; logging several large args would otherwise concatenate
+    // them in full before the trailing slice threw all but `cap` chars away,
+    // spiking transient memory proportional to total arg size rather than N*cap.
+    // ponytail: a large non-string arg is still JSON.stringify-d in full once to
+    // produce its text (inherent to capturing it) — the slice bounds only what
+    // is joined/retained. Add a byte-budgeted serializer only if that single
+    // transient ever measures as a problem.
     const text = args
-        .map(stringify)
+        .map((a) => stringify(a).slice(0, cap))
         .join(' ')
-        .slice(0, VisualConstants.diagnostics.consoleLineCap);
+        .slice(0, cap);
     buffer.push({ ts: Date.now(), level, text });
     while (buffer.length > VisualConstants.diagnostics.consoleBufferCap) {
         buffer.shift();

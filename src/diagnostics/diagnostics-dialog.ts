@@ -217,7 +217,14 @@ const consoleTab = (
 
     // Level filter (single-select radios: All + each level). Memoized via the
     // snapshot so the pick is sticky across opens. In-dialog show/hide only.
-    const initialLevel = s.consoleFilter ?? 'all';
+    // Fall back to 'all' if the remembered value is no longer a known level —
+    // else applyFilter would hide every line with no matching radio to recover
+    // (mirrors the Events tab's guard).
+    const initialLevel = (CONSOLE_LEVELS as readonly string[]).includes(
+        s.consoleFilter ?? ''
+    )
+        ? (s.consoleFilter as string)
+        : 'all';
     function applyFilter(level: string): void {
         lines.querySelectorAll<HTMLElement>('.hc-log').forEach((line) => {
             line.style.display =
