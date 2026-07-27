@@ -94,6 +94,26 @@ describe('resolveCompatibility', () => {
         expect(r.legacyRendering).toBe(true);
         expect(r.shouldPersist).toBe(true);
     });
+
+    it('observing a persisted marker re-arms the persist guard', () => {
+        const state: CompatibilityState = {
+            mode: true,
+            persistAttempted: true
+        };
+        resolveCompatibility(true, state, true, true);
+        expect(state.persistAttempted).toBe(false);
+    });
+
+    it('pane reset mid-session re-stamps the cached mode (marker seen, then absent)', () => {
+        const state = freshState();
+        // Session opened with a persisted marker...
+        resolveCompatibility(true, state, true, true);
+        // ...then "Reset to default" wipes it: cached mode survives and a
+        // re-stamp is requested immediately.
+        const r = resolveCompatibility(undefined, state, true, true);
+        expect(r.legacyRendering).toBe(true);
+        expect(r.shouldPersist).toBe(true);
+    });
 });
 
 describe('readPersistedLegacyRendering', () => {

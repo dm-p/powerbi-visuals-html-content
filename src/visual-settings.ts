@@ -322,7 +322,7 @@ class TemplatesCardMain extends FormattingSettingsGroup {
         name: 'rowTemplate',
         displayNameKey: 'Objects_Templates_RowTemplate',
         descriptionKey: 'Objects_Templates_RowTemplate_Description',
-        placeholder: '<div><div>{{row}}</div></div>',
+        placeholder: VisualConstants.templates.row,
         value: ''
     });
     slices: Array<FormattingSettingsSlice> = [

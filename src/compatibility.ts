@@ -32,7 +32,10 @@ export interface CompatibilityResolution {
  * Resolve the rendering mode for one update. Mutates `state.mode` so the
  * session cache survives across updates. Precedence:
  *   1. persisted marker (also refreshes the session cache — the pane toggle
- *      writes through this path);
+ *      writes through this path; observing a marker also re-arms the
+ *      persist guard, so a later marker ABSENCE — a format-pane "Reset to
+ *      default" — is treated as a fresh event and re-stamped immediately
+ *      from the session cache rather than silently left unmarked);
  *   2. session cache (heuristic runs at most once per session);
  *   3. data-bound heuristic: content role bound ⇒ migrated ⇒ legacy ON.
  * Persistence is requested only when the marker is absent, the report is
@@ -50,6 +53,13 @@ export const resolveCompatibility = (
 ): CompatibilityResolution => {
     if (persisted !== undefined) {
         state.mode = persisted;
+        // Re-arm the persist guard: while a marker exists, any future
+        // marker ABSENCE (format-pane "Reset to default") is a fresh event
+        // that must be re-stamped — otherwise a reset in the same session
+        // that originally stamped the marker would silently save the report
+        // unmarked and defer reclassification to the next open. Loop-safe:
+        // the re-stamp's echo carries the marker and lands back here.
+        state.persistAttempted = false;
         return { legacyRendering: persisted, shouldPersist: false };
     }
     if (state.mode === undefined) {

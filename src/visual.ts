@@ -280,6 +280,12 @@ export class Visual implements IVisual {
             this.compatState.mode === true
                 ? VisualConstants.templates.row
                 : VisualConstants.templates.rowModern;
+        // The toggle's displayed value mirrors the session-resolved mode, not
+        // just the persisted marker — otherwise a freshly-classified visual
+        // (marker not yet echoed back, or persist unavailable) shows OFF
+        // while rendering legacy.
+        this.formattingSettings.compatibility.compatibilityCardMain.legacyRendering.value =
+            this.compatState.mode === true;
         return this.formattingSettingsService.buildFormattingModel(
             this.formattingSettings
         );
@@ -317,6 +323,11 @@ export class Visual implements IVisual {
      * the marker is absent, the report is editable (ViewMode.Edit = 1 /
      * InFocusEdit = 2 — same convention as resolveDiagnosticsActivation),
      * and none has been attempted this session.
+     *
+     * A marker change always arrives as a Data-bit update (the marker lives
+     * in dataView metadata), so mapDataView re-resolves the row template in
+     * the same update that flips the mode — the CSS and row gates can never
+     * split.
      */
     private resolveCompatibilityForUpdate(options: VisualUpdateOptions): void {
         const resolution = resolveCompatibility(
@@ -325,7 +336,6 @@ export class Visual implements IVisual {
             dataViewHasContentRole(options.dataViews),
             options.viewMode === 1 || options.viewMode === 2
         );
-        this.compatState.mode = resolution.legacyRendering;
         this.pendingCompatPersist = resolution.shouldPersist;
     }
 
