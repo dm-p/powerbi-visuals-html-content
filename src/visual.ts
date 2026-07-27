@@ -274,6 +274,12 @@ export class Visual implements IVisual {
      * This method is called once every time we open properties pane or when the user edit any format property.
      */
     public getFormattingModel(): powerbi.visuals.FormattingModel {
+        // The row-template placeholder mirrors the active compatibility-mode
+        // default so the pane shows what actually renders when unauthored.
+        this.formattingSettings.templates.templatesCardMain.rowTemplate.placeholder =
+            this.compatState.mode === true
+                ? VisualConstants.templates.row
+                : VisualConstants.templates.rowModern;
         return this.formattingSettingsService.buildFormattingModel(
             this.formattingSettings
         );
@@ -412,7 +418,8 @@ export class Visual implements IVisual {
                 this.viewModelHandler.mapDataView(
                     options.dataViews,
                     this.formattingSettings,
-                    this.host
+                    this.host,
+                    this.compatState.mode === true
                 );
             this.updateStatus();
         }

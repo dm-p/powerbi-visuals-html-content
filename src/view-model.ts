@@ -31,6 +31,7 @@ export interface IViewModel {
     contentIndex: number;
     contentFormatting?: ContentFormattingSettings;
     bodyTemplate: string;
+    rowTemplate: string;
     htmlEntries: IHtmlEntry[];
 }
 
@@ -78,6 +79,7 @@ export class ViewModelHandler {
             hasSelection: false,
             contentIndex: -1,
             bodyTemplate: VisualConstants.templates.body,
+            rowTemplate: VisualConstants.templates.row,
             htmlEntries: []
         };
     }
@@ -107,13 +109,17 @@ export class ViewModelHandler {
     /**
      * Maps a set of values from the data view and sets the necessary objects in the view model to handle them later on (including flags).
      *
-     * @param dataViews     - Data views from the visual's update method.
-     * @param settings      - Parsed visual settings.
+     * @param dataViews         - Data views from the visual's update method.
+     * @param settings          - Parsed visual settings.
+     * @param host              - Visual host services.
+     * @param legacyRendering   - Active compatibility-mode classification;
+     *                            selects the unauthored row-template default.
      */
     mapDataView(
         dataViews: DataView[],
         settings: VisualFormattingSettingsModel,
-        host: IVisualHost
+        host: IVisualHost,
+        legacyRendering: boolean
     ) {
         if (this.viewModel.isValid) {
             const { columns, rows, identities } = mapCategoricalToTable(
@@ -145,7 +151,7 @@ export class ViewModelHandler {
                 ...this.getTooltipColumns('sampling', columns, host),
                 ...this.getTooltipColumns('tooltips', columns, host)
             ];
-            const rowTemplate = resolveRowTemplate(settings);
+            const rowTemplate = resolveRowTemplate(settings, legacyRendering);
             const htmlEntries: IHtmlEntry[] =
                 contentIndex > -1
                     ? rows.map((row, index) => {
@@ -172,6 +178,7 @@ export class ViewModelHandler {
                 dataViews[0],
                 settings
             );
+            this.viewModel.rowTemplate = rowTemplate;
             this.viewModel.htmlEntries = htmlEntries;
             this.viewModel.isEmpty = htmlEntries.length === 0;
         }

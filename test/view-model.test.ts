@@ -229,7 +229,7 @@ describe('ViewModelHandler', () => {
         it('should not map data if view model is invalid', () => {
             handler.viewModel.isValid = false;
 
-            handler.mapDataView([], mockSettings, mockHost);
+            handler.mapDataView([], mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries).toEqual([]);
         });
@@ -262,7 +262,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries.length).toBe(2);
             expect(handler.viewModel.htmlEntries[0].content).toBe(
@@ -302,7 +302,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries.length).toBe(2);
             expect(handler.viewModel.htmlEntries[0].content).toBe('');
@@ -352,7 +352,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.hasGranularity).toBe(true);
         });
@@ -409,7 +409,12 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, settingsWithCrossFilter, mockHost);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(true);
@@ -477,7 +482,12 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, settingsWithCrossFilter, mockHost);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.hasSelection).toBe(true);
             expect(handler.viewModel.htmlEntries[0].selected).toBe(true);
@@ -512,7 +522,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.isEmpty).toBe(true);
         });
@@ -545,7 +555,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries.length).toBe(1);
             expect(handler.viewModel.htmlEntries[0].content).toBe(
@@ -602,7 +612,7 @@ describe('ViewModelHandler', () => {
             // pre-categorical #159 fix assertions).
             expect(handler.viewModel.contentIndex).toBe(1);
             expect(() =>
-                handler.mapDataView(dataViews, mockSettings, mockHost)
+                handler.mapDataView(dataViews, mockSettings, mockHost, true)
             ).not.toThrow();
             expect(handler.viewModel.htmlEntries.length).toBe(2);
             expect(handler.viewModel.htmlEntries[0].content).toBe(
@@ -664,7 +674,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.htmlEntries.length).toBe(1);
@@ -712,7 +722,12 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.bodyTemplate).toBe('{{content}}');
         });
@@ -760,7 +775,12 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.bodyTemplate).toBe(
                 '<body>{{content}}</body>'
@@ -805,7 +825,12 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettingsWithTemplates, mockHost);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
                 '<div><div>{{row}}</div></div>'
@@ -872,7 +897,7 @@ describe('ViewModelHandler', () => {
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             const tooltips = handler.viewModel.htmlEntries[0].tooltips;
             expect(tooltips.length).toBe(1);

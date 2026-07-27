@@ -315,12 +315,15 @@ class TemplatesCardMain extends FormattingSettingsGroup {
     // per-row), so this property has no conditional formatting — keeping the
     // typed value visible/editable in the pane (a CF wildcard selector writes
     // per-instance and the pane only reads back metadata.objects).
+    // Empty = "not authored": resolveRowTemplate falls back to the
+    // compatibility-mode default (VisualConstants.templates.row /
+    // rowModern). A non-empty value always wins, in both modes.
     rowTemplate = new formattingSettings.TextArea({
         name: 'rowTemplate',
         displayNameKey: 'Objects_Templates_RowTemplate',
         descriptionKey: 'Objects_Templates_RowTemplate_Description',
         placeholder: '<div><div>{{row}}</div></div>',
-        value: VisualConstants.templates.row
+        value: ''
     });
     slices: Array<FormattingSettingsSlice> = [
         this.bodyTemplate,

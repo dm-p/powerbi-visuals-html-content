@@ -351,7 +351,10 @@ describe('TemplatesSettings', () => {
         const settings = new VisualFormattingSettingsModel();
         const main = settings.templates.templatesCardMain;
         expect(main.bodyTemplate.value).toBe('{{content}}');
-        expect(main.rowTemplate.value).toBe('<div><div>{{row}}</div></div>');
+        // rowTemplate defaults to '' (not authored); resolveRowTemplate falls
+        // back to the compatibility-mode default — see
+        // test/template-engine.test.ts "resolveRowTemplate — per-mode defaults".
+        expect(main.rowTemplate.value).toBe('');
         expect(main.slices).toContain(main.bodyTemplate);
         expect(main.slices).toContain(main.rowTemplate);
         expect(settings.cards).toContain(settings.templates);

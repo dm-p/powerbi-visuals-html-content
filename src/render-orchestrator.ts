@@ -23,19 +23,29 @@ const DATA_BIT = 1 << 1; // 2
  * reconcile, so a stale wrapper must be ruled out by the fingerprint. The
  * resolved body (from the view model, which folds in a CF "apply to all" body)
  * takes precedence over the static setting; a CF-resolved body change arrives
- * with a Data bit but would NOT otherwise rebuild in reconcile mode. The row
- * template's per-row CF variation is caught instead by the per-row content-diff
- * (rowRenderKey), so only the STATIC row value is included here as a coarse
- * guard for a global row-template change.
+ * with a Data bit but would NOT otherwise rebuild in reconcile mode. The
+ * resolved row template (from the view model, which folds in the
+ * compatibility-mode default when unauthored) is included the same way, so a
+ * compatibility-mode flip forces a rebuild even though the static row setting
+ * is unchanged. The row template's per-row CF variation is caught instead by
+ * the per-row content-diff (rowRenderKey), so the fingerprint only needs the
+ * resolved global row-template value as a coarse guard.
  *
  * @param settings              - Parsed visual formatting settings.
  * @param resolvedBodyTemplate  - The resolved body template from the view model
  *                                (overrides the static body setting when given).
  *                                Optional so existing callers/tests degrade.
+ * @param resolvedRowTemplate   - The resolved row template from the view model
+ *                                (overrides the static row setting when given).
+ *                                Optional so existing callers/tests degrade; a
+ *                                mode flip changes this without changing the
+ *                                static setting, so it must be included
+ *                                separately to force a rebuild on toggle.
  */
 export function computeRenderFingerprint(
     settings: VisualFormattingSettingsModel,
-    resolvedBodyTemplate?: string
+    resolvedBodyTemplate?: string,
+    resolvedRowTemplate?: string
 ): string {
     const b = settings.contentFormatting.contentFormattingCardBehavior;
     const body =
@@ -55,7 +65,8 @@ export function computeRenderFingerprint(
         body.overrideInlineStyling.value,
         resolvedBodyTemplate ??
             settings.templates.templatesCardMain.bodyTemplate.value,
-        settings.templates.templatesCardMain.rowTemplate.value
+        resolvedRowTemplate ??
+            settings.templates.templatesCardMain.rowTemplate.value
     ]);
 }
 
@@ -109,7 +120,8 @@ export class RenderOrchestrator {
     ): void {
         const fingerprint = computeRenderFingerprint(
             settings,
-            viewModel.bodyTemplate
+            viewModel.bodyTemplate,
+            viewModel.rowTemplate
         );
         const fingerprintChanged = fingerprint !== this.lastFingerprint;
         const entryAffecting = isEntryAffectingUpdate(

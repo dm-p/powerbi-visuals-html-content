@@ -3,6 +3,7 @@
 import type powerbi from 'powerbi-visuals-api';
 import { dataViewObjects } from 'powerbi-visuals-utils-dataviewutils';
 import { VisualFormattingSettingsModel } from './visual-settings';
+import { VisualConstants } from './visual-constants';
 
 /**
  * Body-template placeholder matched and replaced with the content slot.
@@ -47,9 +48,19 @@ export function resolveBodyTemplate(
     );
 }
 
-/** The row template — a single static wrapper applied to every row. */
+/**
+ * The row template — the authored value when one is set (non-blank), else
+ * the compatibility-mode default (legacy double-div / modern single-div).
+ */
 export function resolveRowTemplate(
-    settings: VisualFormattingSettingsModel
+    settings: VisualFormattingSettingsModel,
+    legacyRendering: boolean
 ): string {
-    return settings.templates.templatesCardMain.rowTemplate.value;
+    const authored = settings.templates.templatesCardMain.rowTemplate.value;
+    if (authored && authored.trim().length > 0) {
+        return authored;
+    }
+    return legacyRendering
+        ? VisualConstants.templates.row
+        : VisualConstants.templates.rowModern;
 }
