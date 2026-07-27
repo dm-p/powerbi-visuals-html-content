@@ -69,6 +69,103 @@
     text-align: inherit !important;
 }
 
+// 1.6 → 2.0 rendering-parity layer (W3.CSS compat).
+//
+// v1.6 bundled the whole W3.CSS framework (`import 'w3-css/w3.css'` in
+// src/visual.ts, pulled in for the old landing page), so its element-level
+// rules were silently part of the content rendering environment for every
+// 1.6 report. 2.0 dropped the framework; without these rules,
+// byte-identical content renders differently after migration — e.g.
+// baseline-aligned images re-gain the text strut descender below each row
+// (48px image rows grew to 52px) and previously-fitting layouts overflow.
+//
+// This block ports the content-relevant subset of W3.CSS 4.1.0's element
+// rules verbatim. Scoping:
+//   - `:where(#htmlContent)` keeps every selector at bare-element
+//     specificity, so user stylesheets — injected into <head> AFTER this
+//     bundle — beat these rules exactly as they beat W3.CSS's in 1.6;
+//   - the #htmlContent scope keeps them off the landing page, diagnostics
+//     dialog, and raw-HTML surfaces, which are deliberately restyled in
+//     2.0.
+// Applies in custom-stylesheet mode too: 1.6's W3.CSS was unconditional.
+// Rules W3.CSS carried that merely restate user-agent defaults (figure
+// margins, mark colors, [hidden], svg overflow, form-control resets on
+// tags the sanitizer strips anyway) are intentionally not ported.
+:where(#htmlContent) {
+    line-height: 1.5;
+    box-sizing: border-box;
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+    img {
+        vertical-align: middle;
+    }
+    a {
+        color: inherit;
+    }
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-weight: 400;
+        margin: 10px 0;
+    }
+    h1 {
+        font-size: 36px;
+    }
+    h2 {
+        font-size: 30px;
+    }
+    h3 {
+        font-size: 24px;
+    }
+    h4 {
+        font-size: 20px;
+    }
+    h5 {
+        font-size: 18px;
+    }
+    h6 {
+        font-size: 16px;
+    }
+    hr {
+        box-sizing: content-box;
+        height: 0;
+        overflow: visible;
+        border: 0;
+        border-top: 1px solid #eee;
+        margin: 20px 0;
+    }
+    code,
+    kbd,
+    pre,
+    samp {
+        font-family: monospace, monospace;
+        font-size: 1em;
+    }
+    sub,
+    sup {
+        font-size: 75%;
+        line-height: 0;
+        position: relative;
+        vertical-align: baseline;
+    }
+    sub {
+        bottom: -0.25em;
+    }
+    sup {
+        top: -0.5em;
+    }
+    summary {
+        display: block;
+    }
+}
+
 #rawHtmlOutput {
     box-sizing: border-box;
     height: 97vh;
