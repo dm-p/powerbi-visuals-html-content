@@ -274,6 +274,60 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(false);
         });
 
+        it('modern mode (legacyRendering=false) resolves the single-div default through mapDataView', () => {
+            const modernSettings = {
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: false }
+                    }
+                },
+                contentFormatting: {},
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '' }
+                    }
+                }
+            } as any;
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test 1</p>', '<p>Test 2</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, modernSettings, mockHost, false);
+
+            expect(handler.viewModel.rowTemplate).toBe('<div>{{row}}</div>');
+            expect(handler.viewModel.htmlEntries.length).toBe(2);
+            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
+                '<div>{{row}}</div>'
+            );
+            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
+                '<div>{{row}}</div>'
+            );
+        });
+
         it('should handle null content values', () => {
             const dataViews: any[] = [
                 {

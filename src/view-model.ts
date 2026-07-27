@@ -79,6 +79,9 @@ export class ViewModelHandler {
             hasSelection: false,
             contentIndex: -1,
             bodyTemplate: VisualConstants.templates.body,
+            // Transient placeholder — always overwritten by the first
+            // mapDataView (which resolves the mode-appropriate default)
+            // before any render reads it, so it need not reflect the mode.
             rowTemplate: VisualConstants.templates.row,
             htmlEntries: []
         };
