@@ -73,10 +73,16 @@ Known caveats (accepted):
 
 - Pre-release 2.0 reports (UAT workbooks, testers) have data + no marker and
   flip to legacy ON once; flip them back by hand.
-- Format-pane **"Reset to default" wipes the marker**, so a data-bound modern
-  visual re-classifies as legacy on the next update. Unavoidable with any
-  persisted-marker scheme; the visible toggle makes recovery one click, and
-  the docs note it.
+- Format-pane **"Reset to default" wipes the marker for one update**, but
+  `resolveCompatibility` re-arms the persist guard whenever it observes a
+  marker (any value), so the very next update — seeing the marker absent
+  again — immediately re-stamps it from the session's cached mode rather than
+  re-running the heuristic. In practice a reset is a no-op for rendering: the
+  mode the session already resolved keeps rendering, and the marker is
+  restored on the persist echo. Durable unmarking only happens if that
+  echo never lands (e.g. the instance is torn down between the reset and the
+  scheduled persist) — vanishingly rare, and recoverable with one toggle
+  flip either way.
 
 Rejected: persisted-objects heuristic (a 1.6 report whose author never touched
 the format pane has no persisted objects and would misclassify as new); no

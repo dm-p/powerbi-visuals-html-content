@@ -177,3 +177,58 @@ Verify:
 
 **Known limitation:** inline `srcdoc` iframes in author content are separate
 documents — neither the `:root` variables nor `.pbi-theme-hc` cascade into them.
+
+## Legacy (v1.6) rendering compatibility
+
+The visual classifies each instance once per session as legacy (v1.6) or
+modern rendering, persists the classification as
+`compatibility.legacyRendering`, and gates two quirks on it: the row DOM
+structure (double-`<div>` wrapper vs single) and a scoped W3.CSS compat layer
+(`img { vertical-align: middle }`, `line-height: 1.5`, border-box sizing,
+etc.). Migrated reports must keep rendering byte-identical to 1.6; new reports
+must not inherit any of it. See
+[the design doc](brainstorms/2026-07-27-legacy-rendering-compatibility-mode.md)
+for the classification heuristic and update-cycle discipline.
+
+Verify:
+
+1. **Migrated report classifies legacy ON.** Take a report bound to the
+   visual under its v1.6 GUID and swap it for the local/dev build of the 2.0
+   visual on an existing bound visual (do not delete and re-add). Rows render
+   the double-`<div>` structure, images sit flush with no extra vertical gap
+   (48px rows in the flags workbook, not 52px), and the format pane's
+   Compatibility > **Use legacy (v1.6) rendering** toggle shows ON.
+
+2. **Freshly added visual classifies modern OFF.** Drop a brand-new **HTML
+   Content** visual onto an empty canvas and bind data. Rows render the
+   single-`<div>` structure, none of the W3.CSS compat rules apply, and the
+   pane toggle shows OFF.
+
+3. **Toggle flip re-renders both gates.** With either report from above,
+   flip the pane toggle by hand in both directions. Row structure and compat
+   styling switch together, immediately, with no need to close and reopen
+   the report.
+
+4. **Unstamped report opened in view mode never persists.** Open a report
+   that has data but no `compatibility.legacyRendering` marker yet (e.g. a
+   pre-release 2.0 UAT workbook) in the Power BI **Service** or Desktop
+   reading view — not edit mode. It renders legacy per the heuristic, but
+   closing the report (or navigating away) triggers no "unsaved changes"
+   prompt — confirming the classification never wrote back to the report
+   in view mode.
+
+5. **Rendering events stay 1:1.** With Performance Analyzer (or the
+   certified-edition rendering-event log) open, step through cases 1–4 in
+   both view and edit mode. Every `update` pairs with exactly one
+   `renderingFinished`/`renderingFailed` — including the extra update caused
+   by the persist echo when a marker is first stamped in edit mode. No
+   perpetual spinner, no doubled or dropped events.
+
+6. **Format-pane "Reset to default" on the Compatibility card.** With a
+   report already classified (marker present, either value), open the
+   format pane, right-click the Compatibility card, and choose **Reset to
+   default**. The mode does **not** flip to the toggle's nominal default —
+   rendering keeps whatever the session had resolved, and the marker is
+   immediately re-stamped with that same value on the next update. This is
+   by design: a reset is treated as a fresh persist-worthy event, not as a
+   request to revert to modern/legacy defaults.
