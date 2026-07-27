@@ -246,6 +246,10 @@ export const VisualConstants = {
     dom: {
         viewerIdSelector: 'htmlViewer',
         entryClassSelector: 'htmlViewerEntry',
+        // Gates the W3.CSS 1.6-compat layer in style/visual.less; toggled on
+        // #htmlContent by the resolveContainer render step from the
+        // compatibility classification (legacy ON ⇒ class present).
+        legacyStylingClass: 'hc-legacy-v1',
         statusIdSelector: 'statusMessage',
         contentIdSelector: 'htmlContent',
         landingIdSelector: 'landingPage',

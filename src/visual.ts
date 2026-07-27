@@ -478,6 +478,10 @@ export class Visual implements IVisual {
             // scroll position). Hyperlink binding is content-dependent and
             // runs after each render step instead.
             resolveContainer: (settings) => {
+                this.contentContainer.classed(
+                    VisualConstants.dom.legacyStylingClass,
+                    this.compatState.mode === true
+                );
                 resolveStyling(
                     this.styleSheetContainer,
                     this.container,

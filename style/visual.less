@@ -80,9 +80,13 @@
 // (48px image rows grew to 52px) and previously-fitting layouts overflow.
 //
 // This block ports the content-relevant subset of W3.CSS 4.1.0's element
-// rules verbatim. Scoping:
-//   - `:where(#htmlContent)` keeps every selector at bare-element
-//     specificity, so user stylesheets — injected into <head> AFTER this
+// rules verbatim. These rules apply only in legacy (v1.6) rendering mode:
+// src/visual.ts toggles the `hc-legacy-v1` class (VisualConstants.dom.
+// legacyStylingClass) on #htmlContent from the compatibility
+// classification, so 2.0-native content never sees them. Scoping:
+//   - `:where(#htmlContent.hc-legacy-v1)` still keeps every selector at
+//     bare-element specificity — `:where()` zeroes the scope's
+//     specificity — so user stylesheets — injected into <head> AFTER this
 //     bundle — beat these rules exactly as they beat W3.CSS's in 1.6;
 //   - the #htmlContent scope keeps them off the landing page, diagnostics
 //     dialog, and raw-HTML surfaces, which are deliberately restyled in
@@ -91,7 +95,7 @@
 // Rules W3.CSS carried that merely restate user-agent defaults (figure
 // margins, mark colors, [hidden], svg overflow, form-control resets on
 // tags the sanitizer strips anyway) are intentionally not ported.
-:where(#htmlContent) {
+:where(#htmlContent.hc-legacy-v1) {
     line-height: 1.5;
     box-sizing: border-box;
     *,

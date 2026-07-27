@@ -17,13 +17,19 @@ import less from 'less';
  * overflowing previously-fitting layouts.
  *
  * style/visual.less must therefore carry the content-relevant subset of
- * W3.CSS 4.1.0's element rules, scoped under `:where(#htmlContent)`:
+ * W3.CSS 4.1.0's element rules, scoped under
+ * `:where(#htmlContent.hc-legacy-v1)`:
  *   - `:where()` keeps every selector at bare-element specificity, so
  *     user stylesheets (injected into <head> AFTER the bundle) beat
  *     these rules exactly as they beat W3.CSS's own in 1.6;
  *   - the #htmlContent scope keeps them off the landing page,
  *     diagnostics dialog, and raw-HTML surfaces, which are deliberately
- *     restyled in 2.0.
+ *     restyled in 2.0;
+ *   - the additional `.hc-legacy-v1` class requirement gates the rules
+ *     to legacy (v1.6) rendering mode only — src/visual.ts toggles the
+ *     class on #htmlContent from the compatibility classification
+ *     (legacy ON ⇒ class present), so 2.0-native content never sees
+ *     these rules at all.
  *
  * JSDOM can't resolve the cascade, so these tests compile the LESS and
  * assert the emitted rule shapes — the same contract style as the
@@ -64,13 +70,13 @@ function ruleBody(selector: string): string | null {
 
 describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
     it('re-applies img { vertical-align: middle } — the 48px→52px row regression', () => {
-        const body = ruleBody(':where(#htmlContent) img');
+        const body = ruleBody(':where(#htmlContent.hc-legacy-v1) img');
         expect(body).not.toBeNull();
         expect(body).toMatch(/vertical-align:\s*middle/);
     });
 
     it('re-applies the inherited line-height of 1.5 on the content root', () => {
-        const body = ruleBody(':where(#htmlContent)');
+        const body = ruleBody(':where(#htmlContent.hc-legacy-v1)');
         expect(body).not.toBeNull();
         expect(body).toMatch(/line-height:\s*1\.5/);
         // W3.CSS applied border-box sizing to every element (html
@@ -80,7 +86,7 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
 
     it('re-applies border-box sizing to all content descendants', () => {
         const body = ruleBody(
-            ':where(#htmlContent) *, :where(#htmlContent) *::before, :where(#htmlContent) *::after'
+            ':where(#htmlContent.hc-legacy-v1) *, :where(#htmlContent.hc-legacy-v1) *::before, :where(#htmlContent.hc-legacy-v1) *::after'
         );
         expect(body).not.toBeNull();
         expect(body).toMatch(/box-sizing:\s*border-box/);
@@ -88,7 +94,7 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
 
     it('re-applies the W3.CSS heading treatment (weight 400, 10px margins, fixed px sizes)', () => {
         const shared = ruleBody(
-            ':where(#htmlContent) h1, :where(#htmlContent) h2, :where(#htmlContent) h3, :where(#htmlContent) h4, :where(#htmlContent) h5, :where(#htmlContent) h6'
+            ':where(#htmlContent.hc-legacy-v1) h1, :where(#htmlContent.hc-legacy-v1) h2, :where(#htmlContent.hc-legacy-v1) h3, :where(#htmlContent.hc-legacy-v1) h4, :where(#htmlContent.hc-legacy-v1) h5, :where(#htmlContent.hc-legacy-v1) h6'
         );
         expect(shared).not.toBeNull();
         expect(shared).toMatch(/font-weight:\s*400/);
@@ -105,34 +111,36 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
             ['h6', 16]
         ];
         for (const [tag, px] of sizes) {
-            const body = ruleBody(`:where(#htmlContent) ${tag}`);
+            const body = ruleBody(`:where(#htmlContent.hc-legacy-v1) ${tag}`);
             expect(body, `${tag} size rule`).not.toBeNull();
             expect(body).toMatch(new RegExp(`font-size:\\s*${px}px`));
         }
     });
 
     it('re-applies a { color: inherit } so hyperlinks keep the body colour as in 1.6', () => {
-        const body = ruleBody(':where(#htmlContent) a');
+        const body = ruleBody(':where(#htmlContent.hc-legacy-v1) a');
         expect(body).not.toBeNull();
         expect(body).toMatch(/color:\s*inherit/);
     });
 
     it('re-applies the sub/sup normalization that stops them growing line boxes', () => {
         const shared = ruleBody(
-            ':where(#htmlContent) sub, :where(#htmlContent) sup'
+            ':where(#htmlContent.hc-legacy-v1) sub, :where(#htmlContent.hc-legacy-v1) sup'
         );
         expect(shared).not.toBeNull();
         expect(shared).toMatch(/font-size:\s*75%/);
         expect(shared).toMatch(/line-height:\s*0/);
         expect(shared).toMatch(/vertical-align:\s*baseline/);
-        expect(ruleBody(':where(#htmlContent) sub')).toMatch(
+        expect(ruleBody(':where(#htmlContent.hc-legacy-v1) sub')).toMatch(
             /bottom:\s*-0\.25em/
         );
-        expect(ruleBody(':where(#htmlContent) sup')).toMatch(/top:\s*-0\.5em/);
+        expect(ruleBody(':where(#htmlContent.hc-legacy-v1) sup')).toMatch(
+            /top:\s*-0\.5em/
+        );
     });
 
     it('re-applies the W3.CSS hr treatment', () => {
-        const body = ruleBody(':where(#htmlContent) hr');
+        const body = ruleBody(':where(#htmlContent.hc-legacy-v1) hr');
         expect(body).not.toBeNull();
         expect(body).toMatch(/border:\s*0/);
         expect(body).toMatch(/border-top:\s*1px solid #eee/);
@@ -141,7 +149,7 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
 
     it('re-applies monospace normalization for code, kbd, pre, samp', () => {
         const body = ruleBody(
-            ':where(#htmlContent) code, :where(#htmlContent) kbd, :where(#htmlContent) pre, :where(#htmlContent) samp'
+            ':where(#htmlContent.hc-legacy-v1) code, :where(#htmlContent.hc-legacy-v1) kbd, :where(#htmlContent.hc-legacy-v1) pre, :where(#htmlContent.hc-legacy-v1) samp'
         );
         expect(body).not.toBeNull();
         expect(body).toMatch(/font-family:\s*monospace,\s*monospace/);
@@ -149,17 +157,17 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
     });
 
     it('re-applies summary { display: block } (W3.CSS suppressed the disclosure marker)', () => {
-        const body = ruleBody(':where(#htmlContent) summary');
+        const body = ruleBody(':where(#htmlContent.hc-legacy-v1) summary');
         expect(body).not.toBeNull();
         expect(body).toMatch(/display:\s*block/);
     });
 
-    it('does not leak bare element selectors outside the #htmlContent scope', () => {
+    it('does not leak bare element selectors outside the gated #htmlContent scope', () => {
         // The compat rules must never apply to the landing page or
-        // diagnostics surfaces: no compiled top-level rule may target a
-        // bare img/h1/a/hr selector without the :where(#htmlContent)
-        // scope. (Selectors inside @media/@container are extracted by
-        // the same regex and held to the same rule.)
+        // diagnostics surfaces, and must not fire at all without the
+        // legacy class: no compiled rule may target a bare element
+        // selector, and no :where(#htmlContent ...) scope may omit the
+        // .hc-legacy-v1 gate.
         const rules = css.matchAll(/([^{}]+)\{([^{}]*)\}/g);
         const offenders: string[] = [];
         for (const [, sel] of rules) {
@@ -169,6 +177,12 @@ describe('W3.CSS 1.6-compat layer (scoped to #htmlContent)', () => {
                     /^(img|h[1-6]|a|hr|sub|sup|code|kbd|pre|samp|summary)$/.test(
                         s
                     )
+                ) {
+                    offenders.push(s);
+                }
+                if (
+                    s.includes(':where(#htmlContent') &&
+                    !s.includes('.hc-legacy-v1')
                 ) {
                     offenders.push(s);
                 }
