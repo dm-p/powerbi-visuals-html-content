@@ -174,7 +174,6 @@ export class Visual implements IVisual {
         mode: undefined,
         persistAttempted: false
     };
-    private pendingCompatPersist = false;
     private compatPersistTimer?: ReturnType<typeof setTimeout>;
 
     // Runs when the visual is initialised
@@ -302,7 +301,7 @@ export class Visual implements IVisual {
                 options.dataViews?.[0]
             );
 
-        this.resolveCompatibilityForUpdate(options);
+        const persistPending = this.resolveCompatibilityForUpdate(options);
         const diagActive = this.resolveDiagnosticsActivation(options);
 
         try {
@@ -314,29 +313,31 @@ export class Visual implements IVisual {
         // signalled for this update, so the persist echo is a fresh cycle and
         // the 1:1 update→rendering-event contract holds (spec: update-cycle
         // discipline).
-        this.flushCompatibilityPersist();
+        this.flushCompatibilityPersist(persistPending);
     }
 
     /**
      * Resolve the legacy-rendering mode for this update (in-memory first —
-     * rendering never waits on persistence). Persist is requested only when
-     * the marker is absent, the report is editable (ViewMode.Edit = 1 /
-     * InFocusEdit = 2 — same convention as resolveDiagnosticsActivation),
-     * and none has been attempted this session.
+     * rendering never waits on persistence). Returns whether a persist stamp
+     * is requested — only when the marker is absent, the report is editable
+     * (ViewMode.Edit = 1 / InFocusEdit = 2 — same convention as
+     * resolveDiagnosticsActivation), and none has been attempted this
+     * session.
      *
      * A marker change always arrives as a Data-bit update (the marker lives
      * in dataView metadata), so mapDataView re-resolves the row template in
      * the same update that flips the mode — the CSS and row gates can never
      * split.
      */
-    private resolveCompatibilityForUpdate(options: VisualUpdateOptions): void {
-        const resolution = resolveCompatibility(
+    private resolveCompatibilityForUpdate(
+        options: VisualUpdateOptions
+    ): boolean {
+        return resolveCompatibility(
             readPersistedLegacyRendering(options.dataViews?.[0]),
             this.compatState,
             dataViewHasContentRole(options.dataViews),
             options.viewMode === 1 || options.viewMode === 2
-        );
-        this.pendingCompatPersist = resolution.shouldPersist;
+        ).shouldPersist;
     }
 
     /**
@@ -348,9 +349,8 @@ export class Visual implements IVisual {
      * is set here, where the persist is actually scheduled). The timer is
      * cancelled by destroy(), so a torn-down instance never persists.
      */
-    private flushCompatibilityPersist(): void {
-        if (!this.pendingCompatPersist) return;
-        this.pendingCompatPersist = false;
+    private flushCompatibilityPersist(pending: boolean): void {
+        if (!pending) return;
         this.compatState.persistAttempted = true;
         const legacyRendering = this.compatState.mode === true;
         this.compatPersistTimer = setTimeout(() => {
