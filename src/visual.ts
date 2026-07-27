@@ -175,6 +175,7 @@ export class Visual implements IVisual {
         persistAttempted: false
     };
     private pendingCompatPersist = false;
+    private compatPersistTimer?: ReturnType<typeof setTimeout>;
 
     // Runs when the visual is initialised
     constructor(options?: VisualConstructorOptions) {
@@ -328,14 +329,15 @@ export class Visual implements IVisual {
      * out of the current task so the persist echo arrives as an ordinary new
      * update with its own event pair. Guarded to once per session (the
      * caller contract documented on resolveCompatibility: persistAttempted
-     * is set here, where the persist is actually scheduled).
+     * is set here, where the persist is actually scheduled). The timer is
+     * cancelled by destroy(), so a torn-down instance never persists.
      */
     private flushCompatibilityPersist(): void {
         if (!this.pendingCompatPersist) return;
         this.pendingCompatPersist = false;
         this.compatState.persistAttempted = true;
         const legacyRendering = this.compatState.mode === true;
-        setTimeout(() => {
+        this.compatPersistTimer = setTimeout(() => {
             this.host.persistProperties({
                 merge: [
                     {
@@ -740,6 +742,7 @@ export class Visual implements IVisual {
         this.removeHotkeyListener?.();
         this.styleSheetContainer?.remove();
         this.themeVarsContainer?.remove();
+        clearTimeout(this.compatPersistTimer);
     }
 
     /** Assemble a bounded snapshot and open the host modal dialog. */
