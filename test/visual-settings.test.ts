@@ -424,4 +424,39 @@ describe('capabilities.json persistence parity', () => {
         ).objects.contentFormatting.properties;
         expect(props.enableDiagnostics?.type?.bool).toBe(true);
     });
+
+    it('declares every compatibility slice so values persist', () => {
+        const model = new VisualFormattingSettingsModel();
+        const sliceNames = model.compatibility.compatibilityCardMain.slices.map(
+            (s: { name: string }) => s.name
+        );
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: { properties: Record<string, unknown> };
+                };
+            }
+        ).objects.compatibility.properties;
+        for (const name of sliceNames) {
+            expect(
+                Object.prototype.hasOwnProperty.call(props, name),
+                `capabilities.json must declare compatibility.${name} or its value will not persist`
+            ).toBe(true);
+        }
+    });
+
+    it('declares legacyRendering as a bool property', () => {
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: {
+                        properties: {
+                            legacyRendering?: { type?: { bool?: boolean } };
+                        };
+                    };
+                };
+            }
+        ).objects.compatibility.properties;
+        expect(props.legacyRendering?.type?.bool).toBe(true);
+    });
 });
