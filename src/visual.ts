@@ -69,6 +69,12 @@ import {
     isDiagnosticsHotkey
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
+import {
+    resolveCompatibility,
+    readPersistedLegacyRendering,
+    dataViewHasContentRole,
+    CompatibilityState
+} from './compatibility';
 
 /**
  * Shape the diagnostics dialog reports back via setResult / close →
@@ -162,6 +168,13 @@ export class Visual implements IVisual {
     // double Ctrl/Cmd+D (or icon click mid-open) can't fire two openModalDialog
     // calls with the same snapshot.
     private diagOpening = false;
+    // Legacy (v1.6) rendering classification — session cache + persist guard.
+    // See src/compatibility.ts and the brainstorm doc it references.
+    private compatState: CompatibilityState = {
+        mode: undefined,
+        persistAttempted: false
+    };
+    private pendingCompatPersist = false;
 
     // Runs when the visual is initialised
     constructor(options?: VisualConstructorOptions) {
@@ -276,6 +289,7 @@ export class Visual implements IVisual {
                 options.dataViews?.[0]
             );
 
+        this.resolveCompatibilityForUpdate(options);
         const diagActive = this.resolveDiagnosticsActivation(options);
 
         try {
@@ -283,6 +297,55 @@ export class Visual implements IVisual {
         } catch (e) {
             this.handleUpdateFailure(options, e);
         }
+        // Runs strictly after renderingFinished/renderingFailed has been
+        // signalled for this update, so the persist echo is a fresh cycle and
+        // the 1:1 update→rendering-event contract holds (spec: update-cycle
+        // discipline).
+        this.flushCompatibilityPersist();
+    }
+
+    /**
+     * Resolve the legacy-rendering mode for this update (in-memory first —
+     * rendering never waits on persistence). Persist is requested only when
+     * the marker is absent, the report is editable (ViewMode.Edit = 1 /
+     * InFocusEdit = 2 — same convention as resolveDiagnosticsActivation),
+     * and none has been attempted this session.
+     */
+    private resolveCompatibilityForUpdate(options: VisualUpdateOptions): void {
+        const resolution = resolveCompatibility(
+            readPersistedLegacyRendering(options.dataViews?.[0]),
+            this.compatState,
+            dataViewHasContentRole(options.dataViews),
+            options.viewMode === 1 || options.viewMode === 2
+        );
+        this.compatState.mode = resolution.legacyRendering;
+        this.pendingCompatPersist = resolution.shouldPersist;
+    }
+
+    /**
+     * Stamp the classification marker. Called after the rendering-event pair
+     * for the current update has closed; the setTimeout pushes the host call
+     * out of the current task so the persist echo arrives as an ordinary new
+     * update with its own event pair. Guarded to once per session (the
+     * caller contract documented on resolveCompatibility: persistAttempted
+     * is set here, where the persist is actually scheduled).
+     */
+    private flushCompatibilityPersist(): void {
+        if (!this.pendingCompatPersist) return;
+        this.pendingCompatPersist = false;
+        this.compatState.persistAttempted = true;
+        const legacyRendering = this.compatState.mode === true;
+        setTimeout(() => {
+            this.host.persistProperties({
+                merge: [
+                    {
+                        objectName: 'compatibility',
+                        selector: null as unknown as powerbi.data.Selector,
+                        properties: { legacyRendering }
+                    }
+                ]
+            });
+        }, 0);
     }
 
     /**
