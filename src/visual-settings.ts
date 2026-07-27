@@ -19,11 +19,13 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     stylesheet = new StylesheetSettings();
     crossFilter = new CrossFilterSettings();
     templates = new TemplatesSettings();
+    compatibility = new CompatibilitySettings();
     cards = [
         this.contentFormatting,
         this.stylesheet,
         this.templates,
-        this.crossFilter
+        this.crossFilter,
+        this.compatibility
     ];
     handlePropertyVisibility(viewModel: IViewModel) {
         // Handle visibility of default body formatting properties if stylesheet is used
@@ -324,4 +326,31 @@ class TemplatesCardMain extends FormattingSettingsGroup {
         this.bodyTemplate,
         this.rowTemplate
     ];
+}
+
+/**
+ * Compatibility card: legacy (v1.6) rendering toggle. The persisted value
+ * doubles as the migration version marker — see src/compatibility.ts and
+ * docs/brainstorms/2026-07-27-legacy-rendering-compatibility-mode.md.
+ */
+export class CompatibilitySettings extends FormattingSettingsCompositeCard {
+    name = 'compatibility';
+    displayNameKey = 'Objects_Compatibility';
+    descriptionKey = 'Objects_Compatibility_Description';
+    compatibilityCardMain = new CompatibilityCardMain(Object());
+    groups: Array<FormattingSettingsGroup> = [this.compatibilityCardMain];
+}
+
+/** Main compatibility group: the single legacy-rendering toggle. */
+class CompatibilityCardMain extends FormattingSettingsGroup {
+    name = 'compatibility-main';
+    // Default false = modern. The default is rarely load-bearing: the visual
+    // stamps an explicit value on first classification (src/compatibility.ts).
+    legacyRendering = new formattingSettings.ToggleSwitch({
+        name: 'legacyRendering',
+        displayNameKey: 'Objects_Compatibility_LegacyRendering',
+        descriptionKey: 'Objects_Compatibility_LegacyRendering_Description',
+        value: false
+    });
+    slices: Array<FormattingSettingsSlice> = [this.legacyRendering];
 }

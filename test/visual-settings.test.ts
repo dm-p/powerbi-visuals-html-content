@@ -38,8 +38,8 @@ describe('VisualFormattingSettingsModel', () => {
             expect(settings.crossFilter.name).toBe('crossFilter');
         });
 
-        it('should have four cards in total', () => {
-            expect(settings.cards).toHaveLength(4);
+        it('should have five cards in total', () => {
+            expect(settings.cards).toHaveLength(5);
         });
     });
 
@@ -364,6 +364,23 @@ describe('TemplatesSettings', () => {
         expect(main.bodyTemplate.instanceKind).toBe(3);
         // rowTemplate is a plain TextArea — no instanceKind set
         expect(main.rowTemplate.instanceKind).toBeUndefined();
+    });
+});
+
+describe('CompatibilitySettings', () => {
+    it('registers the compatibility card on the model', () => {
+        const model = new VisualFormattingSettingsModel();
+        expect(model.compatibility).toBeDefined();
+        expect(model.cards).toContain(model.compatibility);
+    });
+
+    it('legacyRendering toggle defaults to false and binds object/property names', () => {
+        const model = new VisualFormattingSettingsModel();
+        const toggle =
+            model.compatibility.compatibilityCardMain.legacyRendering;
+        expect(toggle.name).toBe('legacyRendering');
+        expect(toggle.value).toBe(false);
+        expect(model.compatibility.name).toBe('compatibility');
     });
 });
 
