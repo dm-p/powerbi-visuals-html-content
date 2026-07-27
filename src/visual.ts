@@ -69,6 +69,12 @@ import {
     isDiagnosticsHotkey
 } from './diagnostics/diagnostics-snapshot';
 import { SanitizerCapture, DiagnosticsLabels } from './diagnostics/types';
+import {
+    resolveCompatibility,
+    readPersistedLegacyRendering,
+    dataViewHasContentRole,
+    CompatibilityState
+} from './compatibility';
 
 /**
  * Shape the diagnostics dialog reports back via setResult / close →
@@ -162,6 +168,13 @@ export class Visual implements IVisual {
     // double Ctrl/Cmd+D (or icon click mid-open) can't fire two openModalDialog
     // calls with the same snapshot.
     private diagOpening = false;
+    // Legacy (v1.6) rendering classification — session cache + persist guard.
+    // See src/compatibility.ts and the brainstorm doc it references.
+    private compatState: CompatibilityState = {
+        mode: undefined,
+        persistAttempted: false
+    };
+    private compatPersistTimer?: ReturnType<typeof setTimeout>;
 
     // Runs when the visual is initialised
     constructor(options?: VisualConstructorOptions) {
@@ -260,6 +273,18 @@ export class Visual implements IVisual {
      * This method is called once every time we open properties pane or when the user edit any format property.
      */
     public getFormattingModel(): powerbi.visuals.FormattingModel {
+        // The row-template placeholder mirrors the active compatibility-mode
+        // default so the pane shows what actually renders when unauthored.
+        this.formattingSettings.templates.templatesCardMain.rowTemplate.placeholder =
+            this.compatState.mode === true
+                ? VisualConstants.templates.row
+                : VisualConstants.templates.rowModern;
+        // The toggle's displayed value mirrors the session-resolved mode, not
+        // just the persisted marker — otherwise a freshly-classified visual
+        // (marker not yet echoed back, or persist unavailable) shows OFF
+        // while rendering legacy.
+        this.formattingSettings.compatibility.compatibilityCardMain.legacyRendering.value =
+            this.compatState.mode === true;
         return this.formattingSettingsService.buildFormattingModel(
             this.formattingSettings
         );
@@ -276,6 +301,7 @@ export class Visual implements IVisual {
                 options.dataViews?.[0]
             );
 
+        const persistPending = this.resolveCompatibilityForUpdate(options);
         const diagActive = this.resolveDiagnosticsActivation(options);
 
         try {
@@ -283,6 +309,61 @@ export class Visual implements IVisual {
         } catch (e) {
             this.handleUpdateFailure(options, e);
         }
+        // Runs strictly after renderingFinished/renderingFailed has been
+        // signalled for this update, so the persist echo is a fresh cycle and
+        // the 1:1 update→rendering-event contract holds (spec: update-cycle
+        // discipline).
+        this.flushCompatibilityPersist(persistPending);
+    }
+
+    /**
+     * Resolve the legacy-rendering mode for this update (in-memory first —
+     * rendering never waits on persistence). Returns whether a persist stamp
+     * is requested — only when the marker is absent, the report is editable
+     * (ViewMode.Edit = 1 / InFocusEdit = 2 — same convention as
+     * resolveDiagnosticsActivation), and none has been attempted this
+     * session.
+     *
+     * A marker change always arrives as a Data-bit update (the marker lives
+     * in dataView metadata), so mapDataView re-resolves the row template in
+     * the same update that flips the mode — the CSS and row gates can never
+     * split.
+     */
+    private resolveCompatibilityForUpdate(
+        options: VisualUpdateOptions
+    ): boolean {
+        return resolveCompatibility(
+            readPersistedLegacyRendering(options.dataViews?.[0]),
+            this.compatState,
+            dataViewHasContentRole(options.dataViews),
+            options.viewMode === 1 || options.viewMode === 2
+        ).shouldPersist;
+    }
+
+    /**
+     * Stamp the classification marker. Called after the rendering-event pair
+     * for the current update has closed; the setTimeout pushes the host call
+     * out of the current task so the persist echo arrives as an ordinary new
+     * update with its own event pair. Guarded to once per session (the
+     * caller contract documented on resolveCompatibility: persistAttempted
+     * is set here, where the persist is actually scheduled). The timer is
+     * cancelled by destroy(), so a torn-down instance never persists.
+     */
+    private flushCompatibilityPersist(pending: boolean): void {
+        if (!pending) return;
+        this.compatState.persistAttempted = true;
+        const legacyRendering = this.compatState.mode === true;
+        this.compatPersistTimer = setTimeout(() => {
+            this.host.persistProperties({
+                merge: [
+                    {
+                        objectName: 'compatibility',
+                        selector: null as unknown as powerbi.data.Selector,
+                        properties: { legacyRendering }
+                    }
+                ]
+            });
+        }, 0);
     }
 
     /**
@@ -347,7 +428,8 @@ export class Visual implements IVisual {
                 this.viewModelHandler.mapDataView(
                     options.dataViews,
                     this.formattingSettings,
-                    this.host
+                    this.host,
+                    this.compatState.mode === true
                 );
             this.updateStatus();
         }
@@ -413,6 +495,10 @@ export class Visual implements IVisual {
             // scroll position). Hyperlink binding is content-dependent and
             // runs after each render step instead.
             resolveContainer: (settings) => {
+                this.contentContainer.classed(
+                    VisualConstants.dom.legacyStylingClass,
+                    this.compatState.mode === true
+                );
                 resolveStyling(
                     this.styleSheetContainer,
                     this.container,
@@ -677,6 +763,7 @@ export class Visual implements IVisual {
         this.removeHotkeyListener?.();
         this.styleSheetContainer?.remove();
         this.themeVarsContainer?.remove();
+        clearTimeout(this.compatPersistTimer);
     }
 
     /** Assemble a bounded snapshot and open the host modal dialog. */

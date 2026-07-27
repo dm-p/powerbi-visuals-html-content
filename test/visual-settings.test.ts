@@ -38,8 +38,8 @@ describe('VisualFormattingSettingsModel', () => {
             expect(settings.crossFilter.name).toBe('crossFilter');
         });
 
-        it('should have four cards in total', () => {
-            expect(settings.cards).toHaveLength(4);
+        it('should have five cards in total', () => {
+            expect(settings.cards).toHaveLength(5);
         });
     });
 
@@ -351,7 +351,10 @@ describe('TemplatesSettings', () => {
         const settings = new VisualFormattingSettingsModel();
         const main = settings.templates.templatesCardMain;
         expect(main.bodyTemplate.value).toBe('{{content}}');
-        expect(main.rowTemplate.value).toBe('<div><div>{{row}}</div></div>');
+        // rowTemplate defaults to '' (not authored); resolveRowTemplate falls
+        // back to the compatibility-mode default — see
+        // test/template-engine.test.ts "resolveRowTemplate — per-mode defaults".
+        expect(main.rowTemplate.value).toBe('');
         expect(main.slices).toContain(main.bodyTemplate);
         expect(main.slices).toContain(main.rowTemplate);
         expect(settings.cards).toContain(settings.templates);
@@ -364,6 +367,23 @@ describe('TemplatesSettings', () => {
         expect(main.bodyTemplate.instanceKind).toBe(3);
         // rowTemplate is a plain TextArea — no instanceKind set
         expect(main.rowTemplate.instanceKind).toBeUndefined();
+    });
+});
+
+describe('CompatibilitySettings', () => {
+    it('registers the compatibility card on the model', () => {
+        const model = new VisualFormattingSettingsModel();
+        expect(model.compatibility).toBeDefined();
+        expect(model.cards).toContain(model.compatibility);
+    });
+
+    it('legacyRendering toggle defaults to false and binds object/property names', () => {
+        const model = new VisualFormattingSettingsModel();
+        const toggle =
+            model.compatibility.compatibilityCardMain.legacyRendering;
+        expect(toggle.name).toBe('legacyRendering');
+        expect(toggle.value).toBe(false);
+        expect(model.compatibility.name).toBe('compatibility');
     });
 });
 
@@ -406,5 +426,40 @@ describe('capabilities.json persistence parity', () => {
             }
         ).objects.contentFormatting.properties;
         expect(props.enableDiagnostics?.type?.bool).toBe(true);
+    });
+
+    it('declares every compatibility slice so values persist', () => {
+        const model = new VisualFormattingSettingsModel();
+        const sliceNames = model.compatibility.compatibilityCardMain.slices.map(
+            (s: { name: string }) => s.name
+        );
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: { properties: Record<string, unknown> };
+                };
+            }
+        ).objects.compatibility.properties;
+        for (const name of sliceNames) {
+            expect(
+                Object.prototype.hasOwnProperty.call(props, name),
+                `capabilities.json must declare compatibility.${name} or its value will not persist`
+            ).toBe(true);
+        }
+    });
+
+    it('declares legacyRendering as a bool property', () => {
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: {
+                        properties: {
+                            legacyRendering?: { type?: { bool?: boolean } };
+                        };
+                    };
+                };
+            }
+        ).objects.compatibility.properties;
+        expect(props.legacyRendering?.type?.bool).toBe(true);
     });
 });

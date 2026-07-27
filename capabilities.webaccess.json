@@ -176,6 +176,15 @@
                     }
                 }
             }
+        },
+        "compatibility": {
+            "properties": {
+                "legacyRendering": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
         }
     },
     "dataViewMappings": [

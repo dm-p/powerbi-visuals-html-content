@@ -5,6 +5,7 @@ import {
     ROW_TOKEN,
     resolveRowTemplate
 } from '../src/template-engine';
+import { VisualFormattingSettingsModel } from '../src/visual-settings';
 
 describe('substitute', () => {
     it('replaces all occurrences, tolerant of inner whitespace', () => {
@@ -32,6 +33,40 @@ describe('resolveRowTemplate', () => {
                 templatesCardMain: { rowTemplate: { value: 'STATIC' } }
             }
         } as any;
-        expect(resolveRowTemplate(settings)).toBe('STATIC');
+        expect(resolveRowTemplate(settings, true)).toBe('STATIC');
+    });
+});
+
+describe('resolveRowTemplate — per-mode defaults', () => {
+    it('legacy mode default is the double-div 1.6 structure', () => {
+        const settings = new VisualFormattingSettingsModel();
+        expect(resolveRowTemplate(settings, true)).toBe(
+            '<div><div>{{row}}</div></div>'
+        );
+    });
+
+    it('modern mode default is the single-div structure', () => {
+        const settings = new VisualFormattingSettingsModel();
+        expect(resolveRowTemplate(settings, false)).toBe('<div>{{row}}</div>');
+    });
+
+    it('an authored row template wins in BOTH modes', () => {
+        const settings = new VisualFormattingSettingsModel();
+        settings.templates.templatesCardMain.rowTemplate.value =
+            '<section>{{row}}</section>';
+        expect(resolveRowTemplate(settings, true)).toBe(
+            '<section>{{row}}</section>'
+        );
+        expect(resolveRowTemplate(settings, false)).toBe(
+            '<section>{{row}}</section>'
+        );
+    });
+
+    it('whitespace-only authored value falls back to the mode default', () => {
+        const settings = new VisualFormattingSettingsModel();
+        settings.templates.templatesCardMain.rowTemplate.value = '   ';
+        expect(resolveRowTemplate(settings, true)).toBe(
+            '<div><div>{{row}}</div></div>'
+        );
     });
 });

@@ -4,6 +4,7 @@ import {
     isEntryAffectingUpdate,
     RenderOrchestrator
 } from '../src/render-orchestrator';
+import { VisualFormattingSettingsModel } from '../src/visual-settings';
 
 /**
  * VisualUpdateType is a const enum in powerbi-visuals-api; esbuild/vitest
@@ -99,7 +100,23 @@ describe('computeRenderFingerprint', () => {
     it('changes when enableDiagnostics toggles (forces rebuild to arm capture)', () => {
         expect(
             computeRenderFingerprint(settings({ enableDiagnostics: true }))
-        ).not.toBe(computeRenderFingerprint(settings({ enableDiagnostics: false })));
+        ).not.toBe(
+            computeRenderFingerprint(settings({ enableDiagnostics: false }))
+        );
+    });
+    it('fingerprint changes when the resolved row template changes (mode flip)', () => {
+        const settings = new VisualFormattingSettingsModel();
+        const legacy = computeRenderFingerprint(
+            settings,
+            '{{content}}',
+            '<div><div>{{row}}</div></div>'
+        );
+        const modern = computeRenderFingerprint(
+            settings,
+            '{{content}}',
+            '<div>{{row}}</div>'
+        );
+        expect(legacy).not.toBe(modern);
     });
 });
 

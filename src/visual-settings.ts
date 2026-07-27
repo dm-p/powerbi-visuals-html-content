@@ -19,11 +19,13 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     stylesheet = new StylesheetSettings();
     crossFilter = new CrossFilterSettings();
     templates = new TemplatesSettings();
+    compatibility = new CompatibilitySettings();
     cards = [
         this.contentFormatting,
         this.stylesheet,
         this.templates,
-        this.crossFilter
+        this.crossFilter,
+        this.compatibility
     ];
     handlePropertyVisibility(viewModel: IViewModel) {
         // Handle visibility of default body formatting properties if stylesheet is used
@@ -313,15 +315,45 @@ class TemplatesCardMain extends FormattingSettingsGroup {
     // per-row), so this property has no conditional formatting — keeping the
     // typed value visible/editable in the pane (a CF wildcard selector writes
     // per-instance and the pane only reads back metadata.objects).
+    // Empty = "not authored": resolveRowTemplate falls back to the
+    // compatibility-mode default (VisualConstants.templates.row /
+    // rowModern). A non-empty value always wins, in both modes.
     rowTemplate = new formattingSettings.TextArea({
         name: 'rowTemplate',
         displayNameKey: 'Objects_Templates_RowTemplate',
         descriptionKey: 'Objects_Templates_RowTemplate_Description',
-        placeholder: '<div><div>{{row}}</div></div>',
-        value: VisualConstants.templates.row
+        placeholder: VisualConstants.templates.row,
+        value: ''
     });
     slices: Array<FormattingSettingsSlice> = [
         this.bodyTemplate,
         this.rowTemplate
     ];
+}
+
+/**
+ * Compatibility card: legacy (v1.6) rendering toggle. The persisted value
+ * doubles as the migration version marker — see src/compatibility.ts and
+ * docs/brainstorms/2026-07-27-legacy-rendering-compatibility-mode.md.
+ */
+export class CompatibilitySettings extends FormattingSettingsCompositeCard {
+    name = 'compatibility';
+    displayNameKey = 'Objects_Compatibility';
+    descriptionKey = 'Objects_Compatibility_Description';
+    compatibilityCardMain = new CompatibilityCardMain(Object());
+    groups: Array<FormattingSettingsGroup> = [this.compatibilityCardMain];
+}
+
+/** Main compatibility group: the single legacy-rendering toggle. */
+class CompatibilityCardMain extends FormattingSettingsGroup {
+    name = 'compatibility-main';
+    // Default false = modern. The default is rarely load-bearing: the visual
+    // stamps an explicit value on first classification (src/compatibility.ts).
+    legacyRendering = new formattingSettings.ToggleSwitch({
+        name: 'legacyRendering',
+        displayNameKey: 'Objects_Compatibility_LegacyRendering',
+        descriptionKey: 'Objects_Compatibility_LegacyRendering_Description',
+        value: false
+    });
+    slices: Array<FormattingSettingsSlice> = [this.legacyRendering];
 }

@@ -236,7 +236,12 @@ export const VisualConstants = {
     },
     templates: {
         body: '{{content}}',
-        row: '<div><div>{{row}}</div></div>'
+        // Legacy (v1.6) default: preserves 1.6's entry-div > inner-div
+        // nesting byte-for-byte. Modern default drops the inner wrapper.
+        // Selected per compatibility mode by resolveRowTemplate when the
+        // user has not authored a row template.
+        row: '<div><div>{{row}}</div></div>',
+        rowModern: '<div>{{row}}</div>'
     },
     crossFilter: {
         enabled: false,
@@ -246,6 +251,10 @@ export const VisualConstants = {
     dom: {
         viewerIdSelector: 'htmlViewer',
         entryClassSelector: 'htmlViewerEntry',
+        // Gates the W3.CSS 1.6-compat layer in style/visual.less; toggled on
+        // #htmlContent by the resolveContainer render step from the
+        // compatibility classification (legacy ON ⇒ class present).
+        legacyStylingClass: 'hc-legacy-v1',
         statusIdSelector: 'statusMessage',
         contentIdSelector: 'htmlContent',
         landingIdSelector: 'landingPage',
