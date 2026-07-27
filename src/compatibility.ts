@@ -20,6 +20,7 @@ export interface CompatibilityState {
     persistAttempted: boolean;
 }
 
+/** Result of resolving one update's compatibility mode. */
 export interface CompatibilityResolution {
     /** The mode this update must render with. */
     legacyRendering: boolean;
@@ -36,6 +37,10 @@ export interface CompatibilityResolution {
  *   3. data-bound heuristic: content role bound ⇒ migrated ⇒ legacy ON.
  * Persistence is requested only when the marker is absent, the report is
  * editable, and no persist has been attempted this session.
+ *
+ * The caller MUST set `state.persistAttempted = true` when it actually
+ * schedules the persist requested via `shouldPersist` — this function only
+ * requests, it never records the attempt.
  */
 export const resolveCompatibility = (
     persisted: boolean | undefined,
