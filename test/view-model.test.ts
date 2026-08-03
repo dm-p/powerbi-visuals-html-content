@@ -15,6 +15,7 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(false);
             expect(handler.viewModel.hasGranularity).toBe(false);
+            expect(handler.viewModel.hasContextColumns).toBe(false);
             expect(handler.viewModel.hasSelection).toBe(false);
             expect(handler.viewModel.contentIndex).toBe(-1);
             expect(handler.viewModel.htmlEntries).toEqual([]);
@@ -471,6 +472,150 @@ describe('ViewModelHandler', () => {
             );
 
             expect(handler.viewModel.hasGranularity).toBe(true);
+            expect(handler.viewModel.hasCrossFiltering).toBe(true);
+        });
+
+        it('should not enable cross-filtering when Context holds only measures', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Sales',
+                                queryName: 'qm',
+                                isMeasure: true
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        values: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Sales',
+                                    queryName: 'qm',
+                                    isMeasure: true
+                                },
+                                values: [100]
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
+
+            // Measures in Context still count as granularity (tooltips/hover)…
+            expect(handler.viewModel.hasGranularity).toBe(true);
+            // …but must not enable cross-filtering.
+            expect(handler.viewModel.hasContextColumns).toBe(false);
+            expect(handler.viewModel.hasCrossFiltering).toBe(false);
+        });
+
+        it('should set hasContextColumns when Context holds a column, even alongside a measure', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category',
+                                queryName: 'qs'
+                            },
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Sales',
+                                queryName: 'qm',
+                                isMeasure: true
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
+                        ],
+                        values: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Sales',
+                                    queryName: 'qm',
+                                    isMeasure: true
+                                },
+                                values: [100]
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.hasContextColumns).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(true);
         });
 
