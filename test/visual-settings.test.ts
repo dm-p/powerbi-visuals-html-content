@@ -98,16 +98,25 @@ describe('VisualFormattingSettingsModel', () => {
         });
 
         describe('crossFilter visibility', () => {
-            it('should hide crossFilter card when hasGranularity is false', () => {
-                mockViewModel.hasGranularity = false;
+            it('should hide crossFilter card when hasContextColumns is false', () => {
+                mockViewModel.hasContextColumns = false;
 
                 settings.handlePropertyVisibility(mockViewModel);
 
                 expect(settings.crossFilter.visible).toBe(false);
             });
 
-            it('should show useTransparency when hasGranularity and enabled', () => {
+            it('should hide crossFilter card when Context holds only measures', () => {
                 mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = false;
+
+                settings.handlePropertyVisibility(mockViewModel);
+
+                expect(settings.crossFilter.visible).toBe(false);
+            });
+
+            it('should show useTransparency when hasContextColumns and enabled', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
 
                 settings.handlePropertyVisibility(mockViewModel);
@@ -118,8 +127,8 @@ describe('VisualFormattingSettingsModel', () => {
                 ).toBe(true);
             });
 
-            it('should hide useTransparency when hasGranularity but not enabled', () => {
-                mockViewModel.hasGranularity = true;
+            it('should hide useTransparency when hasContextColumns but not enabled', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = false;
 
                 settings.handlePropertyVisibility(mockViewModel);
@@ -130,8 +139,8 @@ describe('VisualFormattingSettingsModel', () => {
                 ).toBe(false);
             });
 
-            it('should show transparencyPercent when hasGranularity, enabled, and useTransparency', () => {
-                mockViewModel.hasGranularity = true;
+            it('should show transparencyPercent when hasContextColumns, enabled, and useTransparency', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = true;
 
@@ -144,7 +153,7 @@ describe('VisualFormattingSettingsModel', () => {
             });
 
             it('should hide transparencyPercent when enabled but useTransparency is false', () => {
-                mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = false;
 
@@ -157,7 +166,7 @@ describe('VisualFormattingSettingsModel', () => {
             });
 
             it('should hide transparencyPercent when not enabled', () => {
-                mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = false;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = true;
 

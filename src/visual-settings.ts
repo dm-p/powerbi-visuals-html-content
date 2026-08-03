@@ -39,7 +39,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
             this.contentFormatting.contentFormattingCardDefaultBodyStyling.visible = true;
         }
         // Cross-filtering properties
-        if (viewModel.hasGranularity) {
+        if (viewModel.hasContextColumns) {
             this.crossFilter.crossFilterCardMain.useTransparency.visible =
                 this.crossFilter.crossFilterCardMain.enabled.value;
             this.crossFilter.crossFilterCardMain.transparencyPercent.visible =
