@@ -14,6 +14,7 @@ describe('VisualFormattingSettingsModel', () => {
             isValid: true,
             isEmpty: false,
             hasCrossFiltering: false,
+            hasContextColumns: false,
             hasGranularity: false,
             hasSelection: false,
             contentIndex: 0,

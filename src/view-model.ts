@@ -26,6 +26,7 @@ export interface IViewModel {
     isValid: boolean;
     isEmpty: boolean;
     hasCrossFiltering: boolean;
+    hasContextColumns: boolean;
     hasGranularity: boolean;
     hasSelection: boolean;
     contentIndex: number;
@@ -75,6 +76,7 @@ export class ViewModelHandler {
             isValid: false,
             isEmpty: true,
             hasCrossFiltering: false,
+            hasContextColumns: false,
             hasGranularity: false,
             hasSelection: false,
             contentIndex: -1,
@@ -135,8 +137,13 @@ export class ViewModelHandler {
             const contentIndex = this.getContentMetadataIndex(columns);
             this.viewModel.contentIndex = contentIndex;
             const hasGranularity = columns.some((c) => c.roles?.sampling);
+            // Cross-filtering needs a column (grouping) in the Context role;
+            // measures produce no useful selection identity to filter by.
+            const hasContextColumns = columns.some(
+                (c) => c.roles?.sampling && !c.isMeasure
+            );
             const hasCrossFiltering =
-                hasGranularity &&
+                hasContextColumns &&
                 settings.crossFilter.crossFilterCardMain.enabled.value;
             // Reconciling selection via per-row equals() scans of the previous
             // entries is quadratic across updates at the row cap; a key lookup
@@ -174,6 +181,7 @@ export class ViewModelHandler {
                       })
                     : [];
             this.viewModel.hasCrossFiltering = hasCrossFiltering;
+            this.viewModel.hasContextColumns = hasContextColumns;
             this.viewModel.hasGranularity = hasGranularity;
             this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
