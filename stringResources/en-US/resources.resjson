@@ -19,7 +19,7 @@
     "Objects_ContentFormatting_Separation": "Value separation method",
     "Objects_ContentFormatting_Separation_Description": "Options to separate multiple values in the rendered output.",
     "Objects_ContentFormatting_Format": "Renderer",
-    "Objects_ContentFormatting_Format_Description": "The renderer to apply to supplied content. HTML is the default, but you can also use Github Flavored Markdown. Note that detected HTML will be subject to the same sanitization rules if you are using using HTML Content (lite).",
+    "Objects_ContentFormatting_Format_Description": "The renderer to apply to supplied content. HTML is the default, but you can also use Github Flavored Markdown. Note that detected HTML will be subject to the same sanitization rules if you are using using HTML Content Secure.",
     "Objects_ContentFormatting_RenderMode": "On data update",
     "Objects_ContentFormatting_RenderMode_Description": "Controls how the visual updates the DOM when the underlying dataset (or a volatile property) changes. Rebuild content redraws everything on each update. Preserve unchanged content keeps entries whose value has not changed, so embedded content such as iframes does not reload.",
     "Enum_RenderMode_Rebuild": "Rebuild content",

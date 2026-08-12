@@ -1,7 +1,7 @@
 {
     "visual": {
         "name": "htmlContent",
-        "displayName": "HTML Content (lite)",
+        "displayName": "HTML Content Secure",
         "guid": "htmlContent443BE3AD55E043BF878BED274D3A6865",
         "visualClassName": "Visual",
         "version": "2.0.0.0",

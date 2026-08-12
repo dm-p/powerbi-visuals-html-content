@@ -62,7 +62,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Rendered (Default Body Styling font, color, size)'"
+                  "Value": "'HTML Content Secure - Rendered (Default Body Styling font, color, size)'"
                 }
               }
             }

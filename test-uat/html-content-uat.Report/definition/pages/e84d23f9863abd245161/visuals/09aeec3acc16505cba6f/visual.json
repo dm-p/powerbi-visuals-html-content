@@ -76,7 +76,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Raw HTML'"
+                  "Value": "'HTML Content Secure - Raw HTML'"
                 }
               }
             }

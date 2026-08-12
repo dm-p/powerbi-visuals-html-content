@@ -67,7 +67,7 @@ Once loaded, you will need to refresh the visual, as Power BI doesn't reload vis
 
 This tab is used to manually verify that all potential vulnerabilities are addressed and that common rendering cases are not sanitized.
 
-This page has the **HTML Content (lite)** visual already set up with a live render and a raw output version, which (if you're using the AppSource GUID and have reloaded) will require no further setup.
+This page has the **HTML Content Secure** visual already set up with a live render and a raw output version, which (if you're using the AppSource GUID and have reloaded) will require no further setup.
 
 When ready, use the slicer to navigate each test and visually confirm:
 
@@ -79,7 +79,7 @@ When ready, use the slicer to navigate each test and visually confirm:
 
 This tab is used to verify that CSS pasted into the visual's format pane > **Stylesheet** > **Custom stylesheet** setting is sanitized correctly. This is the third sanitization surface (per [`docs/sanitization-rules.md`](sanitization-rules.md)) and the only one whose sanitized output reaches the DOM via `<style id="visualUserStylesheet">` in the page `<head>` rather than the visual's content container.
 
-Its layout is similar to **Sanitizer Testing (Data Only)**, in that it has two instances of **HTML Content (lite)**: one showing rendered output and one showing raw output. The table shows both input HTML and CSS and their expected (sanitized) output for comparison/validation.
+Its layout is similar to **Sanitizer Testing (Data Only)**, in that it has two instances of **HTML Content Secure**: one showing rendered output and one showing raw output. The table shows both input HTML and CSS and their expected (sanitized) output for comparison/validation.
 
 There is a mix of clean and adversarial scenarios:
 
@@ -107,7 +107,7 @@ There is a mix of clean and adversarial scenarios:
 
 This tab is used to ensure that neither the regular edition nor the sanitizer has any side effects on content passed in, and to expect the user to [apply simpler styling via properties](https://html-content.com/docs/properties-content-formatting#default-body-styling).
 
-This page has three **HTML Content** visuals along the top row (red border) and three **HTML Content (lite)** visuals along the bottom row (yellow border). 
+This page has three **HTML Content** visuals along the top row (red border) and three **HTML Content Secure** visuals along the bottom row (yellow border). 
 
 As you apply each test via the slicer:
 
@@ -121,9 +121,9 @@ As you apply each test via the slicer:
 
 This tab is bound to `test-uat/hyperlinks.csv` and exercises the format-pane **Behavior** > **Allow opening URLs** toggle in its ON state. The default sanitizer state (toggle OFF) strips `href` from every `<a>` so the visual emits no clickable URL surface at all; this tab is the only place where the toggle-on rendering path is verified end-to-end against a live visual.
 
-This page has two **HTML Content** visuals along the top row (red border) and two **HTML Content (lite)** visuals along the bottom row (yellow border).
+This page has two **HTML Content** visuals along the top row (red border) and two **HTML Content Secure** visuals along the bottom row (yellow border).
 
-For each row, navigate via the slicer and visually confirm for the **HTML Content (lite)** visuals:
+For each row, navigate via the slicer and visually confirm for the **HTML Content Secure** visuals:
 
 1. **Positive rows** (`hyperlinks-clean-*`) - the rendered link is visible and styled as a link (anchor tags pick up browser-default underline/cursor unless the body styling overrides them). 
 
