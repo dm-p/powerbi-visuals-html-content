@@ -18,7 +18,7 @@
 - Unit tests: `test/**/*.test.ts`, vitest, jsdom. `npm test` has a `pretest` hook that resets the edition to `certified`.
 - Edition GUIDs: certified `htmlContent443BE3AD55E043BF878BED274D3A6865` (in `pbiviz.json`), standard `htmlContent443BE3AD55E043BF878BED274D3A6855`, standalone `STANDALONEhtmlContent443BE3AD55E043BF878BED274D3A6855`.
 - Channel icons already exist (untracked): `assets/palette_icon_standard_alpha.png`, `assets/palette_icon_standard_beta.png`, `assets/palette_icon_secure_alpha.png`, `assets/palette_icon_secure_beta.png`.
-- Working tree carries unrelated uncommitted changes (`AGENTS.md`, `test-uat/.../expressions.tmdl`, `.claude/`). **Never `git add -A`** — stage only the files each task names. The `expressions.tmdl` change must stay out of commits.
+- Working tree carries unrelated uncommitted changes (`test-uat/.../expressions.tmdl`, `.claude/`). **Never `git add -A`** — stage only the files each task names. The `expressions.tmdl` change must stay out of commits. (`AGENTS.md` also has a small pre-existing cosmetic diff, which the user has approved committing wholesale in Task 5.)
 
 ---
 
@@ -776,7 +776,7 @@ git commit -m "ci: add draft production release workflow job"
 **Files:**
 - Modify: `AGENTS.md` — the `## Commands` table
 
-**CAUTION:** `AGENTS.md` has unrelated uncommitted local edits. Stage with `git add -p AGENTS.md` (or `git add AGENTS.md` only if `git diff AGENTS.md` shows nothing but this task's rows) so only the rows below are committed. If unrelated hunks appear during `git add -p`, leave them unstaged.
+Note: `AGENTS.md` carries a small pre-existing cosmetic diff — the user has approved committing the whole file, so plain `git add AGENTS.md` is fine.
 
 - [ ] **Step 1: Add command rows**
 
@@ -790,8 +790,7 @@ In the `## Commands` table in `AGENTS.md`, after the "Package the visual (`.pbiv
 - [ ] **Step 2: Verify and commit**
 
 ```bash
-git diff AGENTS.md   # confirm which hunks are this task's vs pre-existing
-git add -p AGENTS.md # stage ONLY the command-table rows added above
+git add AGENTS.md
 git commit -m "docs: document channel build commands"
 ```
 
@@ -816,7 +815,7 @@ git status --short
 git log --oneline origin/main..HEAD
 ```
 
-Expected: `AGENTS.md` (any unrelated hunks), `test-uat/.../expressions.tmdl`, and `.claude/` remain uncommitted; the branch has the Task 1–5 commits plus the two docs commits (brainstorm + this plan).
+Expected: `test-uat/.../expressions.tmdl` and `.claude/` remain uncommitted (`AGENTS.md` is fully committed by Task 5); the branch has the Task 1–5 commits plus the docs commits (brainstorm + this plan).
 
 - [ ] **Step 3: Live-fire the prerelease workflow (with the user's go-ahead)**
 
