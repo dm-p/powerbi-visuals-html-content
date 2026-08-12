@@ -30,6 +30,7 @@
 - `test/channel-overlay.test.ts` — unit tests for the resolver. (Create)
 - `.github/workflows/release.yml` — `prerelease` + `release` jobs. (Create)
 - `assets/palette_icon_{standard,secure}_{alpha,beta}.png` — committed in Task 1. (Add, already on disk)
+- `assets/palette_icon_lite.png` → `assets/palette_icon_secure.png` — renamed in Task 1 for naming consistency with the channel icons; only live reference is `pbiviz.json:18`. (Rename)
 - `AGENTS.md` — command-table rows for channel builds. (Modify — file has unrelated uncommitted edits; stage carefully, see Task 5)
 
 ---
@@ -40,6 +41,40 @@
 - Test: `test/channel-overlay.test.ts` (create)
 - Modify: `config/editions.mjs` (currently 39 lines: only the `editions` export)
 - Add: the four `assets/palette_icon_*_{alpha,beta}.png` files (already on disk, untracked)
+- Rename: `assets/palette_icon_lite.png` → `assets/palette_icon_secure.png` (update `pbiviz.json:18`)
+
+- [ ] **Step 0: Rename the secure icon for naming consistency**
+
+The certified edition's icon predates the `_secure`/`_standard` naming; align it before the channel icons land. Only `pbiviz.json` references it (verified — the mention in `docs/plans/2026-06-20-001-...md` is a historical record and stays as-is):
+
+```bash
+git mv assets/palette_icon_lite.png assets/palette_icon_secure.png
+```
+
+In `pbiviz.json`, change:
+
+```json
+        "icon": "assets/palette_icon_lite.png"
+```
+
+to:
+
+```json
+        "icon": "assets/palette_icon_secure.png"
+```
+
+Verify nothing else references the old name, then confirm packaging still resolves the icon and commit:
+
+```bash
+grep -rn "palette_icon_lite" --include="*.json" --include="*.mjs" --include="*.ts" . | grep -v node_modules
+# Expected: no output
+node -e "import('./pbiviz.mjs').then(m => console.log(m.default.assets.icon))"
+# Expected: assets/palette_icon_secure.png
+git add pbiviz.json
+git commit -m "chore: rename palette_icon_lite to palette_icon_secure"
+```
+
+(`git mv` already staged the rename; only `pbiviz.json` needs adding.)
 
 - [ ] **Step 1: Write the failing test**
 
