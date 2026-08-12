@@ -102,7 +102,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Rendered (Overridden Body Styling font, color, size, center align)'"
+                  "Value": "'HTML Content Secure - Rendered (Overridden Body Styling font, color, size, center align)'"
                 }
               }
             }
