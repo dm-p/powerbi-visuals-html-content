@@ -82,10 +82,8 @@ import type {
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { HYPERLINKS_PAYLOADS } from '../test/fixtures/hyperlinks';
 import { STYLESHEET_PAYLOADS } from '../test/fixtures/stylesheet-scenarios';
-import {
-    getSanitizedHtmlForTesting,
-    getSanitizedCss
-} from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
+import { getSanitizedCss } from '../src/sanitize';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

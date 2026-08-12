@@ -15,6 +15,7 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(false);
             expect(handler.viewModel.hasGranularity).toBe(false);
+            expect(handler.viewModel.hasContextColumns).toBe(false);
             expect(handler.viewModel.hasSelection).toBe(false);
             expect(handler.viewModel.contentIndex).toBe(-1);
             expect(handler.viewModel.htmlEntries).toEqual([]);
@@ -53,7 +54,7 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isValid).toBe(false);
         });
 
-        it('should set isValid to false when dataView has no table', () => {
+        it('should set isValid to false when dataView has no categorical', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
@@ -77,9 +78,16 @@ describe('ViewModelHandler', () => {
                             }
                         ]
                     },
-                    table: {
-                        columns: [],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -97,11 +105,16 @@ describe('ViewModelHandler', () => {
                             { roles: { content: true }, displayName: 'HTML' }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -127,19 +140,30 @@ describe('ViewModelHandler', () => {
                             { roles: { content: true }, displayName: 'HTML' }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category'
+                                },
+                                values: []
                             },
                             {
-                                roles: { tooltips: true },
-                                displayName: 'Tooltip'
+                                source: {
+                                    roles: { tooltips: true },
+                                    displayName: 'Tooltip'
+                                },
+                                values: []
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
@@ -159,49 +183,32 @@ describe('ViewModelHandler', () => {
             const dataViews: any[] = [
                 {
                     metadata: {},
-                    table: {
-                        columns: [],
-                        rows: []
-                    }
+                    categorical: {}
                 }
             ];
 
             handler.validateDataView(dataViews);
             expect(handler.viewModel.isValid).toBe(false);
         });
-
-        it('should ignore columns without roles (dynamic format strings) when locating content column', () => {
-            const dataViews: any[] = [
-                {
-                    metadata: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ]
-                    },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
-                    }
-                }
-            ];
-
-            handler.validateDataView(dataViews);
-            expect(handler.viewModel.isValid).toBe(true);
-            expect(handler.viewModel.contentIndex).toBe(1);
-        });
     });
 
     describe('mapDataView', () => {
         const mockHost = {
-            createSelectionIdBuilder: () => ({
-                withTable: () => ({
-                    createSelectionId: () => ({ equals: () => false })
-                })
-            }),
+            createSelectionIdBuilder: () => {
+                const categoryIndices: number[] = [];
+                const builder: any = {
+                    withCategory: (_category: unknown, index: number) => {
+                        categoryIndices.push(index);
+                        return builder;
+                    },
+                    withMeasure: () => builder,
+                    createSelectionId: () => ({
+                        getKey: () => `cat:${categoryIndices.join('|')}`,
+                        equals: () => false
+                    })
+                };
+                return builder;
+            },
             locale: 'en-US'
         } as any;
 
@@ -211,13 +218,19 @@ describe('ViewModelHandler', () => {
                     enabled: { value: false }
                 }
             },
-            contentFormatting: {}
+            contentFormatting: {},
+            templates: {
+                templatesCardMain: {
+                    bodyTemplate: { value: '{{content}}' },
+                    rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                }
+            }
         } as any;
 
         it('should not map data if view model is invalid', () => {
             handler.viewModel.isValid = false;
 
-            handler.mapDataView([], mockSettings, mockHost);
+            handler.mapDataView([], mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries).toEqual([]);
         });
@@ -227,20 +240,30 @@ describe('ViewModelHandler', () => {
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: [['<p>Test 1</p>'], ['<p>Test 2</p>']]
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test 1</p>', '<p>Test 2</p>']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries.length).toBe(2);
             expect(handler.viewModel.htmlEntries[0].content).toBe(
@@ -252,25 +275,89 @@ describe('ViewModelHandler', () => {
             expect(handler.viewModel.isEmpty).toBe(false);
         });
 
-        it('should handle null content values', () => {
+        it('modern mode (legacyRendering=false) resolves the single-div default through mapDataView', () => {
+            const modernSettings = {
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: false }
+                    }
+                },
+                contentFormatting: {},
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '' }
+                    }
+                }
+            } as any;
             const dataViews: any[] = [
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: [[null], [undefined]]
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test 1</p>', '<p>Test 2</p>']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, modernSettings, mockHost, false);
+
+            expect(handler.viewModel.rowTemplate).toBe('<div>{{row}}</div>');
+            expect(handler.viewModel.htmlEntries.length).toBe(2);
+            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
+                '<div>{{row}}</div>'
+            );
+            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
+                '<div>{{row}}</div>'
+            );
+        });
+
+        it('should handle null content values', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: [null, undefined]
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.htmlEntries.length).toBe(2);
             expect(handler.viewModel.htmlEntries[0].content).toBe('');
@@ -284,26 +371,43 @@ describe('ViewModelHandler', () => {
                         columns: [
                             {
                                 roles: { sampling: true },
-                                displayName: 'Category'
+                                displayName: 'Category',
+                                queryName: 'qs'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
                         ],
-                        rows: [['A', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.hasGranularity).toBe(true);
         });
@@ -324,29 +428,269 @@ describe('ViewModelHandler', () => {
                         columns: [
                             {
                                 roles: { sampling: true },
-                                displayName: 'Category'
+                                displayName: 'Category',
+                                queryName: 'qs'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
                         ],
-                        rows: [['A', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, settingsWithCrossFilter, mockHost);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
 
             expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.hasCrossFiltering).toBe(true);
+        });
+
+        it('should not enable cross-filtering when Context holds only measures', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Sales',
+                                queryName: 'qm',
+                                isMeasure: true
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        values: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Sales',
+                                    queryName: 'qm',
+                                    isMeasure: true
+                                },
+                                values: [100]
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
+
+            // Measures in Context still count as granularity (tooltips/hover)…
+            expect(handler.viewModel.hasGranularity).toBe(true);
+            // …but must not enable cross-filtering.
+            expect(handler.viewModel.hasContextColumns).toBe(false);
+            expect(handler.viewModel.hasCrossFiltering).toBe(false);
+        });
+
+        it('should set hasContextColumns when Context holds a column, even alongside a measure', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category',
+                                queryName: 'qs'
+                            },
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Sales',
+                                queryName: 'qm',
+                                isMeasure: true
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A']
+                            }
+                        ],
+                        values: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Sales',
+                                    queryName: 'qm',
+                                    isMeasure: true
+                                },
+                                values: [100]
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Test</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.hasContextColumns).toBe(true);
+            expect(handler.viewModel.hasCrossFiltering).toBe(true);
+        });
+
+        it('should preserve previously selected entries across updates via identity keys', () => {
+            const settingsWithCrossFilter = {
+                ...mockSettings,
+                crossFilter: {
+                    crossFilterCardMain: {
+                        enabled: { value: true }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { sampling: true },
+                                displayName: 'Category',
+                                queryName: 'qs'
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'qs'
+                                },
+                                values: ['A', 'B']
+                            },
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>1</p>', '<p>2</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            // Simulate the previous update having selected the first entry.
+            // The mock builder keys row 0 as 'cat:0|0' (sampling + content
+            // category indices).
+            handler.viewModel.htmlEntries = [
+                {
+                    content: '<p>1</p>',
+                    identity: { getKey: () => 'cat:0|0' } as any,
+                    selected: true,
+                    tooltips: []
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                settingsWithCrossFilter,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.hasSelection).toBe(true);
+            expect(handler.viewModel.htmlEntries[0].selected).toBe(true);
+            expect(handler.viewModel.htmlEntries[1].selected).toBe(false);
         });
 
         it('should set isEmpty to true when no rows exist', () => {
@@ -354,25 +698,131 @@ describe('ViewModelHandler', () => {
                 {
                     metadata: {
                         columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { roles: { content: true }, displayName: 'HTML' }
-                        ],
-                        rows: []
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: []
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.isEmpty).toBe(true);
         });
 
-        it('should map data and granularity when a column without roles (dynamic format strings) is present', () => {
+        it('should map measure-only content to a single entry (#130)', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'Aggregate HTML',
+                                queryName: 'mq'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        values: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'Aggregate HTML',
+                                    queryName: 'mq'
+                                },
+                                values: ['<p>Aggregate</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
+
+            expect(handler.viewModel.htmlEntries.length).toBe(1);
+            expect(handler.viewModel.htmlEntries[0].content).toBe(
+                '<p>Aggregate</p>'
+            );
+            expect(handler.viewModel.isEmpty).toBe(false);
+        });
+
+        it('should ignore roles-less metadata columns without throwing (#159)', () => {
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                // no roles key — calc-group dynamic format string shape
+                                displayName: '__Format',
+                                queryName: 'fq'
+                            },
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'mq'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'mq'
+                                },
+                                values: ['<p>Row 1</p>', '<p>Row 2</p>']
+                            }
+                        ],
+                        values: [
+                            {
+                                source: {
+                                    displayName: '__Format',
+                                    queryName: 'fq'
+                                },
+                                values: ['@fmt1', '@fmt2']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            expect(handler.viewModel.isValid).toBe(true);
+            // Roles-less column sits at metadata index 0, so the provisional
+            // (metadata-space) contentIndex must skip it (parity with the
+            // pre-categorical #159 fix assertions).
+            expect(handler.viewModel.contentIndex).toBe(1);
+            expect(() =>
+                handler.mapDataView(dataViews, mockSettings, mockHost, true)
+            ).not.toThrow();
+            expect(handler.viewModel.htmlEntries.length).toBe(2);
+            expect(handler.viewModel.htmlEntries[0].content).toBe(
+                '<p>Row 1</p>'
+            );
+            expect(handler.viewModel.htmlEntries[1].content).toBe(
+                '<p>Row 2</p>'
+            );
+        });
+
+        it('should map data and granularity when a roles-less column is present (#159)', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
@@ -380,27 +830,50 @@ describe('ViewModelHandler', () => {
                             { displayName: 'Format', format: '0.0%' },
                             {
                                 roles: { sampling: true },
-                                displayName: 'Category'
+                                displayName: 'Category',
+                                queryName: 'sq'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'cq'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
+                    categorical: {
+                        categories: [
                             {
-                                roles: { sampling: true },
-                                displayName: 'Category'
+                                source: {
+                                    roles: { sampling: true },
+                                    displayName: 'Category',
+                                    queryName: 'sq'
+                                },
+                                values: ['A']
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'cq'
+                                },
+                                values: ['<p>Test</p>']
+                            }
                         ],
-                        rows: [['0.5', 'A', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    displayName: 'Format',
+                                    format: '0.0%'
+                                },
+                                values: ['0.5']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             expect(handler.viewModel.hasGranularity).toBe(true);
             expect(handler.viewModel.htmlEntries.length).toBe(1);
@@ -409,7 +882,170 @@ describe('ViewModelHandler', () => {
             );
         });
 
-        it('should exclude columns without roles (dynamic format strings) from tooltips', () => {
+        it('bodyTemplate defaults to {{content}} when settings carry no CF override', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                        // no metadata.objects → falls back to static value
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.bodyTemplate).toBe('{{content}}');
+        });
+
+        it('bodyTemplate uses CF metadata.objects value when present', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ],
+                        objects: {
+                            templates: {
+                                bodyTemplate: '<body>{{content}}</body>'
+                            }
+                        }
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.bodyTemplate).toBe(
+                '<body>{{content}}</body>'
+            );
+        });
+
+        it('each entry rowTemplate defaults to static value when no per-row or metadata CF override', () => {
+            const mockSettingsWithTemplates = {
+                ...mockSettings,
+                templates: {
+                    templatesCardMain: {
+                        bodyTemplate: { value: '{{content}}' },
+                        rowTemplate: { value: '<div><div>{{row}}</div></div>' }
+                    }
+                }
+            } as any;
+
+            const dataViews: any[] = [
+                {
+                    metadata: {
+                        columns: [
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'q0'
+                            }
+                        ]
+                    },
+                    categorical: {
+                        categories: [
+                            {
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'q0'
+                                },
+                                values: ['<p>Row 1</p>', '<p>Row 2</p>']
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            handler.validateDataView(dataViews);
+            handler.mapDataView(
+                dataViews,
+                mockSettingsWithTemplates,
+                mockHost,
+                true
+            );
+
+            expect(handler.viewModel.htmlEntries[0].rowTemplate).toBe(
+                '<div><div>{{row}}</div></div>'
+            );
+            expect(handler.viewModel.htmlEntries[1].rowTemplate).toBe(
+                '<div><div>{{row}}</div></div>'
+            );
+        });
+
+        it('reset() initialises bodyTemplate to the VisualConstants body default', () => {
+            handler.viewModel.bodyTemplate = 'something';
+            handler.reset();
+            expect(handler.viewModel.bodyTemplate).toBe('{{content}}');
+        });
+
+        it('should exclude roles-less columns from tooltips (#159)', () => {
             const dataViews: any[] = [
                 {
                     metadata: {
@@ -417,27 +1053,50 @@ describe('ViewModelHandler', () => {
                             { displayName: 'Format', format: '0.0%' },
                             {
                                 roles: { tooltips: true },
-                                displayName: 'Tooltip'
+                                displayName: 'Tooltip',
+                                queryName: 'tq'
                             },
-                            { roles: { content: true }, displayName: 'HTML' }
+                            {
+                                roles: { content: true },
+                                displayName: 'HTML',
+                                queryName: 'cq'
+                            }
                         ]
                     },
-                    table: {
-                        columns: [
-                            { displayName: 'Format', format: '0.0%' },
+                    categorical: {
+                        categories: [
                             {
-                                roles: { tooltips: true },
-                                displayName: 'Tooltip'
-                            },
-                            { roles: { content: true }, displayName: 'HTML' }
+                                source: {
+                                    roles: { content: true },
+                                    displayName: 'HTML',
+                                    queryName: 'cq'
+                                },
+                                values: ['<p>Test</p>']
+                            }
                         ],
-                        rows: [['0.5', 'Tip value', '<p>Test</p>']]
+                        values: [
+                            {
+                                source: {
+                                    roles: { tooltips: true },
+                                    displayName: 'Tooltip',
+                                    queryName: 'tq'
+                                },
+                                values: ['Tip value']
+                            },
+                            {
+                                source: {
+                                    displayName: 'Format',
+                                    format: '0.0%'
+                                },
+                                values: ['0.5']
+                            }
+                        ]
                     }
                 }
             ];
 
             handler.validateDataView(dataViews);
-            handler.mapDataView(dataViews, mockSettings, mockHost);
+            handler.mapDataView(dataViews, mockSettings, mockHost, true);
 
             const tooltips = handler.viewModel.htmlEntries[0].tooltips;
             expect(tooltips.length).toBe(1);

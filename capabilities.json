@@ -34,6 +34,11 @@
                         "bool": true
                     }
                 },
+                "enableDiagnostics": {
+                    "type": {
+                        "bool": true
+                    }
+                },
                 "format": {
                     "type": {
                         "enumeration": [
@@ -46,6 +51,22 @@
                                 "displayNameKey": "Enum_RenderFormat_Mardown",
                                 "displayName": "Markdown",
                                 "value": "markdown"
+                            }
+                        ]
+                    }
+                },
+                "renderMode": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "displayNameKey": "Enum_RenderMode_Rebuild",
+                                "displayName": "Rebuild content",
+                                "value": "rebuild"
+                            },
+                            {
+                                "displayNameKey": "Enum_RenderMode_Reconcile",
+                                "displayName": "Preserve unchanged content",
+                                "value": "reconcile"
                             }
                         ]
                     }
@@ -116,6 +137,12 @@
                 }
             }
         },
+        "templates": {
+            "properties": {
+                "bodyTemplate": { "type": { "text": true } },
+                "rowTemplate": { "type": { "text": true } }
+            }
+        },
         "crossFilter": {
             "properties": {
                 "enabled": {
@@ -134,39 +161,34 @@
                     }
                 }
             }
+        },
+        "compatibility": {
+            "properties": {
+                "legacyRendering": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
         }
     },
     "dataViewMappings": [
         {
-            "conditions": [
-                {
-                    "content": {
-                        "max": 1
-                    }
-                }
-            ],
-            "table": {
-                "rows": {
+            "conditions": [{ "content": { "max": 1 } }],
+            "categorical": {
+                "categories": {
                     "select": [
-                        {
-                            "for": {
-                                "in": "sampling"
-                            }
-                        },
-                        {
-                            "for": {
-                                "in": "content"
-                            }
-                        },
-                        {
-                            "for": {
-                                "in": "tooltips"
-                            }
-                        }
+                        { "for": { "in": "sampling" } },
+                        { "for": { "in": "content" } }
                     ],
-                    "dataReductionAlgorithm": {
-                        "top": {}
-                    }
+                    "dataReductionAlgorithm": { "top": { "count": 30000 } }
+                },
+                "values": {
+                    "select": [
+                        { "for": { "in": "content" } },
+                        { "for": { "in": "sampling" } },
+                        { "for": { "in": "tooltips" } }
+                    ]
                 }
             }
         }

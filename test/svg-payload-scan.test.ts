@@ -3,12 +3,12 @@ import {
     decodeSvgDataUriPayload,
     hasDangerousSvgPayload,
     isSafeImageDataUri
-} from '../src/svg-payload-scan';
+} from '../src/sanitize/svg-payload-scan';
 
 /**
  * Unit tests for the shared SVG-payload defense-in-depth helpers used
- * by both `getSanitizedDataUri` (sanitize-pipeline.ts) and
- * `isSafeImageDataUri` (css-sanitizer.ts). Pipeline-level integration
+ * by both `getSanitizedDataUri` (sanitize/data-uri.ts) and
+ * `isSafeImageDataUri` (sanitize/css.ts). Pipeline-level integration
  * coverage lives in `test/sanitize-pipeline.test.ts` and the CSP corpus;
  * this file pins the regex / decode logic directly so a bypass found in
  * either consumer can be reproduced without going through DOMPurify or
@@ -311,6 +311,17 @@ describe('hasDangerousSvgPayload', () => {
                 )
             ).toBe(true);
         });
+
+        // HTML5 accepts `/` as an attribute-name separator, so `<svg/onload=…>`
+        // parses `onload` as a real attribute. The boundary group must include
+        // `/`, matching the same lenient parsers the scan defends.
+        it('rejects slash-adjacent onload (HTML5 `/` attribute separator)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg/onload='alert(1)'></svg>"
+                )
+            ).toBe(true);
+        });
     });
 
     describe('external href rejection', () => {
@@ -516,6 +527,16 @@ describe('hasDangerousSvgPayload', () => {
             ).toBe(true);
         });
 
+        // HTML5 `/` attribute separator on an inner element's href — same
+        // lenient-parser boundary gap as the on*= handler case above.
+        it('rejects slash-adjacent external href on inner element (HTML5 `/` separator)', () => {
+            expect(
+                hasDangerousSvgPayload(
+                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><image/href='https://attacker.example/pixel'/></svg>"
+                )
+            ).toBe(true);
+        });
+
         it('rejects double-quote-adjacent nested data:text/html href', () => {
             expect(
                 hasDangerousSvgPayload(
@@ -619,6 +640,15 @@ describe('isSafeImageDataUri', () => {
         it('rejects data:image/jpeg without ;base64,', () => {
             expect(
                 isSafeImageDataUri('data:image/jpeg,smuggled-html')
+            ).toBe(false);
+        });
+
+        // The base64 marker must sit in the media-type segment, not anywhere
+        // in the URI. `data:image/png,...;base64,...` is NOT base64-encoded —
+        // an unanchored `;base64,` test would wrongly admit it.
+        it('rejects data:image/png with ;base64, only in the payload body', () => {
+            expect(
+                isSafeImageDataUri('data:image/png,notbase64text;base64,AA')
             ).toBe(false);
         });
     });

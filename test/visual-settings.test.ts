@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { VisualFormattingSettingsModel } from '../src/visual-settings';
 import { IViewModel } from '../src/view-model';
+import { VisualConstants } from '../src/visual-constants';
+import capabilities from '../capabilities.json';
 
 describe('VisualFormattingSettingsModel', () => {
     let settings: VisualFormattingSettingsModel;
@@ -12,6 +14,7 @@ describe('VisualFormattingSettingsModel', () => {
             isValid: true,
             isEmpty: false,
             hasCrossFiltering: false,
+            hasContextColumns: false,
             hasGranularity: false,
             hasSelection: false,
             contentIndex: 0,
@@ -36,8 +39,8 @@ describe('VisualFormattingSettingsModel', () => {
             expect(settings.crossFilter.name).toBe('crossFilter');
         });
 
-        it('should have three cards in total', () => {
-            expect(settings.cards).toHaveLength(3);
+        it('should have five cards in total', () => {
+            expect(settings.cards).toHaveLength(5);
         });
     });
 
@@ -95,16 +98,25 @@ describe('VisualFormattingSettingsModel', () => {
         });
 
         describe('crossFilter visibility', () => {
-            it('should hide crossFilter card when hasGranularity is false', () => {
-                mockViewModel.hasGranularity = false;
+            it('should hide crossFilter card when hasContextColumns is false', () => {
+                mockViewModel.hasContextColumns = false;
 
                 settings.handlePropertyVisibility(mockViewModel);
 
                 expect(settings.crossFilter.visible).toBe(false);
             });
 
-            it('should show useTransparency when hasGranularity and enabled', () => {
+            it('should hide crossFilter card when Context holds only measures', () => {
                 mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = false;
+
+                settings.handlePropertyVisibility(mockViewModel);
+
+                expect(settings.crossFilter.visible).toBe(false);
+            });
+
+            it('should show useTransparency when hasContextColumns and enabled', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
 
                 settings.handlePropertyVisibility(mockViewModel);
@@ -115,8 +127,8 @@ describe('VisualFormattingSettingsModel', () => {
                 ).toBe(true);
             });
 
-            it('should hide useTransparency when hasGranularity but not enabled', () => {
-                mockViewModel.hasGranularity = true;
+            it('should hide useTransparency when hasContextColumns but not enabled', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = false;
 
                 settings.handlePropertyVisibility(mockViewModel);
@@ -127,8 +139,8 @@ describe('VisualFormattingSettingsModel', () => {
                 ).toBe(false);
             });
 
-            it('should show transparencyPercent when hasGranularity, enabled, and useTransparency', () => {
-                mockViewModel.hasGranularity = true;
+            it('should show transparencyPercent when hasContextColumns, enabled, and useTransparency', () => {
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = true;
 
@@ -141,7 +153,7 @@ describe('VisualFormattingSettingsModel', () => {
             });
 
             it('should hide transparencyPercent when enabled but useTransparency is false', () => {
-                mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = true;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = false;
 
@@ -154,7 +166,7 @@ describe('VisualFormattingSettingsModel', () => {
             });
 
             it('should hide transparencyPercent when not enabled', () => {
-                mockViewModel.hasGranularity = true;
+                mockViewModel.hasContextColumns = true;
                 settings.crossFilter.crossFilterCardMain.enabled.value = false;
                 settings.crossFilter.crossFilterCardMain.useTransparency.value = true;
 
@@ -202,6 +214,17 @@ describe('VisualFormattingSettingsModel', () => {
             expect(
                 settings.contentFormatting.contentFormattingCardBehavior.format
             ).toBeDefined();
+        });
+
+        it('exposes renderMode defaulting to rebuild', () => {
+            const behavior =
+                settings.contentFormatting.contentFormattingCardBehavior;
+            expect(behavior.renderMode).toBeDefined();
+            expect(behavior.renderMode.value).toBe('rebuild');
+            expect(behavior.renderMode.value).toBe(
+                VisualConstants.contentFormatting.renderMode
+            );
+            expect(behavior.slices).toContain(behavior.renderMode);
         });
 
         it('should have showRawHtml setting', () => {
@@ -317,5 +340,136 @@ describe('VisualFormattingSettingsModel', () => {
                     .value
             ).toBe(70);
         });
+    });
+});
+
+describe('ContentFormattingCardBehavior enableDiagnostics', () => {
+    it('exposes enableDiagnostics off by default after showRawHtml', () => {
+        const model = new VisualFormattingSettingsModel();
+        const behavior = model.contentFormatting.contentFormattingCardBehavior;
+        expect(behavior.enableDiagnostics.value).toBe(false);
+        const names = behavior.slices.map((s: any) => s.name);
+        expect(names).toContain('enableDiagnostics');
+        expect(names.indexOf('enableDiagnostics')).toBeGreaterThan(
+            names.indexOf('showRawHtml')
+        );
+    });
+});
+
+describe('TemplatesSettings', () => {
+    it('exposes body + row templates with byte-identical defaults', () => {
+        const settings = new VisualFormattingSettingsModel();
+        const main = settings.templates.templatesCardMain;
+        expect(main.bodyTemplate.value).toBe('{{content}}');
+        // rowTemplate defaults to '' (not authored); resolveRowTemplate falls
+        // back to the compatibility-mode default — see
+        // test/template-engine.test.ts "resolveRowTemplate — per-mode defaults".
+        expect(main.rowTemplate.value).toBe('');
+        expect(main.slices).toContain(main.bodyTemplate);
+        expect(main.slices).toContain(main.rowTemplate);
+        expect(settings.cards).toContain(settings.templates);
+    });
+    it('bodyTemplate is conditional-formattable; rowTemplate is a plain property (no CF)', () => {
+        const main = new VisualFormattingSettingsModel().templates
+            .templatesCardMain;
+        // bodyTemplate retains single-value CF (ConstantOrRule = 3)
+        // VisualEnumerationInstanceKinds.ConstantOrRule = Constant(1) | Rule(2) = 3
+        expect(main.bodyTemplate.instanceKind).toBe(3);
+        // rowTemplate is a plain TextArea — no instanceKind set
+        expect(main.rowTemplate.instanceKind).toBeUndefined();
+    });
+});
+
+describe('CompatibilitySettings', () => {
+    it('registers the compatibility card on the model', () => {
+        const model = new VisualFormattingSettingsModel();
+        expect(model.compatibility).toBeDefined();
+        expect(model.cards).toContain(model.compatibility);
+    });
+
+    it('legacyRendering toggle defaults to false and binds object/property names', () => {
+        const model = new VisualFormattingSettingsModel();
+        const toggle =
+            model.compatibility.compatibilityCardMain.legacyRendering;
+        expect(toggle.name).toBe('legacyRendering');
+        expect(toggle.value).toBe(false);
+        expect(model.compatibility.name).toBe('compatibility');
+    });
+});
+
+describe('capabilities.json persistence parity', () => {
+    // A format slice only PERSISTS if it is declared in capabilities.json under
+    // its object's properties — the formatting-model class only builds the pane
+    // UI. A slice missing from capabilities renders in the pane but reverts to
+    // its default on the next update (the enableDiagnostics UAT bug).
+    it('declares every contentFormatting behavior slice so values persist', () => {
+        const model = new VisualFormattingSettingsModel();
+        const sliceNames =
+            model.contentFormatting.contentFormattingCardBehavior.slices.map(
+                (s: { name: string }) => s.name
+            );
+        const props = (
+            capabilities as {
+                objects: {
+                    contentFormatting: { properties: Record<string, unknown> };
+                };
+            }
+        ).objects.contentFormatting.properties;
+        for (const name of sliceNames) {
+            expect(
+                Object.prototype.hasOwnProperty.call(props, name),
+                `capabilities.json must declare contentFormatting.${name} or its value will not persist`
+            ).toBe(true);
+        }
+    });
+
+    it('declares enableDiagnostics as a bool property', () => {
+        const props = (
+            capabilities as {
+                objects: {
+                    contentFormatting: {
+                        properties: {
+                            enableDiagnostics?: { type?: { bool?: boolean } };
+                        };
+                    };
+                };
+            }
+        ).objects.contentFormatting.properties;
+        expect(props.enableDiagnostics?.type?.bool).toBe(true);
+    });
+
+    it('declares every compatibility slice so values persist', () => {
+        const model = new VisualFormattingSettingsModel();
+        const sliceNames = model.compatibility.compatibilityCardMain.slices.map(
+            (s: { name: string }) => s.name
+        );
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: { properties: Record<string, unknown> };
+                };
+            }
+        ).objects.compatibility.properties;
+        for (const name of sliceNames) {
+            expect(
+                Object.prototype.hasOwnProperty.call(props, name),
+                `capabilities.json must declare compatibility.${name} or its value will not persist`
+            ).toBe(true);
+        }
+    });
+
+    it('declares legacyRendering as a bool property', () => {
+        const props = (
+            capabilities as {
+                objects: {
+                    compatibility: {
+                        properties: {
+                            legacyRendering?: { type?: { bool?: boolean } };
+                        };
+                    };
+                };
+            }
+        ).objects.compatibility.properties;
+        expect(props.legacyRendering?.type?.bool).toBe(true);
     });
 });

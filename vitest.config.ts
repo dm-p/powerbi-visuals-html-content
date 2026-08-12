@@ -44,9 +44,15 @@ export default defineConfig({
         }
     },
     resolve: {
-        alias: {
-            '@': path.resolve(__dirname, './src')
-        },
+        alias: [
+            { find: '@', replacement: path.resolve(__dirname, './src') },
+            {
+                // Match the whole specifier (a RegExp alias replaces only the
+                // matched substring, so `/\.svg$/` alone would mangle the path).
+                find: /.*\.svg$/,
+                replacement: path.resolve(__dirname, './test/stubs/svg.ts')
+            }
+        ],
         extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json']
     }
 });

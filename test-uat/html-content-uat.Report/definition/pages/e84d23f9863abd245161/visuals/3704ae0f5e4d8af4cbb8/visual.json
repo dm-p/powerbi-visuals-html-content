@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
   "name": "3704ae0f5e4d8af4cbb8",
   "position": {
     "x": 336,
@@ -43,6 +43,13 @@
                   "Value": "true"
                 }
               }
+            },
+            "enableDiagnostics": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
             }
           }
         }
@@ -62,7 +69,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Rendered (Default Body Styling font, color, size)'"
+                  "Value": "'HTML Content Secure - Rendered (Default Body Styling font, color, size)'"
                 }
               }
             }

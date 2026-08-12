@@ -1,11 +1,17 @@
 // Internal dependencies
-import { visual } from '../pbiviz.json';
+import { RESOLVED_VISUAL, EDITION } from './visual-config.generated';
 
-import { RenderFormat } from './types';
+import { RenderFormat, RenderMode } from './types';
+import {
+    SCHEME_REGEXES,
+    SCHEME_SUBSTRINGS
+} from './sanitize/dangerous-patterns';
 
-// HTML element names the visual permits in sanitized output. Lowercase
-// to match DOMPurify's normalization. Anything not in this list (or
-// `svgTags`) is dropped entirely by the sanitizer.
+/**
+ * HTML element names the visual permits in sanitized output. Lowercase
+ * to match DOMPurify's normalization. Anything not in this list (or
+ * `svgTags`) is dropped entirely by the sanitizer.
+ */
 const htmlTags = [
     // HTML — block + sectioning
     'address',
@@ -93,28 +99,30 @@ const htmlTags = [
     'style'
 ];
 
-// SVG element names the visual permits. Drives both the allowed-tags
-// list AND the sanitizer's HTML-vs-SVG branch (denylist for SVG,
-// allowlist for HTML), so this is the single source of truth.
-//
-// SMIL animation elements (animate, animatemotion, animatetransform,
-// set) are permitted but locked down by two enforcement layers in
-// sanitize-pipeline.ts:
-//   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
-//      VisualConstants.allowedSchemesByTag), so the element's own
-//      href / xlink:href can only point at same-document fragments.
-//   2. SMIL_ATTRIBUTE_NAME_DENYLIST rejects animation that targets
-//      URL-bearing or sanitizer-bypass attributes (href, xlink:href,
-//      src, mask, clip-path, filter, marker-*, cursor, style, and
-//      the meta attributeName itself). The well-known SMIL bypass —
-//      `<animate attributeName="href" to="javascript:..."/>` to
-//      rewrite a sanitized URL post-load — is closed by this gate.
-//      Animation targeting safe presentation/geometry properties
-//      (opacity, transform, fill, stroke, cx, cy, d, etc.) is
-//      unrestricted.
-//
-// <use> is intentionally excluded — same-document references can pull
-// in attacker-controlled subtrees that bypass the sanitizer.
+/**
+ * SVG element names the visual permits. Drives both the allowed-tags
+ * list AND the sanitizer's HTML-vs-SVG branch (denylist for SVG,
+ * allowlist for HTML), so this is the single source of truth.
+ *
+ * SMIL animation elements (animate, animatemotion, animatetransform,
+ * set) are permitted but locked down by two enforcement layers in
+ * sanitize/backend.certified.ts:
+ *   1. Per-tag URL scheme allowlist set to fragment-only ([''] in
+ *      VisualConstants.allowedSchemesByTag), so the element's own
+ *      href / xlink:href can only point at same-document fragments.
+ *   2. SMIL_ATTRIBUTE_NAME_DENYLIST rejects animation that targets
+ *      URL-bearing or sanitizer-bypass attributes (href, xlink:href,
+ *      src, mask, clip-path, filter, marker-*, cursor, style, and
+ *      the meta attributeName itself). The well-known SMIL bypass —
+ *      `<animate attributeName="href" to="javascript:..."/>` to
+ *      rewrite a sanitized URL post-load — is closed by this gate.
+ *      Animation targeting safe presentation/geometry properties
+ *      (opacity, transform, fill, stroke, cx, cy, d, etc.) is
+ *      unrestricted.
+ *
+ * <use> is intentionally excluded — same-document references can pull
+ * in attacker-controlled subtrees that bypass the sanitizer.
+ */
 const svgTags = [
     // SVG — root, structural, shape
     'svg',
@@ -180,10 +188,26 @@ const svgTags = [
     'set'
 ];
 
+/**
+ * Central bag of compile-time constants for the visual: identity/edition,
+ * landing-page URLs, formatting defaults (mirroring the settings), DOM
+ * id/class selectors, diagnostics caps, and the sanitizer allowlists /
+ * denylists. Single source of truth consumed across the codebase.
+ */
 export const VisualConstants = {
-    visual: visual,
+    visual: RESOLVED_VISUAL,
+    edition: EDITION,
+    landingUrls: {
+        docs: RESOLVED_VISUAL.supportUrl,
+        quickStart: `${RESOLVED_VISUAL.supportUrl}/docs/simple-example`,
+        changelog: `${RESOLVED_VISUAL.supportUrl}/docs/change-log`,
+        github: RESOLVED_VISUAL.gitHubUrl,
+        sponsor: 'https://github.com/sponsors/dm-p',
+        coffee: 'https://buymeacoffee.com/dmp'
+    },
     contentFormatting: {
         format: <RenderFormat>'html',
+        renderMode: <RenderMode>'rebuild',
         showRawHtml: false,
         font: {
             family: "'Segoe UI', wf_segoe-ui_normal, helvetica, arial, sans-serif",
@@ -201,10 +225,23 @@ export const VisualConstants = {
         // reporters. Custom-stylesheet mode disables this gate entirely
         // regardless of the toggle's value.
         overrideInlineStyling: false,
-        noDataMessage: 'No data available to display'
+        noDataMessage: 'No data available to display',
+        // Off by default. When on (and the host supports modal dialogs) the
+        // diagnostics icon appears; it also arms the passive sanitizer sink
+        // and console capture. Does not affect rendered output.
+        enableDiagnostics: false
     },
     stylesheet: {
         stylesheet: ''
+    },
+    templates: {
+        body: '{{content}}',
+        // Legacy (v1.6) default: preserves 1.6's entry-div > inner-div
+        // nesting byte-for-byte. Modern default drops the inner wrapper.
+        // Selected per compatibility mode by resolveRowTemplate when the
+        // user has not authored a row template.
+        row: '<div><div>{{row}}</div></div>',
+        rowModern: '<div>{{row}}</div>'
     },
     crossFilter: {
         enabled: false,
@@ -214,6 +251,10 @@ export const VisualConstants = {
     dom: {
         viewerIdSelector: 'htmlViewer',
         entryClassSelector: 'htmlViewerEntry',
+        // Gates the W3.CSS 1.6-compat layer in style/visual.less; toggled on
+        // #htmlContent by the resolveContainer render step from the
+        // compatibility classification (legacy ON ⇒ class present).
+        legacyStylingClass: 'hc-legacy-v1',
         statusIdSelector: 'statusMessage',
         contentIdSelector: 'htmlContent',
         landingIdSelector: 'landingPage',
@@ -232,7 +273,62 @@ export const VisualConstants = {
         // inside #htmlContent to inherit the body styling instead of their
         // own embedded color/font-family/font-size/text-align values. Closes
         // issue #144 (office-paste residue overriding Default body styling).
-        defaultBodyStylingClass: 'uses-default-body-styling'
+        defaultBodyStylingClass: 'uses-default-body-styling',
+        // Internal sentinel used by resolveTemplateContainer to locate the
+        // body-template content slot during parse. The user's `{{content}}`
+        // token is substituted for an HTML comment carrying this value before
+        // the body template is parsed; a comment is valid in every content
+        // model and is not foster-parented (unlike a bare token or a
+        // context-invalid element), so it reliably marks the slot's position.
+        // A persistent invisible anchor comment with the same value is left at
+        // the slot after sanitization for row insertion. NOT the user-facing
+        // token — purely an implementation detail of slot resolution.
+        contentSlotMarker: 'HC:CONTENT',
+        // Declarative interactivity suppression. An author adds
+        // data-hc-suppress="filter context-menu tooltip" (or "all") to a node to
+        // make it + its descendants inert to the visual's cross-filter / context
+        // menu / tooltip handling, deferring to their own / native behaviour.
+        // Works in every edition because the visual reads the markup itself.
+        suppressAttr: 'data-hc-suppress',
+        suppressAllToken: 'all',
+        // Theme CSS variables. The constructor writes a dedicated <style>
+        // (themeVarsIdSelector) holding the :root { --pbi-theme-* } block, and
+        // reflects host high-contrast state as themeHighContrastClass on the
+        // #htmlContent container (so it shows in the Show-raw-HTML view) — authors
+        // branch in pure CSS (`.pbi-theme-hc …`).
+        // `hc-` is NOT used: it is this project's html-content token namespace.
+        themeVarsIdSelector: 'pbiThemeVars',
+        themeHighContrastClass: 'pbi-theme-hc'
+    },
+    diagnostics: {
+        dialogId: 'DiagnosticsDialog',
+        iconIdSelector: 'htmlDiagnosticsToggle',
+        // Snapshot caps (Decision 9) — bound the cross-iframe initialState
+        // for the multi-MB content authors push through this visual.
+        rawHtmlCapBytes: 512 * 1024,
+        sanitizerEntryCap: 1000,
+        consoleBufferCap: 200,
+        consoleLineCap: 2000,
+        // Above this raw length, skip span-colorization and render plain
+        // (escaped) text to avoid a token-span node explosion.
+        highlightSizeLimit: 200 * 1024,
+        // Host-event log (Events tab): ring-buffer size, and per-event context
+        // bounds (first N tooltip items, each value capped to eventContextCap).
+        eventBufferCap: 200,
+        eventContextItems: 3,
+        eventContextCap: 80,
+        // Dialog title is localized (Diagnostics_DialogTitle), resolved in
+        // visual.ts; only the size lives here.
+        dialog: {
+            size: { width: 900, height: 600 }
+        },
+        // Documentation pages linked from the Sanitizer tab. The dialog passes
+        // only a doc KEY back; the visual maps it to one of these URLs and
+        // launches via host.launchUrl — so only these known URLs can ever open.
+        docs: {
+            sanitization: 'https://html-content.com/docs/sanitization',
+            acceptedTags: 'https://html-content.com/docs/accepted-tags'
+        }
     },
     allowedSchemes: [],
     allowedSchemesByTag: <{ [index: string]: string[] }>{
@@ -241,7 +337,7 @@ export const VisualConstants = {
         a: ['http', 'https'],
         // For AppSource certification, img and SVG image tags must NOT load
         // external resources. Only data: URIs are permitted (sanitized by
-        // getSanitizedDataUri in sanitize-pipeline.ts).
+        // getSanitizedDataUri in sanitize/data-uri.ts).
         img: ['data'],
         image: ['data'],
         // SVG filter primitive that accepts an external image source.
@@ -281,91 +377,32 @@ export const VisualConstants = {
     htmlTags,
     svgTags,
     allowedTags: [...htmlTags, ...svgTags],
-    scriptingPatterns: [
-        'javascript:',
-        'javascript :',
-        'vbscript:',
-        'vbscript :',
-        'livescript:',
-        'livescript :',
-        'mocha:',
-        'data:text/html',
-        'data:text/javascript',
-        'data:application/javascript',
-        'data:application/x-javascript',
-        // All control characters (0x00-0x1F) for javascript obfuscation
-        'javas\x00cript',
-        'javas\x01cript',
-        'javas\x02cript',
-        'javas\x03cript',
-        'javas\x04cript',
-        'javas\x05cript',
-        'javas\x06cript',
-        'javas\x07cript',
-        'javas\x08cript',
-        'javas\x09cript',
-        'javas\x0Acript',
-        'javas\x0Bcript',
-        'javas\x0Ccript',
-        'javas\x0Dcript',
-        'javas\x0Ecript',
-        'javas\x0Fcript',
-        'javas\x10cript',
-        'javas\x11cript',
-        'javas\x12cript',
-        'javas\x13cript',
-        'javas\x14cript',
-        'javas\x15cript',
-        'javas\x16cript',
-        'javas\x17cript',
-        'javas\x18cript',
-        'javas\x19cript',
-        'javas\x1Acript',
-        'javas\x1Bcript',
-        'javas\x1Ccript',
-        'javas\x1Dcript',
-        'javas\x1Ecript',
-        'javas\x1Fcript',
-        // CSS-based attacks
-        'expression(',
-        'expression (',
-        '-moz-binding',
-        'behavior:',
-        'behavior :',
-        // URL functions that can be dangerous
-        'url(javascript',
-        'url( javascript',
-        'url(data:text/html',
-        'url( data:text/html',
-        'url(data:text/javascript',
-        'url( data:text/javascript',
-        'url(data:application/',
-        'url( data:application/',
-        'url(vbscript',
-        'url( vbscript'
-    ],
+    // Derived verbatim from the canonical SCHEME_SUBSTRINGS denylist so the
+    // HTML/URL substring scan shares one source of truth with the CSS scheme
+    // regexes. Do NOT re-literal these here — add new entries to
+    // sanitize/dangerous-patterns.ts.
+    scriptingPatterns: [...SCHEME_SUBSTRINGS],
     /**
-     * @deprecated Live CSS pattern enforcement now lives in
-     * `src/css-sanitizer.ts` under `DEFENSE_IN_DEPTH_PATTERNS` and the
-     * postcss-walker-based gates above it. This array is no longer
-     * read by `src/` runtime code — it survives only because several
-     * tests still pin its shape as documentation of the rule set.
+     * Dangerous-CSS regex denylist. The dangerous-scheme members (indices
+     * 2-6) are sourced from the canonical `SCHEME_REGEXES` rather than being
+     * re-literaled here, so the scheme knowledge lives in exactly one place
+     * (`sanitize/dangerous-patterns.ts`). The remaining members are
+     * CSS-specific (obfuscated `@import`, `expression(`, `-moz-binding:`,
+     * `behavior:`, and the url(...)-wrapped scheme variants) and have no
+     * equivalent in the shared scheme list, so they stay inline.
      *
-     * DO NOT add new entries here expecting them to gate sanitization.
-     * Any new dangerous-CSS pattern must be added to the live list in
-     * `css-sanitizer.ts`. The next time the test suite is reorganised,
-     * delete this field and repoint the assertions at the live source
-     * (`DEFENSE_IN_DEPTH_PATTERNS` would need to be exported from
-     * `css-sanitizer.ts` first).
+     * Member order is preserved deliberately: several security tests pin
+     * specific indices ([0] = obfuscated @import, [1] = expression,
+     * [2] = javascript) as documentation of the rule set.
      */
     cssDangerousPatterns: [
         /@[\s\\\/\*]*i[\s\\\/\*]*m[\s\\\/\*]*p[\s\\\/\*]*o[\s\\\/\*]*r[\s\\\/\*]*t/i,
         /expression\s*\(/i,
-        /javascript\s*:/i,
-        /vbscript\s*:/i,
-        /data\s*:\s*text\/html/i,
-        /data\s*:\s*text\/javascript/i,
-        /data\s*:\s*application\/javascript/i,
+        SCHEME_REGEXES[0], // /javascript\s*:/i
+        SCHEME_REGEXES[1], // /vbscript\s*:/i
+        SCHEME_REGEXES[4], // /data\s*:\s*text\/html/i
+        SCHEME_REGEXES[5], // /data\s*:\s*text\/javascript/i
+        SCHEME_REGEXES[6], // /data\s*:\s*application\/javascript/i
         /-moz-binding\s*:/i,
         /behavior\s*:/i,
         /url\s*\(\s*['"]?\s*javascript/i,

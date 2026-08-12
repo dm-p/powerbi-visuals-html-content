@@ -67,7 +67,7 @@ Once loaded, you will need to refresh the visual, as Power BI doesn't reload vis
 
 This tab is used to manually verify that all potential vulnerabilities are addressed and that common rendering cases are not sanitized.
 
-This page has the **HTML Content (lite)** visual already set up with a live render and a raw output version, which (if you're using the AppSource GUID and have reloaded) will require no further setup.
+This page has the **HTML Content Secure** visual already set up with a live render and a raw output version, which (if you're using the AppSource GUID and have reloaded) will require no further setup.
 
 When ready, use the slicer to navigate each test and visually confirm:
 
@@ -79,7 +79,7 @@ When ready, use the slicer to navigate each test and visually confirm:
 
 This tab is used to verify that CSS pasted into the visual's format pane > **Stylesheet** > **Custom stylesheet** setting is sanitized correctly. This is the third sanitization surface (per [`docs/sanitization-rules.md`](sanitization-rules.md)) and the only one whose sanitized output reaches the DOM via `<style id="visualUserStylesheet">` in the page `<head>` rather than the visual's content container.
 
-Its layout is similar to **Sanitizer Testing (Data Only)**, in that it has two instances of **HTML Content (lite)**: one showing rendered output and one showing raw output. The table shows both input HTML and CSS and their expected (sanitized) output for comparison/validation.
+Its layout is similar to **Sanitizer Testing (Data Only)**, in that it has two instances of **HTML Content Secure**: one showing rendered output and one showing raw output. The table shows both input HTML and CSS and their expected (sanitized) output for comparison/validation.
 
 There is a mix of clean and adversarial scenarios:
 
@@ -107,7 +107,7 @@ There is a mix of clean and adversarial scenarios:
 
 This tab is used to ensure that neither the regular edition nor the sanitizer has any side effects on content passed in, and to expect the user to [apply simpler styling via properties](https://html-content.com/docs/properties-content-formatting#default-body-styling).
 
-This page has three **HTML Content** visuals along the top row (red border) and three **HTML Content (lite)** visuals along the bottom row (yellow border). 
+This page has three **HTML Content** visuals along the top row (red border) and three **HTML Content Secure** visuals along the bottom row (yellow border). 
 
 As you apply each test via the slicer:
 
@@ -121,9 +121,9 @@ As you apply each test via the slicer:
 
 This tab is bound to `test-uat/hyperlinks.csv` and exercises the format-pane **Behavior** > **Allow opening URLs** toggle in its ON state. The default sanitizer state (toggle OFF) strips `href` from every `<a>` so the visual emits no clickable URL surface at all; this tab is the only place where the toggle-on rendering path is verified end-to-end against a live visual.
 
-This page has two **HTML Content** visuals along the top row (red border) and two **HTML Content (lite)** visuals along the bottom row (yellow border).
+This page has two **HTML Content** visuals along the top row (red border) and two **HTML Content Secure** visuals along the bottom row (yellow border).
 
-For each row, navigate via the slicer and visually confirm for the **HTML Content (lite)** visuals:
+For each row, navigate via the slicer and visually confirm for the **HTML Content Secure** visuals:
 
 1. **Positive rows** (`hyperlinks-clean-*`) - the rendered link is visible and styled as a link (anchor tags pick up browser-default underline/cursor unless the body styling overrides them). 
 
@@ -149,3 +149,86 @@ If the sanitizer drops content you think should be safe, or fails to drop someth
 3. What you expected.
 
 The maintainers will add a corresponding entry to the regression corpus so the same case can never silently regress.
+
+## Theme CSS variables (`--pbi-theme-*`)
+
+The visual exposes the host theme's colors as `--pbi-theme-*` CSS custom
+properties (numbered `--pbi-theme-color-1…N` plus curated named colors such as
+`--pbi-theme-fg`, `--pbi-theme-bg`, `--pbi-theme-good`, `--pbi-theme-center`).
+Variable names mirror the JSON theme schema keys. Authors consume them directly
+in content or the Custom stylesheet — no need to hard-code hex values.
+
+**Probe:** the `Theme Color Probe` measure (in the `stylesheet` table of the UAT
+semantic model) is bound to the **HTML Content** visuals on the **Theme Tokens**
+page. It renders a labelled swatch grid — five `flex-wrap` sections (Theme,
+Sentiment, Divergent, High contrast, Other) — driven entirely by the variables.
+
+Verify:
+
+1. **Live theming** — switch the report theme (View > Themes). Every swatch
+   recolors to the new palette without editing the measure.
+2. **Dynamic count** — themes with fewer than 12 data colors leave the surplus
+   numbered swatches falling back to the foreground color (the `var(…, fg)`
+   chain), confirming we emit only the colors the host actually provides.
+3. **High contrast** — enable Windows high contrast. The "HIGH CONTRAST ACTIVE"
+   banner appears (the `.pbi-theme-hc` class is set on the document root) and the
+   named `fg`/`bg`/`fg-selected`/`hyperlink` swatches take their HC values. Values
+   are pass-through: the author decides how to adapt via `.pbi-theme-hc` in CSS.
+
+**Known limitation:** inline `srcdoc` iframes in author content are separate
+documents — neither the `:root` variables nor `.pbi-theme-hc` cascade into them.
+
+## Legacy (v1.6) rendering compatibility
+
+The visual classifies each instance once per session as legacy (v1.6) or
+modern rendering, persists the classification as
+`compatibility.legacyRendering`, and gates two quirks on it: the row DOM
+structure (double-`<div>` wrapper vs single) and a scoped W3.CSS compat layer
+(`img { vertical-align: middle }`, `line-height: 1.5`, border-box sizing,
+etc.). Migrated reports must keep rendering byte-identical to 1.6; new reports
+must not inherit any of it. See
+[the design doc](brainstorms/2026-07-27-legacy-rendering-compatibility-mode.md)
+for the classification heuristic and update-cycle discipline.
+
+Verify:
+
+1. **Migrated report classifies legacy ON.** Take a report bound to the
+   visual under its v1.6 GUID and swap it for the local/dev build of the 2.0
+   visual on an existing bound visual (do not delete and re-add). Rows render
+   the double-`<div>` structure, images sit flush with no extra vertical gap
+   (48px rows in the flags workbook, not 52px), and the format pane's
+   Compatibility > **Use legacy (v1.6) rendering** toggle shows ON.
+
+2. **Freshly added visual classifies modern OFF.** Drop a brand-new **HTML
+   Content** visual onto an empty canvas and bind data. Rows render the
+   single-`<div>` structure, none of the W3.CSS compat rules apply, and the
+   pane toggle shows OFF.
+
+3. **Toggle flip re-renders both gates.** With either report from above,
+   flip the pane toggle by hand in both directions. Row structure and compat
+   styling switch together, immediately, with no need to close and reopen
+   the report.
+
+4. **Unstamped report opened in view mode never persists.** Open a report
+   that has data but no `compatibility.legacyRendering` marker yet (e.g. a
+   pre-release 2.0 UAT workbook) in the Power BI **Service** or Desktop
+   reading view — not edit mode. It renders legacy per the heuristic, but
+   closing the report (or navigating away) triggers no "unsaved changes"
+   prompt — confirming the classification never wrote back to the report
+   in view mode.
+
+5. **Rendering events stay 1:1.** With Performance Analyzer (or the
+   certified-edition rendering-event log) open, step through cases 1–4 in
+   both view and edit mode. Every `update` pairs with exactly one
+   `renderingFinished`/`renderingFailed` — including the extra update caused
+   by the persist echo when a marker is first stamped in edit mode. No
+   perpetual spinner, no doubled or dropped events.
+
+6. **Format-pane "Reset to default" on the Compatibility card.** With a
+   report already classified (marker present, either value), open the
+   format pane, right-click the Compatibility card, and choose **Reset to
+   default**. The mode does **not** flip to the toggle's nominal default —
+   rendering keeps whatever the session had resolved, and the marker is
+   immediately re-stamped with that same value on the next update. This is
+   by design: a reset is treated as a fresh persist-worthy event, not as a
+   request to revert to modern/legacy defaults.

@@ -1,18 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import LandingPageHandler from '../src/landing-page-handler';
+import { LandingPageHandler } from '../src/landing';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
-
-// Mock the resolveScrollableContent function which uses OverlayScrollbars
-vi.mock('../src/domain-utils', async importOriginal => {
-    const original = await importOriginal<
-        typeof import('../src/domain-utils')
-    >();
-    return {
-        ...original,
-        resolveScrollableContent: vi.fn()
-    };
-});
 
 describe('LandingPageHandler', () => {
     let handler: LandingPageHandler;
@@ -101,26 +90,23 @@ describe('LandingPageHandler', () => {
     });
 
     describe('render', () => {
-        it('should create landing page container with proper classes', () => {
+        it('renders the splash container with the class prefix', () => {
             handler.handleLandingPage(false, mockHost);
-
             const container = mockElement.select('.html-display-landing-page');
             expect(container.empty()).toBe(false);
+            expect(container.classed('hc-landing')).toBe(true);
         });
 
-        it('should call localisationManager for text content', () => {
+        it('localizes the headline via the localisation manager', () => {
             handler.handleLandingPage(false, mockHost);
-
-            // Should have called getDisplayName for the overview texts
-            expect(mockLocalisationManager.getDisplayName).toHaveBeenCalled();
+            expect(mockLocalisationManager.getDisplayName).toHaveBeenCalledWith(
+                'Landing_Headline'
+            );
         });
 
-        it('should create a help button', () => {
+        it('renders no W3.CSS classes', () => {
             handler.handleLandingPage(false, mockHost);
-
-            const button = mockElement.select('button');
-            expect(button.empty()).toBe(false);
-            expect(button.text()).toBe('?');
+            expect(mockElement.node().innerHTML).not.toMatch(/\bw3-/);
         });
     });
 });

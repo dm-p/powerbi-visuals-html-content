@@ -89,6 +89,10 @@ describe('VisualConstants', () => {
             expect(VisualConstants.dom.manualTooltipDataPrefix).toBe('tooltip');
             expect(VisualConstants.dom.manualTooltipDataTitle).toBe('Title');
             expect(VisualConstants.dom.manualTooltipDataValue).toBe('Value');
+            expect(VisualConstants.dom.themeVarsIdSelector).toBe('pbiThemeVars');
+            expect(VisualConstants.dom.themeHighContrastClass).toBe(
+                'pbi-theme-hc'
+            );
         });
     });
 
@@ -269,5 +273,28 @@ describe('VisualConstants', () => {
                 expect(pattern.flags).toContain('i');
             });
         });
+    });
+});
+
+describe('diagnostics constants', () => {
+    it('defaults enableDiagnostics off', () => {
+        expect(VisualConstants.contentFormatting.enableDiagnostics).toBe(false);
+    });
+    it('exposes tunable caps and dialog config', () => {
+        const d = VisualConstants.diagnostics;
+        expect(d.dialogId).toBe('DiagnosticsDialog');
+        expect(d.rawHtmlCapBytes).toBeGreaterThan(0);
+        expect(d.sanitizerEntryCap).toBeGreaterThan(0);
+        expect(d.consoleBufferCap).toBeGreaterThan(0);
+        expect(d.consoleLineCap).toBeGreaterThan(0);
+        expect(d.highlightSizeLimit).toBeGreaterThan(0);
+        expect(d.iconIdSelector).toBe('htmlDiagnosticsToggle');
+        expect(d.dialog.size.width).toBeGreaterThan(0);
+    });
+    it('exposes bounded host-event caps', () => {
+        const d = VisualConstants.diagnostics;
+        expect(d.eventBufferCap).toBeGreaterThan(0);
+        expect(d.eventContextItems).toBeGreaterThan(0);
+        expect(d.eventContextCap).toBeGreaterThan(0);
     });
 });

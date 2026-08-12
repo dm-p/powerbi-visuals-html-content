@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-    getSanitizedHtmlForTesting,
-    getSanitizedCss
-} from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
+import { getSanitizedCss, parseAndSanitizeInContext } from '../src/sanitize';
 
 /**
  * End-to-end smoke tests for src/sanitize-pipeline.ts. These exercise the
@@ -109,10 +107,10 @@ describe('sanitize-pipeline end-to-end', () => {
         it('preserves CSS variables (:root + var()) through <style>-in-data', () => {
             const out = getSanitizedHtmlForTesting(
                 '<style id="visualUserStylesheet" type="text/css">' +
-                ':root { --bg: #fff; --color: #111; }' +
-                '.card { background: var(--bg); color: var(--color); }' +
-                '</style>' +
-                '<div class="card">x</div>',
+                    ':root { --bg: #fff; --color: #111; }' +
+                    '.card { background: var(--bg); color: var(--color); }' +
+                    '</style>' +
+                    '<div class="card">x</div>',
                 'html'
             );
             expect(out).toContain('--bg');
@@ -124,10 +122,10 @@ describe('sanitize-pipeline end-to-end', () => {
         it('preserves clamp() and rgba() through <style>-in-data', () => {
             const out = getSanitizedHtmlForTesting(
                 '<style>' +
-                '.card { font-size: clamp(12px, 3vw, 16px); ' +
-                'box-shadow: 0 2px 6px rgba(0,0,0,0.2); }' +
-                '</style>' +
-                '<div class="card">x</div>',
+                    '.card { font-size: clamp(12px, 3vw, 16px); ' +
+                    'box-shadow: 0 2px 6px rgba(0,0,0,0.2); }' +
+                    '</style>' +
+                    '<div class="card">x</div>',
                 'html'
             );
             expect(out).toContain('clamp(');
@@ -137,12 +135,12 @@ describe('sanitize-pipeline end-to-end', () => {
         it('preserves @media containing CSS variables through <style>-in-data', () => {
             const out = getSanitizedHtmlForTesting(
                 '<style>' +
-                ':root { --pad: 16px; }' +
-                '@media (max-width: 600px) { ' +
-                '.card { padding: var(--pad); font-size: clamp(12px, 3vw, 16px) !important; } ' +
-                '}' +
-                '</style>' +
-                '<div class="card">x</div>',
+                    ':root { --pad: 16px; }' +
+                    '@media (max-width: 600px) { ' +
+                    '.card { padding: var(--pad); font-size: clamp(12px, 3vw, 16px) !important; } ' +
+                    '}' +
+                    '</style>' +
+                    '<div class="card">x</div>',
                 'html'
             );
             expect(out).toContain('@media');
@@ -266,7 +264,7 @@ describe('sanitize-pipeline end-to-end', () => {
         // export pipeline) still drops them at this layer.
         it('drops data:image/svg+xml with embedded <script>', () => {
             const out = getSanitizedHtmlForTesting(
-                "<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>\">",
+                '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><script>alert(1)</script></svg>">',
                 'html'
             );
             expect(out).not.toContain('alert');
@@ -330,6 +328,58 @@ describe('sanitize-pipeline end-to-end', () => {
         });
     });
 
+    // An element carrying an on* handler is dropped ENTIRELY — element AND
+    // its subtree — not merely stripped of the handler attribute. These
+    // assert the *content* is gone, which `notContains: ['on…']` corpus
+    // entries do not (they pass even if the child content survives). Phase 1
+    // of the drop empties the subtree in uponSanitizeElement so a DISALLOWED
+    // container's children cannot be hoisted out by DOMPurify's KEEP_CONTENT
+    // before phase 2 removes the element in afterSanitizeElements.
+    describe('event-handler element drop (whole subtree)', () => {
+        it('drops a disallowed container and its text (marquee)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<marquee onstart="alert(1)">SECRET</marquee>',
+                'html'
+            );
+            expect(out).not.toContain('onstart');
+            expect(out).not.toContain('alert');
+            // The text content must NOT survive via KEEP_CONTENT hoisting.
+            expect(out).not.toContain('SECRET');
+        });
+
+        it('drops an allowed container and its text (div)', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<div onclick="evil()">SECRET</div>',
+                'html'
+            );
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('SECRET');
+        });
+
+        it('drops the whole subtree, including nested elements', () => {
+            const out = getSanitizedHtmlForTesting(
+                '<marquee onstart="x"><a href="https://e.example/">LINK</a></marquee>',
+                'html'
+            );
+            expect(out).not.toContain('onstart');
+            expect(out).not.toContain('LINK');
+            expect(out).not.toContain('e.example');
+        });
+
+        it('drops an on*-bearing SVG child without throwing', () => {
+            // Regression guard for the DOMPurify 3.4.x parentless-removal
+            // throw: emptying (not detaching) in phase 1 keeps the node
+            // parented through the namespace check.
+            const out = getSanitizedHtmlForTesting(
+                '<svg><rect onclick="alert(1)" width="10" height="10"><title>SECRET</title></rect></svg>',
+                'html'
+            );
+            expect(out).not.toContain('onclick');
+            expect(out).not.toContain('alert');
+            expect(out).not.toContain('SECRET');
+        });
+    });
+
     describe('getSanitizedCss direct', () => {
         it('preserves safe rule', () => {
             const out = getSanitizedCss('p { color: red; }');
@@ -338,9 +388,7 @@ describe('sanitize-pipeline end-to-end', () => {
         });
 
         it('drops dangerous declaration', () => {
-            const out = getSanitizedCss(
-                'p { background: url(https://evil); }'
-            );
+            const out = getSanitizedCss('p { background: url(https://evil); }');
             expect(out).not.toContain('evil');
         });
     });
@@ -479,64 +527,59 @@ describe('sanitize-pipeline end-to-end', () => {
         // Each fixture pairs an input with the element-content
         // substring expected to survive sanitization. The element
         // itself must remain — only the href attribute is dropped.
-        const htmlFixtures: ReadonlyArray<readonly [string, string, string]> =
+        const htmlFixtures: ReadonlyArray<readonly [string, string, string]> = [
             [
-                [
-                    'div',
-                    '<div href="https://evil.example">marker-div</div>',
-                    'marker-div'
-                ],
-                [
-                    'span',
-                    '<span href="https://evil.example">marker-span</span>',
-                    'marker-span'
-                ],
-                [
-                    'p',
-                    '<p href="https://evil.example">marker-p</p>',
-                    'marker-p'
-                ],
-                [
-                    'h1',
-                    '<h1 href="https://evil.example">marker-h1</h1>',
-                    'marker-h1'
-                ],
-                [
-                    'li',
-                    '<ul><li href="https://evil.example">marker-li</li></ul>',
-                    'marker-li'
-                ],
-                [
-                    'td',
-                    '<table><tbody><tr><td href="https://evil.example">marker-td</td></tr></tbody></table>',
-                    'marker-td'
-                ],
-                [
-                    'code',
-                    '<code href="https://evil.example">marker-code</code>',
-                    'marker-code'
-                ],
-                [
-                    'blockquote',
-                    '<blockquote href="https://evil.example">marker-bq</blockquote>',
-                    'marker-bq'
-                ],
-                [
-                    'strong',
-                    '<strong href="https://evil.example">marker-strong</strong>',
-                    'marker-strong'
-                ],
-                [
-                    'em',
-                    '<em href="https://evil.example">marker-em</em>',
-                    'marker-em'
-                ],
-                [
-                    'img (no inner text — assert attribute removal only)',
-                    '<img src="data:image/png;base64,iVBORw0KGgo=" href="https://evil.example" alt="marker-img">',
-                    'marker-img'
-                ]
-            ] as const;
+                'div',
+                '<div href="https://evil.example">marker-div</div>',
+                'marker-div'
+            ],
+            [
+                'span',
+                '<span href="https://evil.example">marker-span</span>',
+                'marker-span'
+            ],
+            ['p', '<p href="https://evil.example">marker-p</p>', 'marker-p'],
+            [
+                'h1',
+                '<h1 href="https://evil.example">marker-h1</h1>',
+                'marker-h1'
+            ],
+            [
+                'li',
+                '<ul><li href="https://evil.example">marker-li</li></ul>',
+                'marker-li'
+            ],
+            [
+                'td',
+                '<table><tbody><tr><td href="https://evil.example">marker-td</td></tr></tbody></table>',
+                'marker-td'
+            ],
+            [
+                'code',
+                '<code href="https://evil.example">marker-code</code>',
+                'marker-code'
+            ],
+            [
+                'blockquote',
+                '<blockquote href="https://evil.example">marker-bq</blockquote>',
+                'marker-bq'
+            ],
+            [
+                'strong',
+                '<strong href="https://evil.example">marker-strong</strong>',
+                'marker-strong'
+            ],
+            [
+                'em',
+                '<em href="https://evil.example">marker-em</em>',
+                'marker-em'
+            ],
+            [
+                'img (no inner text — assert attribute removal only)',
+                '<img src="data:image/png;base64,iVBORw0KGgo=" href="https://evil.example" alt="marker-img">',
+                'marker-img'
+            ]
+        ] as const;
 
         const svgFixtures: ReadonlyArray<
             readonly [string, string, string | null]
@@ -609,28 +652,25 @@ describe('sanitize-pipeline end-to-end', () => {
             }
         );
 
-        describe.each(svgFixtures)(
-            'SVG <%s> + href',
-            (_tag, input, marker) => {
-                it.each([
-                    ['allowHyperlinks: false (default)', false],
-                    ['allowHyperlinks: true', true]
-                ])('drops href with %s', (_label, allow) => {
-                    const out = getSanitizedHtmlForTesting(input, 'html', {
-                        allowHyperlinks: allow as boolean
-                    });
-                    // `href=` rather than substring `href` — the MS cert
-                    // scanner greps for attribute syntax, and the `=` rules
-                    // out `hreflang` collisions if a future fixture mixes
-                    // a sibling <a> with hreflang into the same payload.
-                    expect(out).not.toContain('href=');
-                    expect(out).not.toContain('evil.example');
-                    if (marker !== null) {
-                        expect(out).toContain(marker);
-                    }
+        describe.each(svgFixtures)('SVG <%s> + href', (_tag, input, marker) => {
+            it.each([
+                ['allowHyperlinks: false (default)', false],
+                ['allowHyperlinks: true', true]
+            ])('drops href with %s', (_label, allow) => {
+                const out = getSanitizedHtmlForTesting(input, 'html', {
+                    allowHyperlinks: allow as boolean
                 });
-            }
-        );
+                // `href=` rather than substring `href` — the MS cert
+                // scanner greps for attribute syntax, and the `=` rules
+                // out `hreflang` collisions if a future fixture mixes
+                // a sibling <a> with hreflang into the same payload.
+                expect(out).not.toContain('href=');
+                expect(out).not.toContain('evil.example');
+                if (marker !== null) {
+                    expect(out).toContain(marker);
+                }
+            });
+        });
 
         // xlink:href on non-<a> SVG elements: same gate, separate
         // attribute. The SVG default-deny path covers both `href` and
@@ -697,5 +737,114 @@ describe('sanitize-pipeline end-to-end', () => {
                 }
             }
         });
+    });
+});
+
+/**
+ * Unit 4 — in-context parse + in-place sanitize entry point.
+ *
+ * `parseAndSanitizeInContext` parses an HTML string in the content model
+ * of a live container element (so `<tr>`/`<td>` survive without being
+ * foster-parented out of the fragment) and sanitizes the parsed node(s)
+ * IN PLACE. It must strip dangerous markup identically to the string
+ * path (`getSanitizedContent`), and the `<style>` backstop must still
+ * fire on the node path.
+ */
+describe('parseAndSanitizeInContext', () => {
+    it('parses <tr> in a <tbody> context without foster-parenting', () => {
+        const tbody = document.createElement('tbody');
+        const frag = parseAndSanitizeInContext(
+            '<tr><td>cell</td></tr>',
+            'html',
+            tbody
+        );
+        const tr = frag.firstElementChild!;
+        expect(tr.tagName).toBe('TR');
+        expect(tr.querySelector('td')?.textContent).toBe('cell');
+    });
+
+    it('strips dangerous markup identically to the string path', () => {
+        const div = document.createElement('div');
+        const frag = parseAndSanitizeInContext(
+            '<img src=x onerror="alert(1)"><script>bad()</script>',
+            'html',
+            div
+        );
+        const html = Array.from(frag.childNodes)
+            .map((n) => (n as Element).outerHTML ?? '')
+            .join('');
+        expect(html).not.toContain('onerror');
+        expect(html).not.toContain('<script');
+    });
+
+    it('sanitizes a <style> body inside a template (backstop fires)', () => {
+        const div = document.createElement('div');
+        const frag = parseAndSanitizeInContext(
+            '<style>a{background:url(javascript:alert(1))}</style>',
+            'html',
+            div
+        );
+        expect(
+            (frag.firstElementChild as HTMLElement)?.innerHTML ?? ''
+        ).not.toContain('javascript');
+    });
+
+    it('strips top-level comment nodes (parity with the string path)', () => {
+        const div = document.createElement('div');
+        const frag = parseAndSanitizeInContext(
+            '<!--[if IE]><script>alert(1)</script><![endif]--><div>ok</div>',
+            'html',
+            div
+        );
+        // no comment node survives at the top level
+        const hasComment = Array.from(frag.childNodes).some(
+            (n) => n.nodeType === Node.COMMENT_NODE
+        );
+        expect(hasComment).toBe(false);
+        // the legitimate element is preserved
+        expect(frag.querySelector('div')?.textContent).toBe('ok');
+        // no script element was ever created
+        expect(frag.querySelector('script')).toBeNull();
+    });
+
+    it('preserves inert top-level text nodes', () => {
+        const div = document.createElement('div');
+        const frag = parseAndSanitizeInContext(
+            'plain text<div>x</div>',
+            'html',
+            div
+        );
+        expect(frag.textContent).toContain('plain text');
+        expect(frag.querySelector('div')?.textContent).toBe('x');
+    });
+});
+
+describe('sanitizeFragmentInPlace — certified backend', () => {
+    // The certified backend (the default this suite compiles against) strips
+    // dangerous markup: the element hook removes any element carrying an on*
+    // handler, so a <div onclick="x()"> is dropped entirely. The passthrough
+    // backend's no-op counterpart is covered in test/sanitize-passthrough.test.ts.
+    it('removes an onclick element', async () => {
+        const { sanitizeFragmentInPlace } = await import('../src/sanitize');
+        const frag = document.createDocumentFragment();
+        const div = document.createElement('div');
+        div.setAttribute('onclick', 'x()');
+        frag.appendChild(div);
+        sanitizeFragmentInPlace(frag);
+        // The element hook drops any element with an on* handler; the div is gone.
+        expect(frag.querySelector('div')).toBeNull();
+    });
+});
+
+describe('getSanitizedCss — certified backend', () => {
+    // The certified backend (this suite's default) sanitizes the custom
+    // stylesheet — a dangerous url() is stripped. The passthrough backend's
+    // verbatim-passthrough counterpart is covered in
+    // test/sanitize-passthrough.test.ts.
+    it('sanitizes the custom stylesheet', () => {
+        const out = getSanitizedCss(
+            'p { background: url(javascript:alert(1)); }'
+        );
+        expect(out).not.toContain('javascript');
     });
 });

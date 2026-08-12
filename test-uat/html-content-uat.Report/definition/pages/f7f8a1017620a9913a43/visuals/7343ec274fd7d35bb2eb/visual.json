@@ -1,13 +1,13 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
   "name": "7343ec274fd7d35bb2eb",
   "position": {
     "x": 880,
     "y": 736.00000000000011,
-    "z": 6000,
+    "z": 5000,
     "height": 336,
     "width": 528,
-    "tabOrder": 6000
+    "tabOrder": 5000
   },
   "visual": {
     "visualType": "htmlContent443BE3AD55E043BF878BED274D3A6865",
@@ -76,6 +76,13 @@
                   "Value": "false"
                 }
               }
+            },
+            "enableDiagnostics": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
             }
           }
         }
@@ -95,7 +102,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'HTML Content (lite) - Rendered (Overridden Body Styling font, color, size, center align)'"
+                  "Value": "'HTML Content Secure - Rendered (Overridden Body Styling font, color, size, center align)'"
                 }
               }
             }

@@ -1,6 +1,7 @@
 ---
 title: Show Raw HTML toggle HTML-encoded attribute values via .outerHTML (issue #76)
 date: 2026-05-15
+last_updated: 2026-06-19
 category: ui-bugs
 module: src/domain-utils.ts
 problem_type: ui_bug
@@ -31,7 +32,7 @@ tags:
 
 ## Problem
 
-The "Show Raw HTML" toggle in the Power BI visual's format pane is the only debug surface available to report authors inside Power BI Desktop, since Desktop has no developer tools. Authors use this textarea to introspect what the visual actually rendered after the sanitizer ran — to confirm their HTML/CSS arrived intact, or to see what was stripped.
+The "Show Raw HTML" toggle in the Power BI visual's format pane is a debug surface for report authors inside Power BI Desktop, since Desktop has no developer tools. Authors use this textarea to introspect what the visual actually rendered after the sanitizer ran — to confirm their HTML/CSS arrived intact, or to see what was stripped. (The **diagnostics dialog** shipped in [#165](https://github.com/dm-p/powerbi-visuals-html-content/pull/165) reuses this same serializer for its Raw HTML tab, alongside Sanitizer and Console tabs — see [Related Issues](#related-issues).)
 
 The previous implementation in `src/domain-utils.ts` used `container.node().outerHTML` to populate that textarea. `.outerHTML` is the HTML-spec serializer: it produces a string that re-parses identically, which means it entity-encodes special characters inside attribute values and text nodes. Authors looking at the textarea saw `&amp;`, `&lt;`, and `&quot;` instead of the literal characters they had typed, and reasonably concluded the visual had mangled their input. The DOM was fine; only the debug display was misleading.
 
@@ -216,6 +217,7 @@ it('reproduces issue #76 verbatim — iframe with & in src serialized correctly 
 - [GitHub issue #76](https://github.com/dm-p/powerbi-visuals-html-content/issues/76) — origin bug report (iframe URL with `&` showing as `&amp;` in raw HTML view).
 - [docs/brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md](../brainstorms/2026-05-14-fix-show-raw-html-entity-encoding.md) — the brainstorm that established the dev-tools-style contract (status: implemented).
 - [docs/plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md](../plans/2026-05-14-001-fix-show-raw-html-dev-tools-style-serializer-plan.md) — the implementation plan (status: completed).
+- [docs/solutions/architecture-patterns/powerbi-modal-dialog-diagnostics-snapshot-result-roundtrip-2026-06-19.md](../architecture-patterns/powerbi-modal-dialog-diagnostics-snapshot-result-roundtrip-2026-06-19.md) — the diagnostics dialog whose Raw HTML tab reuses this serializer; documents the sandboxed-`IDialogHost` snapshot-in / result-out pattern.
 
 ### Relevant files
 

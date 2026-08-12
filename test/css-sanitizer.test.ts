@@ -1,5 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { sanitizeCss } from '../src/css-sanitizer';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { sanitizeCss } from '../src/sanitize/css';
+import {
+    beginCapture,
+    endCapture
+} from '../src/diagnostics/diagnostics-sink';
 
 describe('sanitizeCss', () => {
     describe('declaration-list mode', () => {
@@ -1267,5 +1271,26 @@ describe('parse failure (Task 13)', () => {
     it('returns empty for empty input without calling parse', () => {
         expect(sanitizeCss('', 'stylesheet')).toBe('');
         expect(sanitizeCss('', 'declaration-list')).toBe('');
+    });
+});
+
+describe('css-sanitizer instrumentation', () => {
+    beforeEach(() => endCapture());
+
+    it('is byte-identical with capture armed vs disarmed', () => {
+        const css =
+            'p { color: red; behavior: url(x); background: url(javascript:1) }';
+        const disarmed = sanitizeCss(css, 'stylesheet');
+        beginCapture();
+        const armed = sanitizeCss(css, 'stylesheet');
+        endCapture();
+        expect(armed).toBe(disarmed);
+    });
+
+    it('records a dropped declaration with kind css', () => {
+        beginCapture();
+        sanitizeCss('p { color: red; behavior: url(x) }', 'stylesheet');
+        const cap = endCapture();
+        expect(cap.entries.some((e) => e.kind === 'css')).toBe(true);
     });
 });

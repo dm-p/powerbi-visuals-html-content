@@ -52,7 +52,7 @@ The prior reasoning that produced both over-broad blocks:
 
 ### Fix A — `data:image/svg+xml` allowance
 
-`getSanitizedDataUri` in [src/sanitize-pipeline.ts:613-665](../../../src/sanitize-pipeline.ts#L613-L665) had an allowlist of raster MIME types only and required `;base64,` unconditionally. Both gates were tightened to be MIME-conditional.
+`getSanitizedDataUri` in [src/sanitize/backend.certified.ts](../../../src/sanitize/backend.certified.ts) had an allowlist of raster MIME types only and required `;base64,` unconditionally. Both gates were tightened to be MIME-conditional.
 
 **Before:**
 
@@ -132,7 +132,7 @@ return true;
 
 ### Fix B — SMIL animation re-allow with `attributeName` denylist
 
-Two enforcement layers, in [src/visual-constants.ts](../../../src/visual-constants.ts) and [src/sanitize-pipeline.ts](../../../src/sanitize-pipeline.ts).
+Two enforcement layers, in [src/visual-constants.ts](../../../src/visual-constants.ts) and [src/sanitize/backend.certified.ts](../../../src/sanitize/backend.certified.ts).
 
 **Layer 1 — tag allowlist + per-tag URL scheme** (visual-constants.ts):
 
@@ -152,7 +152,7 @@ animatetransform: [''],
 set: ['']
 ```
 
-**Layer 2 — `attributeName` denylist** in [src/sanitize-pipeline.ts:51-93](../../../src/sanitize-pipeline.ts#L51-L93):
+**Layer 2 — `attributeName` denylist** in [src/sanitize/backend.certified.ts](../../../src/sanitize/backend.certified.ts):
 
 ```ts
 const SMIL_TAGS = new Set<string>([
@@ -179,7 +179,7 @@ const SMIL_ATTRIBUTE_NAME_DENYLIST = new Set<string>([
 ]);
 ```
 
-The hook check at [src/sanitize-pipeline.ts:477-497](../../../src/sanitize-pipeline.ts#L477-L497):
+The hook check in [src/sanitize/backend.certified.ts](../../../src/sanitize/backend.certified.ts):
 
 ```ts
 // inside the per-attribute uponSanitizeAttribute hook

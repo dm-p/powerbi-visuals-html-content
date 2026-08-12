@@ -12,6 +12,7 @@ symptoms:
 root_cause: logic_error
 resolution_type: code_fix
 severity: high
+last_refreshed: 2026-06-12
 tags: [dynamic-format-strings, dataview-metadata, optional-chaining, powerbi-api, view-model, typeerror]
 ---
 
@@ -19,7 +20,9 @@ tags: [dynamic-format-strings, dataview-metadata, optional-chaining, powerbi-api
 
 ## Problem
 
-When a report measure uses a dynamic format string, Power BI injects an extra column into the table dataview (both `dataViews[0].table.columns` and `dataViews[0].metadata.columns`) that carries only `displayName`/`format` — no `roles` property. `ViewModelHandler` (src/view-model.ts) accessed `c.roles.<x>` unguarded at three sites, so the visual threw a TypeError and rendered an error state instead of content.
+When a report measure uses a dynamic format string, Power BI injects an extra column into the dataview (at the time, the `table` dataview — both `dataViews[0].table.columns` and `dataViews[0].metadata.columns`) that carries only `displayName`/`format` — no `roles` property. `ViewModelHandler` (src/view-model.ts) accessed `c.roles.<x>` unguarded at three sites, so the visual threw a TypeError and rendered an error state instead of content.
+
+> **Refreshed 2026-06-12:** the visual has since migrated from the `table` to a `categorical` dataViewMapping (WP-A, see [the migration spec](../../brainstorms/2026-06-12-categorical-data-mapping-selection-ids.md)). The failure class and the null-safe guards below survive the migration; the code excerpts have been updated to their current locations, and the adapter now adds a boundary-level exclusion on top (see Why This Works).
 
 ## Symptoms
 
@@ -36,37 +39,39 @@ When a report measure uses a dynamic format string, Power BI injects an extra co
 Point-guard every `.roles` access with optional chaining (completed across commits `ed3f5fc` and `6a4274d`):
 
 ```typescript
-// src/view-model.ts:97-99 — granularity check (mapDataView)
-const hasGranularity = dataViews[0].table.columns.some(
-    (c) => c.roles?.sampling
-);
+// src/view-model.ts (mapDataView) — granularity check; `columns` is the
+// simulated table from mapCategoricalToTable since the categorical migration
+const hasGranularity = columns.some((c) => c.roles?.sampling);
 
-// src/view-model.ts:139-141 — content column lookup (runs first, via validateDataView)
+// src/view-model.ts — content column lookup (runs first, via validateDataView)
 private getContentMetadataIndex(columns: DataViewMetadataColumn[]) {
     return columns.findIndex((c) => c.roles?.content);
 }
 
-// src/view-model.ts:162 — tooltip role check (getTooltipData)
-if (c.roles?.[role]) {
+// src/view-model.ts (getTooltipColumns) — tooltip role check; formerly in
+// getTooltipData before tooltip-column resolution was hoisted out of the row loop
+.filter(({ column }) => column.roles?.[role])
 ```
 
-Regression tests (commit `175d71a`, test/view-model.test.ts) each include a roles-less column literal `{ displayName: 'Format', format: '0.0%' }`, placed **before** the role-bearing columns to defeat short-circuit masking:
+Regression tests (test/view-model.test.ts) each include a roles-less column literal `{ displayName: 'Format', format: '0.0%' }` (or `__Format`), placed **before** the role-bearing columns to defeat short-circuit masking. Originally added in commit `175d71a`; ported to categorical-shaped fixtures during the WP-A migration under the names `should ignore roles-less metadata columns without throwing (#159)`, `should map data and granularity when a roles-less column is present (#159)`, and `should exclude roles-less columns from tooltips (#159)`:
 
 ```typescript
-it('should ignore columns without roles (dynamic format strings) when locating content column', () => {
+it('should ignore roles-less metadata columns without throwing (#159)', () => {
     // fixture elided — metadata.columns (order matters) is:
-    //   [{ displayName: 'Format', format: '0.0%' },
-    //    { roles: { content: true }, displayName: 'HTML' }]
+    //   [{ displayName: '__Format', queryName: 'fq' },           // no roles key
+    //    { roles: { content: true }, displayName: 'HTML', ... }]
     handler.validateDataView(dataViews);
     expect(handler.viewModel.isValid).toBe(true);
     expect(handler.viewModel.contentIndex).toBe(1);
+    // ...mapDataView also asserted not to throw, entries unaffected
 });
 ```
 
 ## Why This Works
 
 - With `?.`, an undefined `roles` evaluates to `undefined` (falsy): `some()` skips the column, `findIndex()` keeps scanning past it, and the tooltip `if` excludes it — the injected column is ignored everywhere without disturbing real columns.
-- **Point-guards are the right altitude here, not boundary filtering.** Columns and row cells are positionally linked: `contentIndex` (from `findIndex` over `metadata.columns`) is consumed as `row[this.viewModel.contentIndex]`, and `getTooltipData` reads `row[i]` by column index. Filtering roles-less columns out of the columns array without transforming every row would desynchronize indices and silently read the wrong cells — worse than the crash.
+- **Point-guards were the right altitude under the `table` mapping, where boundary filtering was unsafe.** Columns and row cells are positionally linked: filtering roles-less columns out of a host-provided columns array without transforming every host-provided row would desynchronize indices and silently read the wrong cells — worse than the crash.
+- **Since the categorical migration, boundary filtering became safe and is the first line of defense.** The adapter ([src/categorical-table.ts](../../../src/categorical-table.ts), `hasAnyRole`) excludes roles-less columns *and* constructs the rows from the same filtered column set, so indices cannot desync. Roles-less columns now never reach the view model at all; the point-guards above remain as defense-in-depth (and still protect `validateDataView`, which reads raw `metadata.columns` before the adapter runs).
 
 ## Prevention
 

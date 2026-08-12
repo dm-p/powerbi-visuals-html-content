@@ -1,11 +1,14 @@
 import { vi } from 'vitest';
 
-// Mock powerbi global object required by visual-settings.ts
+// Provide powerbi as a global so that source files that reference
+// powerbi.VisualEnumerationInstanceKinds (etc.) at class-field initialisation
+// time find the correct runtime values.  const-enums from powerbi-visuals-api
+// are NOT inlined by esbuild/vitest, so explicit numeric literals are required.
 (global as any).powerbi = {
     VisualEnumerationInstanceKinds: {
-        ConstantOrRule: 0,
         Constant: 1,
-        Rule: 2
+        Rule: 2,
+        ConstantOrRule: 3 // Constant(1) | Rule(2)
     },
     visuals: {
         ValidatorType: {
@@ -57,6 +60,43 @@ vi.mock('overlayscrollbars', () => {
         OverlayScrollbars: mockFn
     };
 });
+
+// Mock powerbi-visuals-api to provide const-enum runtime values that
+// esbuild/vitest does NOT inline from the package's TypeScript declarations.
+// Spreads the real module so version/schemas are preserved.
+vi.mock('powerbi-visuals-api', async (importOriginal) => {
+    const original = await importOriginal<any>();
+    const real = original?.default ?? original ?? {};
+    return {
+        ...original,
+        default: {
+            ...real,
+            VisualEnumerationInstanceKinds: {
+                Constant: 1,
+                Rule: 2,
+                ConstantOrRule: 3 // Constant(1) | Rule(2)
+            },
+            // VisualUpdateType is a const enum — not inlined by esbuild/vitest.
+            // Values match the declaration: Data = 1<<1, Resize = 1<<2, etc.
+            VisualUpdateType: {
+                Data: 1 << 1,     // 2
+                Resize: 1 << 2,   // 4
+                ViewMode: 1 << 3, // 8
+                Style: 1 << 4,    // 16
+                ResizeEnd: 1 << 5 // 32
+            },
+            visuals: {
+                ...(real.visuals ?? {}),
+                ValidatorType: { Min: 0, Max: 1 },
+                AlignmentGroupMode: { Horizonal: 0, Vertical: 1 }
+            }
+        }
+    };
+});
+
+// powerbi-visuals-utils-dataviewutils: use the real module (dataViewObjects is
+// still used by resolveBodyTemplate). No const-enum overrides needed here —
+// the wildcard enum was only required by the now-removed per-row CF path.
 
 // Mock Power BI utils libraries that have ESM/CJS compatibility issues
 vi.mock('powerbi-visuals-utils-formattingutils', () => ({

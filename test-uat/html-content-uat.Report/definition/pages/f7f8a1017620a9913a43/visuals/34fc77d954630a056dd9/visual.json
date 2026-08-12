@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
   "name": "34fc77d954630a056dd9",
   "position": {
     "x": 880,
@@ -74,6 +74,13 @@
               "expr": {
                 "Literal": {
                   "Value": "false"
+                }
+              }
+            },
+            "enableDiagnostics": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
                 }
               }
             }

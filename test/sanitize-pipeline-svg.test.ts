@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getSanitizedHtmlForTesting } from '../src/sanitize-pipeline';
+import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
 
 /**
  * Regression suite for SVG sanitization permissibility.

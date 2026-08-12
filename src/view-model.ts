@@ -5,7 +5,7 @@ import DataViewMetadataColumn = powerbi.DataViewMetadataColumn;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
-import DataViewTableRow = powerbi.DataViewTableRow;
+import PrimitiveValue = powerbi.PrimitiveValue;
 import { valueFormatter } from 'powerbi-visuals-utils-formattingutils';
 import { interactivitySelectionService } from 'powerbi-visuals-utils-interactivityutils';
 import SelectableDataPoint = interactivitySelectionService.SelectableDataPoint;
@@ -15,6 +15,9 @@ import {
     ContentFormattingSettings,
     VisualFormattingSettingsModel
 } from './visual-settings';
+import { mapCategoricalToTable } from './categorical-table';
+import { resolveBodyTemplate, resolveRowTemplate } from './template-engine';
+import { VisualConstants } from './visual-constants';
 
 /**
  * View model structure
@@ -23,23 +26,43 @@ export interface IViewModel {
     isValid: boolean;
     isEmpty: boolean;
     hasCrossFiltering: boolean;
+    hasContextColumns: boolean;
     hasGranularity: boolean;
     hasSelection: boolean;
     contentIndex: number;
     contentFormatting?: ContentFormattingSettings;
+    bodyTemplate: string;
+    rowTemplate: string;
     htmlEntries: IHtmlEntry[];
 }
 
+/**
+ * One rendered entry (row) of the view model: a selectable data point
+ * carrying the bound content, the row template applied to it, and its
+ * tooltip items.
+ */
 export interface IHtmlEntry extends SelectableDataPoint {
     content: string;
+    rowTemplate: string;
     tooltips: VisualTooltipDataItem[];
+}
+
+/**
+ * A metadata column assigned to a tooltip-bearing role, paired with its row
+ * index and a pre-built formatter, so per-row mapping can extract values
+ * without repeating formatter creation.
+ */
+interface ITooltipColumn {
+    column: DataViewMetadataColumn;
+    index: number;
+    formatter: valueFormatter.IValueFormatter;
 }
 
 /**
  * Visual view model and necessary logic to manage its state.
  */
 export class ViewModelHandler {
-    viewModel: IViewModel;
+    viewModel!: IViewModel;
 
     constructor() {
         this.reset();
@@ -53,9 +76,15 @@ export class ViewModelHandler {
             isValid: false,
             isEmpty: true,
             hasCrossFiltering: false,
+            hasContextColumns: false,
             hasGranularity: false,
             hasSelection: false,
             contentIndex: -1,
+            bodyTemplate: VisualConstants.templates.body,
+            // Transient placeholder — always overwritten by the first
+            // mapDataView (which resolves the mode-appropriate default)
+            // before any render reads it, so it need not reflect the mode.
+            rowTemplate: VisualConstants.templates.row,
             htmlEntries: []
         };
     }
@@ -70,7 +99,7 @@ export class ViewModelHandler {
         const hasBasicDataView =
             (dataViews &&
                 dataViews[0] &&
-                dataViews[0].table &&
+                dataViews[0].categorical &&
                 dataViews[0].metadata &&
                 dataViews[0].metadata.columns &&
                 true) ||
@@ -85,49 +114,84 @@ export class ViewModelHandler {
     /**
      * Maps a set of values from the data view and sets the necessary objects in the view model to handle them later on (including flags).
      *
-     * @param dataViews     - Data views from the visual's update method.
-     * @param settings      - Parsed visual settings.
+     * @param dataViews         - Data views from the visual's update method.
+     * @param settings          - Parsed visual settings.
+     * @param host              - Visual host services.
+     * @param legacyRendering   - Active compatibility-mode classification;
+     *                            selects the unauthored row-template default.
      */
     mapDataView(
         dataViews: DataView[],
         settings: VisualFormattingSettingsModel,
-        host: IVisualHost
+        host: IVisualHost,
+        legacyRendering: boolean
     ) {
         if (this.viewModel.isValid) {
-            const hasGranularity = dataViews[0].table.columns.some(
-                (c) => c.roles?.sampling
+            const { columns, rows, identities } = mapCategoricalToTable(
+                dataViews[0].categorical,
+                host
+            );
+            // validateDataView sets a provisional contentIndex from metadata.columns.
+            // This recompute moves it into simulated-table column space
+            // (categories-then-values), which is the index space `rows` uses.
+            const contentIndex = this.getContentMetadataIndex(columns);
+            this.viewModel.contentIndex = contentIndex;
+            const hasGranularity = columns.some((c) => c.roles?.sampling);
+            // Cross-filtering needs a column (grouping) in the Context role;
+            // measures produce no useful selection identity to filter by.
+            const hasContextColumns = columns.some(
+                (c) => c.roles?.sampling && !c.isMeasure
             );
             const hasCrossFiltering =
-                hasGranularity &&
+                hasContextColumns &&
                 settings.crossFilter.crossFilterCardMain.enabled.value;
-            const { columns, rows } = dataViews[0].table;
-            const initialSelection = this.viewModel.htmlEntries;
+            // Reconciling selection via per-row equals() scans of the previous
+            // entries is quadratic across updates at the row cap; a key lookup
+            // of previously-selected identities keeps it O(1) per row.
+            const selectedKeys = new Set(
+                this.viewModel.htmlEntries
+                    .filter((dp) => dp.selected)
+                    .map((dp) => (<ISelectionId>dp.identity).getKey())
+            );
             const hasSelection =
-                (initialSelection.some((dp) => dp.selected) &&
-                    hasCrossFiltering) ||
-                false;
-            const htmlEntries: IHtmlEntry[] = rows.map((row, index) => {
-                const value = row[this.viewModel.contentIndex];
-                const selectionIdBuilder = host.createSelectionIdBuilder();
-                const identity = selectionIdBuilder
-                    .withTable(dataViews[0].table, index)
-                    .createSelectionId();
-                return {
-                    content: value ? value.toString() : '',
-                    identity,
-                    selected: this.isSelected(initialSelection, identity),
-                    tooltips: [
-                        ...this.getTooltipData('sampling', columns, row, host),
-                        ...this.getTooltipData('tooltips', columns, row, host)
-                    ]
-                };
-            });
+                (selectedKeys.size > 0 && hasCrossFiltering) || false;
+            // Resolve tooltip columns and their formatters once per update;
+            // formatter creation is too expensive to repeat for every row.
+            const tooltipColumns = [
+                ...this.getTooltipColumns('sampling', columns, host),
+                ...this.getTooltipColumns('tooltips', columns, host)
+            ];
+            const rowTemplate = resolveRowTemplate(settings, legacyRendering);
+            const htmlEntries: IHtmlEntry[] =
+                contentIndex > -1
+                    ? rows.map((row, index) => {
+                          const value = row[contentIndex];
+                          return {
+                              content: value ? value.toString() : '',
+                              rowTemplate,
+                              identity: identities[index],
+                              selected:
+                                  selectedKeys.size > 0 &&
+                                  selectedKeys.has(identities[index].getKey()),
+                              tooltips: this.getTooltipValues(
+                                  tooltipColumns,
+                                  row
+                              )
+                          };
+                      })
+                    : [];
             this.viewModel.hasCrossFiltering = hasCrossFiltering;
+            this.viewModel.hasContextColumns = hasContextColumns;
             this.viewModel.hasGranularity = hasGranularity;
             this.viewModel.hasSelection = hasSelection;
             this.viewModel.contentFormatting = settings.contentFormatting;
+            this.viewModel.bodyTemplate = resolveBodyTemplate(
+                dataViews[0],
+                settings
+            );
+            this.viewModel.rowTemplate = rowTemplate;
             this.viewModel.htmlEntries = htmlEntries;
-            this.viewModel.isEmpty = rows.length === 0;
+            this.viewModel.isEmpty = htmlEntries.length === 0;
         }
     }
 
@@ -141,47 +205,46 @@ export class ViewModelHandler {
     }
 
     /**
-     * For a data row, extract the columns that have been assigned to the
-     * tooltips role and return their corresponding values.
+     * Resolve the columns assigned to the supplied role, paired with their
+     * row index and a value formatter. Intended to run once per update so
+     * that per-row mapping does not repeat formatter creation.
      *
+     * @param role      - Data role to match columns against.
      * @param columns   - Array of metadata columns from the Power BI data view.
-     * @param row       - Current table row from the data view.
+     * @param host      - Visual host services (for locale).
      */
-    private getTooltipData(
+    private getTooltipColumns(
         role: string,
         columns: DataViewMetadataColumn[],
-        row: DataViewTableRow,
         host: IVisualHost
-    ) {
-        const tooltipValues: VisualTooltipDataItem[] = [];
-        columns.forEach((c, i) => {
-            const formatter = valueFormatter.create({
-                cultureSelector: host.locale,
-                format: c.format
-            });
-            if (c.roles?.[role]) {
-                tooltipValues.push({
-                    displayName: c.displayName,
-                    value: formatter.format(row[i])
-                });
-            }
-        });
-        return tooltipValues;
+    ): ITooltipColumn[] {
+        return columns
+            .map((column, index) => ({ column, index }))
+            .filter(({ column }) => column.roles?.[role])
+            .map(({ column, index }) => ({
+                column,
+                index,
+                formatter: valueFormatter.create({
+                    cultureSelector: host.locale,
+                    format: column.format
+                })
+            }));
     }
 
     /**
-     * For an array of selectable data points, determine if the specificed selectionId is currently selected or not.
+     * For a data row, extract the values for the pre-resolved tooltip
+     * columns.
      *
-     * @param initialSelection  - all selectable data points to inspect
-     * @param selectionId       - selectionId to search for
+     * @param tooltipColumns    - Tooltip columns resolved by getTooltipColumns.
+     * @param row               - Current simulated-table row.
      */
-    private isSelected(
-        initialSelection: interactivitySelectionService.SelectableDataPoint[],
-        selectionId: ISelectionId
-    ): boolean {
-        const selectedDataPoint = (initialSelection || []).find((dp) =>
-            selectionId.equals(<ISelectionId>dp.identity)
-        );
-        return selectedDataPoint ? selectedDataPoint.selected : false;
+    private getTooltipValues(
+        tooltipColumns: ITooltipColumn[],
+        row: (PrimitiveValue | null)[]
+    ): VisualTooltipDataItem[] {
+        return tooltipColumns.map(({ column, index, formatter }) => ({
+            displayName: column.displayName,
+            value: formatter.format(row[index])
+        }));
     }
 }
