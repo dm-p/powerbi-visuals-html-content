@@ -11,6 +11,7 @@ import { Selection } from 'd3-selection';
 import { VisualConstants } from '../visual-constants';
 import { buildSplash, LandingLabels } from './splash';
 import { MARK_URL } from './mark.generated';
+import { CHANNEL } from '../visual-config.generated';
 
 /**
  * Manages the handling and placement of the visual landing page if no data is present.
@@ -83,6 +84,16 @@ export default class LandingPageHandler {
             openDocs: get('Landing_OpenDocs')
         };
 
+        // Channel builds (alpha/beta) carry a not-for-production warning
+        // badge; production builds pass nothing and render no badge.
+        const channelBadge = CHANNEL
+            ? get(
+                  CHANNEL === 'alpha'
+                      ? 'Landing_ChannelBadge_Alpha'
+                      : 'Landing_ChannelBadge_Beta'
+              )
+            : undefined;
+
         const el = this.element.node();
         if (!el) return;
         const doc = el.ownerDocument as Document;
@@ -92,6 +103,7 @@ export default class LandingPageHandler {
             markUrl: MARK_URL,
             labels,
             urls: VisualConstants.landingUrls,
+            channelBadge,
             onLaunch: (url: string) => host.launchUrl(url)
         });
         // Keep the existing container class prefix so external hooks still match.
