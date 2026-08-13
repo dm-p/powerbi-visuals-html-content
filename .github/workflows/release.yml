@@ -21,6 +21,12 @@ name: release
 permissions:
     contents: read
 
+# One run per ref at a time. cancel-in-progress stays false: cancelling a
+# half-finished run is exactly the state that strands a deleted release.
+concurrency:
+    group: release-${{ github.ref_name }}
+    cancel-in-progress: false
+
 on:
     push:
         tags:
@@ -42,6 +48,8 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+            - name: Fetch all tags
+              run: git fetch --tags --force
             # Derive the release channel from the moving tag name
             # ('alpha'/'beta', including 'alpha-*'/'beta-*' variants). Every
             # later step keys off these outputs, so alpha and beta cannot
@@ -89,6 +97,8 @@ jobs:
               id: internal
               run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
             - run: npm ci
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
             # Channel packages: regular (standard) + secure (certified), each
             # with the channel overlay (prefixed GUID, suffixed displayName,
             # channel icon). dist/ is cleared before each package so the mv
@@ -100,20 +110,14 @@ jobs:
                   node scripts/select-edition.mjs standard ${{ steps.channel.outputs.name }}
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
-                  mkdir -p release-artifacts
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz"
             - name: Package secure edition (channel build)
               run: |
                   rm -rf dist
                   node scripts/select-edition.mjs certified ${{ steps.channel.outputs.name }}
                   npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
-            - name: Delete existing channel release
-              run: gh release delete "$GITHUB_REF_NAME" --yes || true
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            - name: Fetch all tags
-              run: git fetch --tags --force
             # Only pure 4-part numeric tags (e.g. 1.6.2.0) are production
             # releases. Positively match that shape so channel tags can never
             # become the changelog baseline — drift is always measured from
@@ -121,7 +125,11 @@ jobs:
             - name: Get last release tag
               id: last_tag
               run: |
-                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+                  if [ -z "$LAST_TAG" ]; then
+                      echo "::error::No 4-part production tag found to use as the changelog baseline."
+                      exit 1
+                  fi
                   echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
                   echo "Last versioned tag: $LAST_TAG"
             - name: Generate changelog
@@ -133,6 +141,10 @@ jobs:
                   toTag: ${{ steps.last_tag.outputs.tag }}
                   excludeTypes: ''
                   writeToFile: false
+            - name: Delete existing channel release
+              run: gh release delete "$GITHUB_REF_NAME" --yes || true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Create channel pre-release
               uses: softprops/action-gh-release@v2
               with:
@@ -166,3 +178,12 @@ jobs:
                       release-artifacts/*.pbiviz
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Keep the built packages retrievable even when a later step
+            # fails, so a broken run can be diagnosed and hand-published
+            # without a rebuild.
+            - name: Upload artifacts for diagnosis
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-artifacts
+                  path: release-artifacts/*.pbiviz
