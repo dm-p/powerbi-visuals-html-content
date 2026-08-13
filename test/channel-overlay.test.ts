@@ -69,4 +69,10 @@ describe('resolveEditionConfig', () => {
             /Unknown edition/
         );
     });
+
+    it('never mutates the base config', () => {
+        const snapshot = JSON.parse(JSON.stringify(base));
+        resolveEditionConfig(base, 'standard', 'beta');
+        expect(base).toEqual(snapshot);
+    });
 });

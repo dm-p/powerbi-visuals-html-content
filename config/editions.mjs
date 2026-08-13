@@ -51,6 +51,11 @@ const CHANNEL_ICONS = {
 // channel icon). Consumed by pbiviz.mjs (package-time config) and
 // scripts/select-edition.mjs (generated-file prestep). The internal 4-part
 // `version` is deliberately never modified by the channel overlay.
+// Consumers assembling a pbiviz config must destructure the three pbiviz
+// keys (visual/assets/capabilities) rather than spreading the whole result —
+// sanitize/edition are build-policy fields, not pbiviz fields. The returned
+// `edition` is the edition *label* ('flagship' | 'secure' | 'standalone'),
+// not the editionKey argument ('standard' | 'certified' | 'standalone').
 export function resolveEditionConfig(base, editionKey = 'certified', channel) {
     const e = editions[editionKey];
     if (!e) {
@@ -59,7 +64,7 @@ export function resolveEditionConfig(base, editionKey = 'certified', channel) {
     const visual = { ...base.visual, ...e.visual };
     const assets = { ...base.assets, ...e.assets };
     const capabilities = e.capabilities ?? base.capabilities;
-    if (channel !== undefined) {
+    if (channel) {
         if (!CHANNELS.includes(channel)) {
             throw new Error(`Unknown channel: ${channel}`);
         }
@@ -75,5 +80,11 @@ export function resolveEditionConfig(base, editionKey = 'certified', channel) {
         })`;
         assets.icon = icon(channel);
     }
-    return { visual, assets, capabilities, sanitize: e.sanitize, edition: e.edition };
+    return {
+        visual,
+        assets,
+        capabilities,
+        sanitize: e.sanitize,
+        edition: e.edition
+    };
 }
