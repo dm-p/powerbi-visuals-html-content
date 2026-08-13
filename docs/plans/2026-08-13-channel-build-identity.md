@@ -593,6 +593,21 @@ Do NOT push or open a PR yet. Report to the user: the beta `.pbiviz` from Step 1
   digits-only fallback may fire (powerbi-visuals-tools' certification-audit
   surface validates `^\d+\.\d+\.\d+(\.\d+)?$`, though the packaging path
   itself has no such check).
+- Task 3 additions from review: negative badge assertion in
+  `test/landing-page-handler.test.ts` (production path renders no badge —
+  structurally pinned since `pretest` regenerates CHANNEL=undefined);
+  `align-self` dropped from the badge CSS (inert under a block parent);
+  `overflow-wrap: anywhere` on `.hc-landing-version` (the stamped version is
+  a ~23-char unbreakable token). **Deferred with a note:** missing-resjson-key
+  degradation guard for the badge string (only `en-US` exists today; if more
+  locales are added, a locale lacking `Landing_ChannelBadge_*` keys would
+  render the raw key inside the amber pill — add the `resolved === key ?
+  undefined : resolved` guard in `handler.ts` at that point).
+- Desktop UAT should specifically eyeball: narrow (~200px) visual — badge
+  wraps acceptably, no horizontal scrollbar from the version line; alpha AND
+  beta packages show the right badge text; a certified package shows no
+  badge; header rhythm with the taller title block; em-dash renders in the
+  sandbox font stack.
 
 ## Self-review notes (already applied)
 
