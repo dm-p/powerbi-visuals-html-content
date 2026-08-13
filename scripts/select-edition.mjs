@@ -24,31 +24,41 @@ const base = JSON.parse(
     readFileSync(new URL('../pbiviz.json', import.meta.url), 'utf8')
 );
 
-// Channel builds stamp the 4th version segment with the build date (UTC) and
-// commit, e.g. `2.0.0.20260813#b044cfdc` — computed ONCE here and handed to
-// pbiviz.mjs via active-edition.mjs so packaged metadata and the landing page
-// can never drift. Format changes must stay in step with the stamp assertion
-// in scripts/assert-channel-identity.mjs.
+// Channel builds stamp the 4th version segment with the HEAD commit date
+// (UTC) and commit, e.g. `2.0.0.20260813#b044cfdc` — computed ONCE here and
+// handed to pbiviz.mjs via active-edition.mjs so packaged metadata and the
+// landing page can never drift. Format changes must stay in step with the
+// stamp assertion in scripts/assert-channel-identity.mjs. The date comes
+// from the commit, not the wall clock, so the stamp is a pure function of
+// HEAD — rebuilds and same-release edition builds can never drift.
 const buildStamp = () => {
     let hash;
+    let ymd;
     try {
-        hash = execSync('git rev-parse --short=8 HEAD', {
-            cwd: fileURLToPath(new URL('..', import.meta.url))
-        })
+        const cwd = fileURLToPath(new URL('..', import.meta.url));
+        const opts = { cwd, stdio: ['ignore', 'pipe', 'ignore'] };
+        hash = execSync('git rev-parse --short=8 HEAD', opts)
+            .toString()
+            .trim();
+        ymd = execSync(
+            'git show -s --format=%cd --date=format-local:%Y%m%d HEAD',
+            { ...opts, env: { ...process.env, TZ: 'UTC' } }
+        )
             .toString()
             .trim();
     } catch {
         console.error(
-            'Channel builds need the git commit hash for the version stamp — run from a git checkout with git on PATH.'
+            'Channel builds need git metadata for the version stamp — run from a git checkout with git on PATH.'
         );
         process.exit(1);
     }
-    const d = new Date();
-    const ymd =
-        `${d.getUTCFullYear()}` +
-        `${String(d.getUTCMonth() + 1).padStart(2, '0')}` +
-        `${String(d.getUTCDate()).padStart(2, '0')}`;
     const xyz = base.visual.version.split('.').slice(0, 3).join('.');
+    if (!/^\d+\.\d+\.\d+$/.test(xyz)) {
+        console.error(
+            `pbiviz.json visual.version '${base.visual.version}' is not x.y.z[.n] — cannot build a channel stamp.`
+        );
+        process.exit(1);
+    }
     return `${xyz}.${ymd}#${hash}`;
 };
 const versionOverride = channel ? buildStamp() : undefined;
