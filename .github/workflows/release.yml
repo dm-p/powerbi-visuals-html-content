@@ -275,6 +275,7 @@ jobs:
                   node scripts/select-edition.mjs standard
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package secure edition
               run: |
@@ -282,6 +283,7 @@ jobs:
                   node scripts/select-edition.mjs certified
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package standalone edition
               run: |
@@ -289,6 +291,7 @@ jobs:
                   node scripts/select-edition.mjs standalone
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
             # Changelog baseline: the newest 4-part production tag whose x.y.z
             # differs from the current tag's — so a remedial 2.0.0.1 still
