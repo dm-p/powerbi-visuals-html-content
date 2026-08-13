@@ -108,5 +108,12 @@ describe('LandingPageHandler', () => {
             handler.handleLandingPage(false, mockHost);
             expect(mockElement.node().innerHTML).not.toMatch(/\bw3-/);
         });
+
+        it('renders no channel badge on a production build', () => {
+            handler.handleLandingPage(false, mockHost);
+            expect(
+                mockElement.node().querySelector('.hc-landing-channel-badge')
+            ).toBeNull();
+        });
     });
 });
