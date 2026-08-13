@@ -57,14 +57,14 @@ const CHANNEL_ICONS = {
 // `edition` is the edition *label* ('flagship' | 'secure' | 'standalone'),
 // not the editionKey argument ('standard' | 'certified' | 'standalone').
 export function resolveEditionConfig(base, editionKey = 'certified', channel) {
-    const e = editions[editionKey];
-    if (!e) {
+    if (!Object.hasOwn(editions, editionKey)) {
         throw new Error(`Unknown edition: ${editionKey}`);
     }
+    const e = editions[editionKey];
     const visual = { ...base.visual, ...e.visual };
     const assets = { ...base.assets, ...e.assets };
     const capabilities = e.capabilities ?? base.capabilities;
-    if (channel) {
+    if (channel !== undefined) {
         if (!CHANNELS.includes(channel)) {
             throw new Error(`Unknown channel: ${channel}`);
         }

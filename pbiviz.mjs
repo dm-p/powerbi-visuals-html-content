@@ -17,8 +17,11 @@ try {
     const active = await import('./config/active-edition.mjs');
     edition = active.default ?? 'certified';
     channel = active.channel;
-} catch {
-    /* no active edition selected yet: certified default */
+} catch (err) {
+    // no active edition selected yet: certified default
+    if (err?.code !== 'ERR_MODULE_NOT_FOUND') {
+        throw err;
+    }
 }
 
 const { visual, assets, capabilities } = resolveEditionConfig(

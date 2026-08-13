@@ -68,6 +68,9 @@ describe('resolveEditionConfig', () => {
         expect(() => resolveEditionConfig(base, 'nope')).toThrow(
             /Unknown edition/
         );
+        expect(() => resolveEditionConfig(base, 'standard', '')).toThrow(
+            /Unknown channel/
+        );
     });
 
     it('never mutates the base config', () => {
