@@ -121,4 +121,9 @@ describe('resolveEditionConfig', () => {
             )
         ).toThrow(/requires a channel/);
     });
+
+    it('treats an explicit undefined override as no override', () => {
+        const r = resolveEditionConfig(base, 'standard', 'beta', undefined);
+        expect(r.visual.version).toBe(base.visual.version);
+    });
 });
