@@ -140,7 +140,10 @@ jobs:
                   echo "Last versioned tag: $LAST_TAG"
             - name: Generate changelog
               id: changelog
-              uses: requarks/changelog-action@v1
+              # Third-party actions in this workflow run with a write-scoped
+              # token, so they are pinned to reviewed commit SHAs rather than
+              # mutable tags (supply-chain hardening).
+              uses: requarks/changelog-action@1fabc7b0c6581d93c398246a856f084fb17cd9eb # v1.9.0
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   fromTag: ${{ steps.version_tag.outputs.tag }}
@@ -152,7 +155,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Create channel pre-release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
               with:
                   tag_name: ${{ github.ref_name }}
                   name: '${{ steps.channel.outputs.title }} Channel: Latest Build (${{ steps.version_tag.outputs.tag }})'
@@ -301,7 +304,10 @@ jobs:
                   echo "Changelog baseline: $LAST_TAG"
             - name: Generate changelog
               id: changelog
-              uses: requarks/changelog-action@v1
+              # Third-party actions in this workflow run with a write-scoped
+              # token, so they are pinned to reviewed commit SHAs rather than
+              # mutable tags (supply-chain hardening).
+              uses: requarks/changelog-action@1fabc7b0c6581d93c398246a856f084fb17cd9eb # v1.9.0
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   fromTag: ${{ github.ref_name }}
@@ -348,7 +354,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Create draft production release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
               with:
                   tag_name: ${{ github.ref_name }}
                   name: ${{ steps.version.outputs.semver }}
