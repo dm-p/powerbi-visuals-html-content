@@ -40,6 +40,8 @@ const buildStamp = () => {
         hash = execSync('git rev-parse --short=8 HEAD', opts)
             .toString()
             .trim();
+        // TZ must stay exactly 'UTC': Git for Windows mishandles some
+        // IANA zone names (e.g. 'Etc/UTC') inconsistently between shells.
         ymd = execSync(
             'git show -s --format=%cd --date=format-local:%Y%m%d HEAD',
             { ...opts, env: { ...process.env, TZ: 'UTC' } }

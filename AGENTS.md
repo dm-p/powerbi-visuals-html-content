@@ -18,8 +18,9 @@ npm install
 
 Node 20+ is assumed (see `@types/node` ^20).
 
-`postinstall` runs `scripts/select-edition.mjs`, which generates two git-ignored
-files the build needs: `src/sanitize/backend.ts` and `config/active-edition.mjs`.
+`postinstall` runs `scripts/select-edition.mjs`, which generates four git-ignored
+files the build needs: `src/sanitize/backend.ts`, `config/active-edition.mjs`,
+`src/visual-config.generated.ts` and `src/landing/mark.generated.ts`.
 If you install with `--ignore-scripts` (or invoke a bundler directly), run
 `node scripts/select-edition.mjs certified` once first — otherwise compilation
 fails with a confusing `Cannot find module './backend'` error.

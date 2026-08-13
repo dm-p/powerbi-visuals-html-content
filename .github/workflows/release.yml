@@ -93,13 +93,6 @@ jobs:
               with:
                   node-version: '20'
                   cache: 'npm'
-            # The internal 4-part version is left as committed for channel
-            # builds, so every drop of a version reports the same number
-            # inside Power BI — the release notes tell testers to quote the
-            # package filename instead.
-            - name: Resolve internal visual version
-              id: internal
-              run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
             - run: npm ci
             - name: Prepare artifact staging
               run: mkdir -p release-artifacts
@@ -176,7 +169,7 @@ jobs:
 
                       **These builds are not supported for production use** and are intended for testing and feedback only.
 
-                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`) — the version shown inside Power BI reads `${{ steps.internal.outputs.version }}` for all channel builds and does not identify the drop on its own.
+                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`). The in-visual version (shown on the landing page and in the visualizations pane) pins the exact build date and commit (e.g. `2.0.0.20260813#b044cfdc`) — please include that too.
 
                       ---
 
