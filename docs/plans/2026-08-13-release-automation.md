@@ -762,13 +762,17 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             # Keep the built packages retrievable even when a later step
             # fails, so a broken run can be diagnosed and hand-published
-            # without a rebuild.
+            # without a rebuild. Purely diagnostic: must never affect job
+            # status (continue-on-error), must survive re-runs (overwrite).
             - name: Upload artifacts for diagnosis
               if: always()
+              continue-on-error: true
               uses: actions/upload-artifact@v4
               with:
                   name: release-artifacts
                   path: release-artifacts/*.pbiviz
+                  if-no-files-found: warn
+                  overwrite: true
 ```
 
 - [ ] **Step 2: Verify the YAML parses**
