@@ -13,10 +13,12 @@ const base = JSON.parse(
 
 let edition = 'certified';
 let channel;
+let versionOverride;
 try {
     const active = await import('./config/active-edition.mjs');
     edition = active.default ?? 'certified';
     channel = active.channel;
+    versionOverride = active.versionOverride;
 } catch (err) {
     // no active edition selected yet: certified default
     if (err?.code !== 'ERR_MODULE_NOT_FOUND') {
@@ -27,7 +29,8 @@ try {
 const { visual, assets, capabilities } = resolveEditionConfig(
     base,
     edition,
-    channel
+    channel,
+    versionOverride
 );
 
 export default { ...base, visual, assets, capabilities };
