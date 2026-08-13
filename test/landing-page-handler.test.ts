@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { LandingPageHandler } from '../src/landing';
 import { select } from 'd3-selection';
 import { JSDOM } from 'jsdom';
@@ -107,6 +108,77 @@ describe('LandingPageHandler', () => {
         it('renders no W3.CSS classes', () => {
             handler.handleLandingPage(false, mockHost);
             expect(mockElement.node().innerHTML).not.toMatch(/\bw3-/);
+        });
+
+        // Relies on the pretest-generated CHANNEL=undefined (production)
+        // selection — spuriously fails under a raw `npx vitest run` while a
+        // channel selection (alpha/beta) is active.
+        it('renders no channel badge on a production build', () => {
+            handler.handleLandingPage(false, mockHost);
+            expect(
+                mockElement.node().querySelector('.hc-landing-channel-badge')
+            ).toBeNull();
+        });
+    });
+
+    describe('channel badge key mapping', () => {
+        // CHANNEL is compiled in via the generated module, so each mapping case
+        // forces it with a module mock rather than relying on build state.
+        for (const [channel, key] of [
+            ['alpha', 'Landing_ChannelBadge_Alpha'],
+            ['beta', 'Landing_ChannelBadge_Beta']
+        ] as const) {
+            it(`resolves ${key} and renders its text for ${channel} builds`, async () => {
+                vi.resetModules();
+                vi.doMock('../src/visual-config.generated', async () => ({
+                    ...(await vi.importActual<Record<string, unknown>>(
+                        '../src/visual-config.generated'
+                    )),
+                    CHANNEL: channel
+                }));
+
+                const { default: MockedHandler } =
+                    await import('../src/landing/handler');
+
+                const dom = new JSDOM(
+                    '<!DOCTYPE html><html><body><div id="container"></div></body></html>'
+                );
+                const element = select(dom.window.document).select(
+                    '#container'
+                );
+                const localisationManager = {
+                    getDisplayName: vi.fn(
+                        (localizationKey: string) =>
+                            `Localized: ${localizationKey}`
+                    )
+                };
+                const host = { launchUrl: vi.fn() };
+
+                const mockedHandler = new MockedHandler(
+                    element,
+                    localisationManager
+                );
+                mockedHandler.handleLandingPage(false, host);
+
+                expect(localisationManager.getDisplayName).toHaveBeenCalledWith(
+                    key
+                );
+                const badge = element
+                    .node()
+                    .querySelector('.hc-landing-channel-badge');
+                expect(badge).not.toBeNull();
+                expect(badge.textContent).toBe(`Localized: ${key}`);
+
+                vi.doUnmock('../src/visual-config.generated');
+            });
+        }
+
+        it('both badge keys exist in the en-US resources', () => {
+            const resources = JSON.parse(
+                readFileSync('stringResources/en-US/resources.resjson', 'utf8')
+            );
+            expect(resources.Landing_ChannelBadge_Alpha).toMatch(/ALPHA BUILD/);
+            expect(resources.Landing_ChannelBadge_Beta).toMatch(/BETA BUILD/);
         });
     });
 });

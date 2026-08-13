@@ -26,6 +26,9 @@ export interface LandingUrls {
 export interface SplashOptions {
     edition: Edition;
     version: string;
+    /** Pre-localized channel warning (e.g. "BETA BUILD — NOT FOR PRODUCTION
+     *  USE"); rendered as a badge under the version when present. */
+    channelBadge?: string;
     markUrl: string;
     labels: LandingLabels;
     urls: LandingUrls;
@@ -125,7 +128,7 @@ const textLink = (doc: Document, opts: TextLinkOptions): HTMLElement => {
  * with version, and the GitHub/sponsor/coffee icon links.
  */
 const buildHeader = (doc: Document, opts: SplashOptions): HTMLElement => {
-    const { edition, version, markUrl, urls, onLaunch } = opts;
+    const { edition, version, channelBadge, markUrl, urls, onLaunch } = opts;
     const p = PRESENTATION[edition];
 
     const header = node(doc, 'div', 'hc-landing-header');
@@ -146,6 +149,11 @@ const buildHeader = (doc: Document, opts: SplashOptions): HTMLElement => {
     titleWrap.appendChild(
         node(doc, 'div', 'hc-landing-version', `Version ${version}`)
     );
+    if (channelBadge) {
+        titleWrap.appendChild(
+            node(doc, 'div', 'hc-landing-channel-badge', channelBadge)
+        );
+    }
     header.appendChild(titleWrap);
 
     const icons = node(doc, 'div', 'hc-landing-icons');

@@ -38,9 +38,13 @@ describe('buildSplash', () => {
         expect(el.querySelector('.hc-landing-name')?.textContent).toContain(
             'HTML Content'
         );
-        expect(el.querySelector('.hc-landing-suffix')?.textContent).toBe('Secure');
+        expect(el.querySelector('.hc-landing-suffix')?.textContent).toBe(
+            'Secure'
+        );
         const img = el.querySelector('img.hc-landing-mark') as HTMLImageElement;
-        expect(img.getAttribute('src')).toBe('data:image/svg+xml;base64,SECURE');
+        expect(img.getAttribute('src')).toBe(
+            'data:image/svg+xml;base64,SECURE'
+        );
         expect(el.querySelector('.hc-landing-headline')?.textContent).toBe(
             'Ready when you are.'
         );
@@ -107,5 +111,35 @@ describe('buildSplash', () => {
         expect(el.querySelector('.hc-landing-values')).toBeNull();
         expect(el.querySelector('.hc-landing-dropzone')).toBeNull();
         expect(el.querySelector('.hc-landing-compact-body')).toBeNull();
+    });
+
+    it('renders the channel badge under the version when channelBadge is set', () => {
+        const el = buildSplash(doc, {
+            edition: 'flagship',
+            version: '2.0.0.20260813#b044cfdc',
+            markUrl: 'x',
+            labels,
+            urls,
+            channelBadge: 'BETA BUILD — NOT FOR PRODUCTION USE',
+            onLaunch: vi.fn()
+        });
+        const badge = el.querySelector('.hc-landing-channel-badge');
+        expect(badge?.textContent).toBe('BETA BUILD — NOT FOR PRODUCTION USE');
+        // sits inside the title wrap, directly after the version line
+        expect(badge?.previousElementSibling?.className).toBe(
+            'hc-landing-version'
+        );
+    });
+
+    it('renders no channel badge when channelBadge is absent', () => {
+        const el = buildSplash(doc, {
+            edition: 'secure',
+            version: '2.0.0.0',
+            markUrl: 'x',
+            labels,
+            urls,
+            onLaunch: vi.fn()
+        });
+        expect(el.querySelector('.hc-landing-channel-badge')).toBeNull();
     });
 });

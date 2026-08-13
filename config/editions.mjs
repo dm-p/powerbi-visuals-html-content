@@ -50,15 +50,26 @@ const CHANNEL_ICONS = {
 // optional prerelease channel overlay (GUID prefix, displayName suffix,
 // channel icon). Consumed by pbiviz.mjs (package-time config) and
 // scripts/select-edition.mjs (generated-file prestep). The internal 4-part
-// `version` is deliberately never modified by the channel overlay.
+// `version` is never modified except by an explicit channel-build
+// `versionOverride` (the date#hash stamp computed by
+// scripts/select-edition.mjs); production/no-channel builds always keep the
+// committed version.
 // Consumers assembling a pbiviz config must destructure the three pbiviz
 // keys (visual/assets/capabilities) rather than spreading the whole result —
 // sanitize/edition are build-policy fields, not pbiviz fields. The returned
 // `edition` is the edition *label* ('flagship' | 'secure' | 'standalone'),
 // not the editionKey argument ('standard' | 'certified' | 'standalone').
-export function resolveEditionConfig(base, editionKey = 'certified', channel) {
+export function resolveEditionConfig(
+    base,
+    editionKey = 'certified',
+    channel,
+    versionOverride
+) {
     if (!Object.hasOwn(editions, editionKey)) {
         throw new Error(`Unknown edition: ${editionKey}`);
+    }
+    if (versionOverride !== undefined && channel === undefined) {
+        throw new Error('Version override requires a channel build');
     }
     const e = editions[editionKey];
     const visual = { ...base.visual, ...e.visual };
@@ -79,6 +90,9 @@ export function resolveEditionConfig(base, editionKey = 'certified', channel) {
             channel[0].toUpperCase() + channel.slice(1)
         })`;
         assets.icon = icon(channel);
+        if (versionOverride !== undefined) {
+            visual.version = versionOverride;
+        }
     }
     return {
         visual,

@@ -93,13 +93,6 @@ jobs:
               with:
                   node-version: '20'
                   cache: 'npm'
-            # The internal 4-part version is left as committed for channel
-            # builds, so every drop of a version reports the same number
-            # inside Power BI — the release notes tell testers to quote the
-            # package filename instead.
-            - name: Resolve internal visual version
-              id: internal
-              run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
             - run: npm ci
             - name: Prepare artifact staging
               run: mkdir -p release-artifacts
@@ -124,6 +117,14 @@ jobs:
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
                   node scripts/assert-channel-identity.mjs ${{ steps.channel.outputs.prefix }}
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
+            # Both editions' stamps are identical (buildStamp() is a pure
+            # function of HEAD), so reading the last drop is authoritative.
+            # Read it from the packaged output — never recompute the
+            # YYYYMMDD#hash format here (single source of truth lives in
+            # scripts/select-edition.mjs).
+            - name: Resolve stamped visual version
+              id: stamp
+              run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('.tmp/drop/pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
             # Only pure 4-part numeric tags (e.g. 1.6.2.0) are production
             # releases. Positively match that shape so channel tags can never
             # become the changelog baseline — drift is always measured from
@@ -176,7 +177,7 @@ jobs:
 
                       **These builds are not supported for production use** and are intended for testing and feedback only.
 
-                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`) — the version shown inside Power BI reads `${{ steps.internal.outputs.version }}` for all channel builds and does not identify the drop on its own.
+                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`) together with the in-visual version shown on the landing page and in the visualizations pane (`${{ steps.stamp.outputs.version }}` for this build) — the filename identifies the edition and drop; the in-visual version pins the exact commit.
 
                       ---
 
@@ -274,6 +275,7 @@ jobs:
                   node scripts/select-edition.mjs standard
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package secure edition
               run: |
@@ -281,6 +283,7 @@ jobs:
                   node scripts/select-edition.mjs certified
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package standalone edition
               run: |
@@ -288,6 +291,7 @@ jobs:
                   node scripts/select-edition.mjs standalone
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$GITHUB_REF_NAME"
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
             # Changelog baseline: the newest 4-part production tag whose x.y.z
             # differs from the current tag's — so a remedial 2.0.0.1 still

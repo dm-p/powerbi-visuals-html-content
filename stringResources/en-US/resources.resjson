@@ -6,6 +6,8 @@
     "Landing_SandboxNote": "Some browser features are limited inside Power BI's sandbox -",
     "Landing_SandboxNoteLink": "see the docs",
     "Landing_OpenDocs": "Open the docs",
+    "Landing_ChannelBadge_Alpha": "ALPHA BUILD — NOT FOR PRODUCTION USE",
+    "Landing_ChannelBadge_Beta": "BETA BUILD — NOT FOR PRODUCTION USE",
     "Roles_Values": "Values",
     "Roles_Values_Description": "Field values or measures containing the desired HTML data to render.",
     "Roles_Sampling": "Context",
