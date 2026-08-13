@@ -1,0 +1,396 @@
+name: release
+
+# Maintainer runbook — how to cut releases:
+#
+#   Channel drop (alpha shown; beta is identical):
+#       git tag 2.0.0.alpha-1 <commit>
+#       git tag -f alpha <commit>
+#       git push origin 2.0.0.alpha-1
+#       git push -f origin alpha
+#   -> the rolling "Alpha Channel" prerelease is replaced with this build.
+#
+#   Always move the bare 'alpha'/'beta' tags. A suffixed moving tag (e.g.
+#   'alpha-2') creates a SEPARATE rolling release keyed to that tag name
+#   instead of replacing the 'alpha' one.
+#
+#   Production release:
+#       git tag 2.0.0.0 <commit>
+#       git push origin 2.0.0.0
+#   -> a DRAFT release named "2.0.0" is created for proofing; publish it
+#      manually from the Releases page. A remedial build (2.0.0.1) replaces a
+#      still-draft "2.0.0" release and fails if "2.0.0" is already published.
+
+# Default the workflow token to read-only; each job elevates to
+# contents: write itself (release create/delete).
+permissions:
+    contents: read
+
+# One run per ref at a time. cancel-in-progress stays false: cancelling a
+# half-finished run is exactly the state that strands a deleted release.
+concurrency:
+    group: release-${{ github.ref_name }}
+    cancel-in-progress: false
+
+on:
+    push:
+        tags:
+            - 'alpha'
+            - 'alpha-*'
+            - 'beta'
+            - 'beta-*'
+            # 4-part production tags (e.g. 2.0.0.0). The glob is looser than
+            # the real rule; the release job re-validates with an exact regex.
+            - '[0-9]*.[0-9]*.[0-9]*.[0-9]*'
+
+jobs:
+    prerelease:
+        if: startsWith(github.ref, 'refs/tags/alpha') || startsWith(github.ref, 'refs/tags/beta')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Fetch all tags
+              run: git fetch --tags --force
+            # Derive the release channel from the moving tag name
+            # ('alpha'/'beta', including 'alpha-*'/'beta-*' variants). Every
+            # later step keys off these outputs, so alpha and beta cannot
+            # drift apart. $GITHUB_REF_NAME (env var, quoted) rather than
+            # ${{ github.ref_name }}: expression interpolation would paste the
+            # raw tag name into the script as shell source.
+            - name: Resolve release channel
+              id: channel
+              run: |
+                  CHANNEL="${GITHUB_REF_NAME%%-*}"
+                  case "$CHANNEL" in
+                      alpha|beta) ;;
+                      *)
+                          echo "::error::Unsupported prerelease channel '$CHANNEL' (from tag '$GITHUB_REF_NAME')."
+                          exit 1
+                          ;;
+                  esac
+                  echo "name=$CHANNEL" >> $GITHUB_OUTPUT
+                  echo "prefix=$(echo "$CHANNEL" | tr '[:lower:]' '[:upper:]')" >> $GITHUB_OUTPUT
+                  echo "title=${CHANNEL^}" >> $GITHUB_OUTPUT
+                  echo "Channel: $CHANNEL"
+            # The moving channel tag must be accompanied by a versioned
+            # channel tag (e.g. `2.0.0.beta-1`) on the same commit — it names
+            # the published .pbiviz files and the release title. Fail fast
+            # (before install/build) if it is missing.
+            - name: Resolve versioned channel tag
+              id: version_tag
+              run: |
+                  VERSION_TAG=$(git tag --points-at HEAD | grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.${{ steps.channel.outputs.name }}-[0-9]+$" | sort -V | tail -n 1 || true)
+                  if [ -z "$VERSION_TAG" ]; then
+                      echo "::error::No versioned ${{ steps.channel.outputs.name }} tag (e.g. 2.0.0.${{ steps.channel.outputs.name }}-1) found on this commit. Tag the commit with '<major>.<minor>.<patch>.${{ steps.channel.outputs.name }}-<n>' and re-push the '${{ steps.channel.outputs.name }}' tag to release."
+                      exit 1
+                  fi
+                  echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+                  echo "Versioned channel tag: $VERSION_TAG"
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+            # The internal 4-part version is left as committed for channel
+            # builds, so every drop of a version reports the same number
+            # inside Power BI — the release notes tell testers to quote the
+            # package filename instead.
+            - name: Resolve internal visual version
+              id: internal
+              run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
+            - run: npm ci
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
+            # Channel packages: regular (standard) + secure (certified), each
+            # with the channel overlay (prefixed GUID, suffixed displayName,
+            # channel icon). dist/ is cleared before each package so the mv
+            # glob below can only ever match the single fresh artifact (mv
+            # fails the job on zero or multiple matches).
+            - name: Package regular edition (channel build)
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standard ${{ steps.channel.outputs.name }}
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-channel-identity.mjs ${{ steps.channel.outputs.prefix }}
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz"
+            - name: Package secure edition (channel build)
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs certified ${{ steps.channel.outputs.name }}
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-channel-identity.mjs ${{ steps.channel.outputs.prefix }}
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
+            # Only pure 4-part numeric tags (e.g. 1.6.2.0) are production
+            # releases. Positively match that shape so channel tags can never
+            # become the changelog baseline — drift is always measured from
+            # the last shipped production release.
+            - name: Get last release tag
+              id: last_tag
+              run: |
+                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+                  if [ -z "$LAST_TAG" ]; then
+                      echo "::error::No 4-part production tag found to use as the changelog baseline."
+                      exit 1
+                  fi
+                  echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
+                  echo "Last versioned tag: $LAST_TAG"
+            - name: Generate changelog
+              id: changelog
+              # Third-party actions in this workflow run with a write-scoped
+              # token, so they are pinned to reviewed commit SHAs rather than
+              # mutable tags (supply-chain hardening).
+              uses: requarks/changelog-action@1fabc7b0c6581d93c398246a856f084fb17cd9eb # v1.9.0
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fromTag: ${{ steps.version_tag.outputs.tag }}
+                  toTag: ${{ steps.last_tag.outputs.tag }}
+                  excludeTypes: ''
+                  writeToFile: false
+            - name: Delete existing channel release
+              run: gh release delete "$GITHUB_REF_NAME" --yes || true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Create channel pre-release
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+              with:
+                  tag_name: ${{ github.ref_name }}
+                  name: '${{ steps.channel.outputs.title }} Channel: Latest Build (${{ steps.version_tag.outputs.tag }})'
+                  prerelease: true
+                  body: |
+                      HTML Content ${{ steps.channel.outputs.title }} Channel build — the latest early-access build for testing and feedback.
+
+                      Two packages are attached, one per edition:
+
+                      | Package | Edition | What it does |
+                      | --- | --- | --- |
+                      | `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz` | **HTML Content** | Full HTML rendering, including external content where your tenant allows it. |
+                      | `HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz` | **HTML Content Secure** | Sanitizes markup and blocks external communication, matching the behavior of the certified AppSource visual. |
+
+                      Both packages use channel-specific visual IDs (prefixed `${{ steps.channel.outputs.prefix }}`), so they can be side-loaded into reports alongside the AppSource or production visuals without interfering with them, and they will not auto-update.
+
+                      > **Note on the Secure edition:** this build is **not** tied to AppSource and carries **none of the certification benefits** of the published certified visual. It is provided so you can verify that sanitization and external-communication blocking work as expected against your own content before the certified release catches up.
+
+                      **These builds are not supported for production use** and are intended for testing and feedback only.
+
+                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`) — the version shown inside Power BI reads `${{ steps.internal.outputs.version }}` for all channel builds and does not identify the drop on its own.
+
+                      ---
+
+                      ## Changes since ${{ steps.last_tag.outputs.tag }}
+
+                      ${{ steps.changelog.outputs.changes }}
+                  files: |
+                      release-artifacts/*.pbiviz
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Keep the built packages retrievable even when a later step
+            # fails, so a broken run can be diagnosed and hand-published
+            # without a rebuild. Purely diagnostic: must never affect job
+            # status (continue-on-error), must survive re-runs (overwrite).
+            - name: Upload artifacts for diagnosis
+              if: always()
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-artifacts
+                  path: release-artifacts/*.pbiviz
+                  if-no-files-found: warn
+                  overwrite: true
+
+    release:
+        # Negative gate: every ref admitted by on.push.tags that is NOT a
+        # moving channel tag lands in this job. Adding a new trigger glob
+        # above silently enrolls it here — the exact-shape validation step
+        # below is what rejects strays loudly.
+        if: ${{ !startsWith(github.ref, 'refs/tags/alpha') && !startsWith(github.ref, 'refs/tags/beta') }}
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Fetch all tags
+              run: git fetch --tags --force
+            # The on.push tag glob is looser than the real rule, so validate
+            # the exact 4-part shape here, and require the tag to equal
+            # pbiviz.json's visual.version (fail fast on drift). The release
+            # is named with the 3-part semantic version (tag minus the 4th
+            # part). $GITHUB_REF_NAME env-var form: see prerelease job note.
+            # Runs before setup-node on purpose (fail fast, before the
+            # expensive gate): the `node -p` below uses the runner image's
+            # preinstalled Node, which is fine for JSON.parse/readFileSync.
+            - name: Validate production tag
+              id: version
+              run: |
+                  if ! echo "$GITHUB_REF_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                      echo "::error::Tag '$GITHUB_REF_NAME' is not a 4-part production version tag (e.g. 2.0.0.0)."
+                      exit 1
+                  fi
+                  PBIVIZ_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")
+                  if [ "$GITHUB_REF_NAME" != "$PBIVIZ_VERSION" ]; then
+                      echo "::error::Tag '$GITHUB_REF_NAME' does not match pbiviz.json visual.version '$PBIVIZ_VERSION'. Update pbiviz.json (or retag) so they agree."
+                      exit 1
+                  fi
+                  echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+                  echo "semver=${GITHUB_REF_NAME%.*}" >> $GITHUB_OUTPUT
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+            - run: npm ci
+            # Full quality gate — a production release never ships untested.
+            # Mirrors .github/workflows/test.yml.
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+            - run: npx playwright install --with-deps chromium
+            - name: Lint
+              run: npm run eslint
+            - name: Unit tests
+              run: npm run test
+            - name: Docs drift check
+              run: npm run docs:check
+            - name: Integration tests
+              run: npm run test:integration
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
+            # Production packages: all three editions with their committed
+            # (production) GUIDs — no channel overlay. dist/ is cleared before
+            # each package so the mv glob can only match the single fresh
+            # artifact (mv fails the job on zero or multiple matches). The
+            # non-secure editions are checked for sanitizer leakage
+            # immediately after packaging (the check reads the webpack drop,
+            # which the next package run overwrites).
+            - name: Package regular edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standard
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
+            - name: Package secure edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs certified
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
+            - name: Package standalone edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standalone
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
+            # Changelog baseline: the newest 4-part production tag whose x.y.z
+            # differs from the current tag's — so a remedial 2.0.0.1 still
+            # diffs against the previous release (e.g. 1.6.2.0), not 2.0.0.0.
+            - name: Get changelog baseline tag
+              id: last_tag
+              run: |
+                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | awk -F. -v s="${{ steps.version.outputs.semver }}" '$1"."$2"."$3 != s' | head -n 1 || true)
+                  if [ -z "$LAST_TAG" ]; then
+                      echo "::error::No prior production tag found to use as the changelog baseline."
+                      exit 1
+                  fi
+                  echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
+                  echo "Changelog baseline: $LAST_TAG"
+            - name: Generate changelog
+              id: changelog
+              # Third-party actions in this workflow run with a write-scoped
+              # token, so they are pinned to reviewed commit SHAs rather than
+              # mutable tags (supply-chain hardening).
+              uses: requarks/changelog-action@1fabc7b0c6581d93c398246a856f084fb17cd9eb # v1.9.0
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fromTag: ${{ github.ref_name }}
+                  toTag: ${{ steps.last_tag.outputs.tag }}
+                  excludeTypes: ''
+                  writeToFile: false
+            # Remedial-build supersede rule: the release identity is x.y.z; a
+            # 4-part tag is one build of it. If a release with this x.y.z name
+            # already exists: replace it when it is still a draft; fail when
+            # it is published (never silently delete a live release — delete
+            # or un-publish manually to supersede). Deleting by release id via
+            # the API (not `gh release delete <tag>`) so drafts are handled
+            # reliably. Superseded 4-part tags stay in git history. This
+            # destructive step sits immediately before the create so an
+            # earlier failure (tests, packaging, changelog) cannot leave the
+            # x.y.z release deleted-but-not-recreated.
+            - name: Supersede in-flight draft release
+              run: |
+                  set -o pipefail
+                  # Staleness guard: if a newer build tag already exists for
+                  # this x.y.z, this run is out of date and must not be
+                  # allowed to supersede the newer build's draft.
+                  SEMVER="${{ steps.version.outputs.semver }}"
+                  NEWEST=$(git tag -l | grep -E "^${SEMVER//./\\.}\.[0-9]+$" | sort -V | tail -n 1)
+                  if [ "$NEWEST" != "$GITHUB_REF_NAME" ]; then
+                      echo "::error::A newer build tag ($NEWEST) exists for release $SEMVER; this run is stale and will not touch the release."
+                      exit 1
+                  fi
+                  MATCH=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" -s 'add | map(select(.name == $n))')
+                  COUNT=$(echo "$MATCH" | jq 'length')
+                  if [ "$COUNT" = "0" ]; then
+                      echo "No existing release named '${{ steps.version.outputs.semver }}'."
+                      exit 0
+                  fi
+                  PUBLISHED=$(echo "$MATCH" | jq '[.[] | select(.draft | not)] | length')
+                  if [ "$PUBLISHED" != "0" ]; then
+                      echo "::error::A published release named '${{ steps.version.outputs.semver }}' already exists. Delete or un-publish it manually if this remedial build ('$GITHUB_REF_NAME') should supersede it, then re-run this workflow."
+                      exit 1
+                  fi
+                  echo "$MATCH" | jq -r '.[].id' | while read -r id; do
+                      echo "Deleting draft release id $id"
+                      gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+                  done
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Create draft production release
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+              with:
+                  tag_name: ${{ github.ref_name }}
+                  name: ${{ steps.version.outputs.semver }}
+                  draft: true
+                  body: |
+                      Details for this release are available [in the changelog](https://html-content.com/docs/change-log) on the documentation site.
+
+                      Three packages are attached, one per edition:
+
+                      | Package | Edition | Distribution |
+                      | --- | --- | --- |
+                      | `HTML-Content.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content** | AppSource (production visual ID) |
+                      | `HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content Secure** | AppSource, certified (production visual ID) |
+                      | `HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content — Standalone** | Side-load only (independent visual ID) |
+
+                      > **Note:** the regular and Secure packages use the **production AppSource visual IDs**. To use them directly you will need to deploy them as [organizational visuals](https://learn.microsoft.com/power-bi/developer/visuals/power-bi-custom-visuals-organization) — otherwise, simply wait for AppSource publication to catch up with this release. The Standalone package has its own visual ID and can be side-loaded into any report, but is independent of AppSource and will not auto-update.
+
+                      ---
+
+                      ## Changes since ${{ steps.last_tag.outputs.tag }}
+
+                      ${{ steps.changelog.outputs.changes }}
+                  files: |
+                      release-artifacts/*.pbiviz
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Keep the built packages retrievable even when a later step
+            # fails, so a broken run can be diagnosed and hand-published
+            # without a rebuild. Purely diagnostic: must never affect job
+            # status (continue-on-error), must survive re-runs (overwrite).
+            - name: Upload artifacts for diagnosis
+              if: always()
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-artifacts
+                  path: release-artifacts/*.pbiviz
+                  if-no-files-found: warn
+                  overwrite: true

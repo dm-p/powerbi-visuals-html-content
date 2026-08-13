@@ -37,3 +37,54 @@ export const editions = {
         edition: 'standalone'
     }
 };
+
+const CHANNELS = ['alpha', 'beta'];
+// Channel builds exist for the two published editions only; standalone is
+// already an independent side-load artifact.
+const CHANNEL_ICONS = {
+    standard: (c) => `assets/palette_icon_standard_${c}.png`,
+    certified: (c) => `assets/palette_icon_secure_${c}.png`
+};
+
+// Single source of truth for composing base pbiviz.json + edition overlay +
+// optional prerelease channel overlay (GUID prefix, displayName suffix,
+// channel icon). Consumed by pbiviz.mjs (package-time config) and
+// scripts/select-edition.mjs (generated-file prestep). The internal 4-part
+// `version` is deliberately never modified by the channel overlay.
+// Consumers assembling a pbiviz config must destructure the three pbiviz
+// keys (visual/assets/capabilities) rather than spreading the whole result —
+// sanitize/edition are build-policy fields, not pbiviz fields. The returned
+// `edition` is the edition *label* ('flagship' | 'secure' | 'standalone'),
+// not the editionKey argument ('standard' | 'certified' | 'standalone').
+export function resolveEditionConfig(base, editionKey = 'certified', channel) {
+    if (!Object.hasOwn(editions, editionKey)) {
+        throw new Error(`Unknown edition: ${editionKey}`);
+    }
+    const e = editions[editionKey];
+    const visual = { ...base.visual, ...e.visual };
+    const assets = { ...base.assets, ...e.assets };
+    const capabilities = e.capabilities ?? base.capabilities;
+    if (channel !== undefined) {
+        if (!CHANNELS.includes(channel)) {
+            throw new Error(`Unknown channel: ${channel}`);
+        }
+        const icon = CHANNEL_ICONS[editionKey];
+        if (!icon) {
+            throw new Error(
+                `Edition '${editionKey}' does not support channel builds`
+            );
+        }
+        visual.guid = `${channel.toUpperCase()}${visual.guid}`;
+        visual.displayName = `${visual.displayName} (${
+            channel[0].toUpperCase() + channel.slice(1)
+        })`;
+        assets.icon = icon(channel);
+    }
+    return {
+        visual,
+        assets,
+        capabilities,
+        sanitize: e.sanitize,
+        edition: e.edition
+    };
+}
