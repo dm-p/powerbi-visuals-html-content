@@ -71,6 +71,14 @@ describe('resolveEditionConfig', () => {
         expect(() => resolveEditionConfig(base, 'standard', '')).toThrow(
             /Unknown channel/
         );
+
+        // Pins the Object.hasOwn guard: prototype-chain keys must not
+        // resolve as editions.
+        for (const key of ['constructor', '__proto__', 'toString']) {
+            expect(() => resolveEditionConfig(base, key)).toThrow(
+                /Unknown edition/
+            );
+        }
     });
 
     it('never mutates the base config', () => {
