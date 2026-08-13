@@ -1,0 +1,168 @@
+name: release
+
+# Maintainer runbook — how to cut releases:
+#
+#   Channel drop (alpha shown; beta is identical):
+#       git tag 2.0.0.alpha-1 <commit>
+#       git tag -f alpha <commit>
+#       git push origin 2.0.0.alpha-1
+#       git push -f origin alpha
+#   -> the rolling "Alpha Channel" prerelease is replaced with this build.
+#
+#   Production release:
+#       git tag 2.0.0.0 <commit>
+#       git push origin 2.0.0.0
+#   -> a DRAFT release named "2.0.0" is created for proofing; publish it
+#      manually from the Releases page. A remedial build (2.0.0.1) replaces a
+#      still-draft "2.0.0" release and fails if "2.0.0" is already published.
+
+# Default the workflow token to read-only; each job elevates to
+# contents: write itself (release create/delete).
+permissions:
+    contents: read
+
+on:
+    push:
+        tags:
+            - 'alpha'
+            - 'alpha-*'
+            - 'beta'
+            - 'beta-*'
+            # 4-part production tags (e.g. 2.0.0.0). The glob is looser than
+            # the real rule; the release job re-validates with an exact regex.
+            - '[0-9]*.[0-9]*.[0-9]*.[0-9]*'
+
+jobs:
+    prerelease:
+        if: startsWith(github.ref, 'refs/tags/alpha') || startsWith(github.ref, 'refs/tags/beta')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            # Derive the release channel from the moving tag name
+            # ('alpha'/'beta', including 'alpha-*'/'beta-*' variants). Every
+            # later step keys off these outputs, so alpha and beta cannot
+            # drift apart. $GITHUB_REF_NAME (env var, quoted) rather than
+            # ${{ github.ref_name }}: expression interpolation would paste the
+            # raw tag name into the script as shell source.
+            - name: Resolve release channel
+              id: channel
+              run: |
+                  CHANNEL="${GITHUB_REF_NAME%%-*}"
+                  case "$CHANNEL" in
+                      alpha|beta) ;;
+                      *)
+                          echo "::error::Unsupported prerelease channel '$CHANNEL' (from tag '$GITHUB_REF_NAME')."
+                          exit 1
+                          ;;
+                  esac
+                  echo "name=$CHANNEL" >> $GITHUB_OUTPUT
+                  echo "prefix=$(echo "$CHANNEL" | tr '[:lower:]' '[:upper:]')" >> $GITHUB_OUTPUT
+                  echo "title=${CHANNEL^}" >> $GITHUB_OUTPUT
+                  echo "Channel: $CHANNEL"
+            # The moving channel tag must be accompanied by a versioned
+            # channel tag (e.g. `2.0.0.beta-1`) on the same commit — it names
+            # the published .pbiviz files and the release title. Fail fast
+            # (before install/build) if it is missing.
+            - name: Resolve versioned channel tag
+              id: version_tag
+              run: |
+                  VERSION_TAG=$(git tag --points-at HEAD | grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.${{ steps.channel.outputs.name }}-[0-9]+$" | sort -V | tail -n 1 || true)
+                  if [ -z "$VERSION_TAG" ]; then
+                      echo "::error::No versioned ${{ steps.channel.outputs.name }} tag (e.g. 2.0.0.${{ steps.channel.outputs.name }}-1) found on this commit. Tag the commit with '<major>.<minor>.<patch>.${{ steps.channel.outputs.name }}-<n>' and re-push the '${{ steps.channel.outputs.name }}' tag to release."
+                      exit 1
+                  fi
+                  echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+                  echo "Versioned channel tag: $VERSION_TAG"
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+            # The internal 4-part version is left as committed for channel
+            # builds, so every drop of a version reports the same number
+            # inside Power BI — the release notes tell testers to quote the
+            # package filename instead.
+            - name: Resolve internal visual version
+              id: internal
+              run: echo "version=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")" >> $GITHUB_OUTPUT
+            - run: npm ci
+            # Channel packages: regular (standard) + secure (certified), each
+            # with the channel overlay (prefixed GUID, suffixed displayName,
+            # channel icon). dist/ is cleared before each package so the mv
+            # glob below can only ever match the single fresh artifact (mv
+            # fails the job on zero or multiple matches).
+            - name: Package regular edition (channel build)
+              run: |
+                  rm -rf dist
+                  node scripts/select-edition.mjs standard ${{ steps.channel.outputs.name }}
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  mkdir -p release-artifacts
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz"
+            - name: Package secure edition (channel build)
+              run: |
+                  rm -rf dist
+                  node scripts/select-edition.mjs certified ${{ steps.channel.outputs.name }}
+                  npx pbiviz package
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
+            - name: Delete existing channel release
+              run: gh release delete "$GITHUB_REF_NAME" --yes || true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Fetch all tags
+              run: git fetch --tags --force
+            # Only pure 4-part numeric tags (e.g. 1.6.2.0) are production
+            # releases. Positively match that shape so channel tags can never
+            # become the changelog baseline — drift is always measured from
+            # the last shipped production release.
+            - name: Get last release tag
+              id: last_tag
+              run: |
+                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+                  echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
+                  echo "Last versioned tag: $LAST_TAG"
+            - name: Generate changelog
+              id: changelog
+              uses: requarks/changelog-action@v1
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fromTag: ${{ github.ref_name }}
+                  toTag: ${{ steps.last_tag.outputs.tag }}
+                  excludeTypes: ''
+                  writeToFile: false
+            - name: Create channel pre-release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ github.ref_name }}
+                  name: '${{ steps.channel.outputs.title }} Channel: Latest Build (${{ steps.version_tag.outputs.tag }})'
+                  prerelease: true
+                  body: |
+                      HTML Content ${{ steps.channel.outputs.title }} Channel build — the latest early-access build for testing and feedback.
+
+                      Two packages are attached, one per edition:
+
+                      | Package | Edition | What it does |
+                      | --- | --- | --- |
+                      | `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz` | **HTML Content** | Full HTML rendering, including external content where your tenant allows it. |
+                      | `HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz` | **HTML Content Secure** | Sanitizes markup and blocks external communication, matching the behavior of the certified AppSource visual. |
+
+                      Both packages use channel-specific visual IDs (prefixed `${{ steps.channel.outputs.prefix }}`), so they can be side-loaded into reports alongside the AppSource or production visuals without interfering with them, and they will not auto-update.
+
+                      > **Note on the Secure edition:** this build is **not** tied to AppSource and carries **none of the certification benefits** of the published certified visual. It is provided so you can verify that sanitization and external-communication blocking work as expected against your own content before the certified release catches up.
+
+                      **These builds are not supported for production use** and are intended for testing and feedback only.
+
+                      When reporting issues, please quote the full package filename (e.g. `HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz`) — the version shown inside Power BI reads `${{ steps.internal.outputs.version }}` for all channel builds and does not identify the drop on its own.
+
+                      ---
+
+                      ## Changes since ${{ steps.last_tag.outputs.tag }}
+
+                      ${{ steps.changelog.outputs.changes }}
+                  files: |
+                      release-artifacts/*.pbiviz
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
