@@ -83,7 +83,42 @@ describe('resolveEditionConfig', () => {
 
     it('never mutates the base config', () => {
         const snapshot = JSON.parse(JSON.stringify(base));
-        resolveEditionConfig(base, 'standard', 'beta');
+        resolveEditionConfig(
+            base,
+            'standard',
+            'beta',
+            '2.0.0.20260813#b044cfdc'
+        );
         expect(base).toEqual(snapshot);
+    });
+
+    it('applies a version override in channel builds', () => {
+        const r = resolveEditionConfig(
+            base,
+            'standard',
+            'beta',
+            '2.0.0.20260813#b044cfdc'
+        );
+        expect(r.visual.version).toBe('2.0.0.20260813#b044cfdc');
+        // identity overlay is unaffected by the override
+        expect(r.visual.guid).toBe(
+            'BETAhtmlContent443BE3AD55E043BF878BED274D3A6855'
+        );
+    });
+
+    it('leaves the version untouched when no override is given', () => {
+        const r = resolveEditionConfig(base, 'certified', 'alpha');
+        expect(r.visual.version).toBe(base.visual.version);
+    });
+
+    it('rejects a version override without a channel', () => {
+        expect(() =>
+            resolveEditionConfig(
+                base,
+                'standard',
+                undefined,
+                '2.0.0.20260813#b044cfdc'
+            )
+        ).toThrow(/requires a channel/);
     });
 });
