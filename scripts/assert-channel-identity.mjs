@@ -34,4 +34,6 @@ if (problems.length > 0) {
     console.error(`FAIL: packaged channel identity: ${problems.join('; ')}`);
     process.exit(1);
 }
-console.log(`OK: channel identity ${visual.guid} / '${visual.displayName}'`);
+console.log(
+    `OK: channel identity ${visual.guid} / '${visual.displayName}' @ ${visual.version}`
+);
