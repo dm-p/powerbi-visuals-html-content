@@ -603,6 +603,17 @@ Do NOT push or open a PR yet. Report to the user: the beta `.pbiviz` from Step 1
   locales are added, a locale lacking `Landing_ChannelBadge_*` keys would
   render the raw key inside the amber pill — add the `resolved === key ?
   undefined : resolved` guard in `handler.ts` at that point).
+- Task 4 polish round: the release-notes example version is no longer
+  hardcoded — a `Resolve stamped visual version` step reads the real stamp
+  from the packaged drop and the body interpolates it; the
+  assert-channel-identity OK line prints the stamp it vouches for.
+- Final-review round (pre-merge, post-UAT-start): mock-based tests pin the
+  CHANNEL → `Landing_ChannelBadge_*` key mapping for BOTH channels (the
+  alpha branch is constant-folded out of beta builds, so nothing else can
+  cover it) plus a resjson key-existence test; new
+  `scripts/assert-production-version.mjs` mirrors the stamp check in the
+  production job (asserts the packaged drop carries the committed version,
+  called in all three production packaging steps).
 - Desktop UAT should specifically eyeball: narrow (~200px) visual — badge
   wraps acceptably, no horizontal scrollbar from the version line; alpha AND
   beta packages show the right badge text; a certified package shows no
