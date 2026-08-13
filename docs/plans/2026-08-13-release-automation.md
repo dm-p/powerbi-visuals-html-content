@@ -504,7 +504,7 @@ jobs:
             # fails the job on zero or multiple matches).
             - name: Package regular edition (channel build)
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standard ${{ steps.channel.outputs.name }}
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
@@ -512,7 +512,7 @@ jobs:
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz"
             - name: Package secure edition (channel build)
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs certified ${{ steps.channel.outputs.name }}
                   npx pbiviz package
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
@@ -669,21 +669,21 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
             # which the next package run overwrites).
             - name: Package regular edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standard
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package secure edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs certified
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package standalone edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standalone
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
@@ -732,7 +732,7 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                       echo "::error::A newer build tag ($NEWEST) exists for release $SEMVER; this run is stale and will not touch the release."
                       exit 1
                   fi
-                  MATCH=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" '[.[] | select(.name == $n)]')
+                  MATCH=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" -s 'add | map(select(.name == $n))')
                   COUNT=$(echo "$MATCH" | jq 'length')
                   if [ "$COUNT" = "0" ]; then
                       echo "No existing release named '${{ steps.version.outputs.semver }}'."
@@ -818,6 +818,18 @@ diagnosis` step uses artifact name `release-artifacts`; the release job must
 use a distinct name (`release-artifacts-production`) only if both jobs could
 ever run in one workflow run — they cannot (disjoint tag gates), so the same
 name is fine.
+
+The final whole-branch review added a further round (reflected in the YAML
+above where applicable): a new `scripts/assert-channel-identity.mjs` asserts
+the packaged drop's GUID prefix + displayName suffix after each channel
+package (guards the select-edition → active-edition → pbiviz.mjs handoff —
+without it, a silently-dropped channel would publish PRODUCTION-GUID packages
+as a channel build); packaging steps clear `.tmp/drop` alongside `dist`; the
+prerelease changelog `fromTag` uses the versioned channel tag (spec-exact);
+the production supersede lookup paginates (`gh api --paginate` + `jq -s
+'add'`); the runbook warns that suffixed moving tags (`alpha-2`) create a
+separate rolling release; `release-artifacts/` is gitignored; AGENTS.md's
+stale "lite edition" wording became "secure edition".
 
 ---
 
