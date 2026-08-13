@@ -4,6 +4,7 @@
 // certified package for --expect-sanitizer). The webpack drop is the unzipped
 // bundle; pass a path as the first non-flag argument if the drop folder differs.
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 const args = process.argv.slice(2);
 const expectSanitizer = args.includes('--expect-sanitizer');
@@ -14,28 +15,40 @@ if (!existsSync(BUNDLE)) {
 }
 
 const source = readFileSync(BUNDLE, 'utf8');
-// Fingerprints that indicate sanitizer code in a bundle. DOMPurify's
-// trusted-types policy name is the literal "dompurify" and survives
-// minification; postcss's package-name strings can also surface in base
-// bundles. For the ABSENCE check (base editions), either one leaking is a
-// failure. For the PRESENCE check (--expect-sanitizer, secure edition), only
-// dompurify is a reliable witness: postcss-value-parser contains no
-// self-referential literal in minified output, so its absence proves
-// nothing. Both deps enter through the same backend.certified seam, so one
-// witness suffices.
-const LEAK_FINGERPRINTS = [/dompurify/i, /postcss-value-parser/i];
-const PRESENCE_FINGERPRINT = /dompurify/i;
+// Fingerprints that witness sanitizer code in a minified bundle: DOMPurify's
+// trusted-types policy name is the literal "dompurify"; postcss carries its
+// own "postcssPlugin" property name. (postcss-value-parser itself embeds no
+// self-referential literal after minification, so it cannot be a witness.)
+// Base editions must contain NONE of these; the secure edition must contain
+// ALL of them.
+const FINGERPRINTS = [/dompurify/i, /postcssPlugin/];
 
 if (expectSanitizer) {
-    if (!PRESENCE_FINGERPRINT.test(source)) {
+    const missing = FINGERPRINTS.filter((re) => !re.test(source)).map(
+        (re) => re.source
+    );
+    if (missing.length > 0) {
         console.error(
-            `FAIL: sanitizer fingerprint (${PRESENCE_FINGERPRINT.source}) missing from secure bundle.`
+            `FAIL: missing sanitizer fingerprint(s) in secure bundle: ${missing.join(', ')}`
         );
         process.exit(1);
     }
-    console.log('OK: sanitizer fingerprint present in the secure bundle.');
+    // The release notes also claim the secure edition "blocks external
+    // communication" — assert the packaged capabilities carry no privileges,
+    // which is what actually enforces that claim at runtime.
+    const capabilities = JSON.parse(
+        readFileSync(join(dirname(BUNDLE), 'pbiviz.json'), 'utf8')
+    ).capabilities;
+    const privileges = capabilities?.privileges ?? [];
+    if (privileges.length > 0) {
+        console.error(
+            `FAIL: secure bundle declares privileges: ${JSON.stringify(privileges)}`
+        );
+        process.exit(1);
+    }
+    console.log('OK: sanitizer fingerprints present in the secure bundle.');
 } else {
-    const hits = LEAK_FINGERPRINTS.filter((re) => re.test(source)).map(
+    const hits = FINGERPRINTS.filter((re) => re.test(source)).map(
         (re) => re.source
     );
     if (hits.length > 0) {
