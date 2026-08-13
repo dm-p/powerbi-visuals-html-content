@@ -4,7 +4,7 @@ Minimal orientation for AI coding agents working in this repo.
 
 ## What this is
 
-A Power BI custom visual (`htmlContent`, displayName "HTML Content (lite)") that renders column or measure values as sanitized HTML inside a Power BI report. The lite edition does not load remote content and allows a smaller subset of HTML tags. Build/package via `pbiviz` (powerbi-visuals-tools).
+A Power BI custom visual (`htmlContent`, displayName "HTML Content Secure") that renders column or measure values as sanitized HTML inside a Power BI report. The lite edition does not load remote content and allows a smaller subset of HTML tags. Build/package via `pbiviz` (powerbi-visuals-tools).
 
 - Entry point: [src/visual.ts](src/visual.ts)
 - Visual config: [pbiviz.json](pbiviz.json), [capabilities.json](capabilities.json)
@@ -30,6 +30,8 @@ fails with a confusing `Cannot find module './backend'` error.
 |---|---|
 | Dev server (live-reload into Power BI Desktop) | `npm start` |
 | Package the visual (`.pbiviz`) | `npm run package` |
+| Package an alpha/beta channel build (e.g. beta of the regular edition; reproduces a CI channel artifact locally) | `node scripts/select-edition.mjs standard beta && npx pbiviz package` |
+| Reset to the default edition after a channel build | `node scripts/select-edition.mjs certified` |
 | Lint | `npm run eslint` |
 | Format check / write | `npm run prettier-check` / `npm run prettier-format` |
 | Unit tests (vitest) | `npm test` |
