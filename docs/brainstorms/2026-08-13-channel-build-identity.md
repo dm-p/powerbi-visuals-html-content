@@ -26,7 +26,7 @@ Round-trip testing of the publication process surfaced two gaps in channel
 | 4th version segment for channel builds | Deneb-style date + commit hash: `2.0.0.20260813#b044cfdc` (rejected: the versioned tag — unavailable to local builds, can't distinguish rebuilds; tag+hash hybrid — longest form, same plumbing cost) |
 | Landing indicator | Channel-named warning badge: `ALPHA BUILD — NOT FOR PRODUCTION USE` / `BETA BUILD — NOT FOR PRODUCTION USE` (rejected: plain text line — too easy to miss; badge + version-prefix — redundant) |
 | Where the stamp is computed | Approach A — `scripts/select-edition.mjs` computes it once and flows it through the generated handoff (rejected: computing inside `resolveEditionConfig` — makes the pure resolver impure and risks script/pbiviz.mjs drift; CI-only env var — local builds would package unstamped, defeating the local verification requirement) |
-| Translation for the badge | None — the repo has no i18n infrastructure (`stringResources: []`, no locale files); all splash strings are hardcoded English literals and the badge follows suit |
+| Translation for the badge | Follows the existing localization pattern (corrected during planning: `stringResources/en-US/resources.resjson` + `ILocalizationManager` DOES exist and supplies every `Landing_*` string) — two new keys, `Landing_ChannelBadge_Alpha` / `Landing_ChannelBadge_Beta`; the handler resolves the text and passes it to the splash as an optional pre-localized `channelBadge` string |
 
 ## Design
 
@@ -58,13 +58,16 @@ Round-trip testing of the publication process surfaced two gaps in channel
 - `src/visual-config.generated.ts` gains
   `export const CHANNEL: 'alpha' | 'beta' | undefined` (written by
   `select-edition.mjs`).
-- `src/landing/handler.ts` passes it into `SplashOptions` as optional
-  `channel`; `buildSplash`/`buildHeader` in `src/landing/splash.ts` append,
-  directly under the `hc-landing-version` div, a badge div
-  (`hc-landing-channel-badge`) with text
-  `ALPHA BUILD — NOT FOR PRODUCTION USE` /
-  `BETA BUILD — NOT FOR PRODUCTION USE`. No badge when `channel` is
-  undefined.
+- `stringResources/en-US/resources.resjson` gains
+  `Landing_ChannelBadge_Alpha`: `ALPHA BUILD — NOT FOR PRODUCTION USE` and
+  `Landing_ChannelBadge_Beta`: `BETA BUILD — NOT FOR PRODUCTION USE`.
+- `src/landing/handler.ts` resolves the key for the active `CHANNEL` via the
+  localisation manager (like every other `Landing_*` string) and passes the
+  result into `SplashOptions` as optional `channelBadge?: string`;
+  `buildHeader` in `src/landing/splash.ts` appends, directly under the
+  `hc-landing-version` div, a badge div (`hc-landing-channel-badge`) with
+  that text. No badge when `channelBadge` is undefined — the splash never
+  needs to know channel names.
 - Styling in `style/visual.less` following the existing `hc-landing-*`
   conventions: warning-tinted pill (amber family), small-caps/bold, visible
   without dominating the hero.
