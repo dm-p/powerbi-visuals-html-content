@@ -609,6 +609,8 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+            - name: Fetch all tags
+              run: git fetch --tags --force
             # The on.push tag glob is looser than the real rule, so validate
             # the exact 4-part shape here, and require the tag to equal
             # pbiviz.json's visual.version (fail fast on drift). The release
@@ -649,6 +651,8 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
               run: npm run docs:check
             - name: Integration tests
               run: npm run test:integration
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
             # Production packages: all three editions with their committed
             # (production) GUIDs — no channel overlay. dist/ is cleared before
             # each package so the mv glob can only match the single fresh
@@ -662,13 +666,13 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                   node scripts/select-edition.mjs standard
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
-                  mkdir -p release-artifacts
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package secure edition
               run: |
                   rm -rf dist
                   node scripts/select-edition.mjs certified
                   npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package standalone edition
               run: |
@@ -677,13 +681,38 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
+            # Changelog baseline: the newest 4-part production tag whose x.y.z
+            # differs from the current tag's — so a remedial 2.0.0.1 still
+            # diffs against the previous release (e.g. 1.6.2.0), not 2.0.0.0.
+            - name: Get changelog baseline tag
+              id: last_tag
+              run: |
+                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | awk -F. -v s="${{ steps.version.outputs.semver }}" '$1"."$2"."$3 != s' | head -n 1 || true)
+                  if [ -z "$LAST_TAG" ]; then
+                      echo "::error::No prior production tag found to use as the changelog baseline."
+                      exit 1
+                  fi
+                  echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
+                  echo "Changelog baseline: $LAST_TAG"
+            - name: Generate changelog
+              id: changelog
+              uses: requarks/changelog-action@v1
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fromTag: ${{ github.ref_name }}
+                  toTag: ${{ steps.last_tag.outputs.tag }}
+                  excludeTypes: ''
+                  writeToFile: false
             # Remedial-build supersede rule: the release identity is x.y.z; a
             # 4-part tag is one build of it. If a release with this x.y.z name
             # already exists: replace it when it is still a draft; fail when
             # it is published (never silently delete a live release — delete
             # or un-publish manually to supersede). Deleting by release id via
             # the API (not `gh release delete <tag>`) so drafts are handled
-            # reliably. Superseded 4-part tags stay in git history.
+            # reliably. Superseded 4-part tags stay in git history. This
+            # destructive step sits immediately before the create so an
+            # earlier failure (tests, packaging, changelog) cannot leave the
+            # x.y.z release deleted-but-not-recreated.
             - name: Supersede in-flight draft release
               run: |
                   MATCH=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" '[.[] | select(.name == $n)]')
@@ -703,30 +732,6 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                   done
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            - name: Fetch all tags
-              run: git fetch --tags --force
-            # Changelog baseline: the newest 4-part production tag whose x.y.z
-            # differs from the current tag's — so a remedial 2.0.0.1 still
-            # diffs against the previous release (e.g. 1.6.2.0), not 2.0.0.0.
-            - name: Get changelog baseline tag
-              id: last_tag
-              run: |
-                  LAST_TAG=$(git tag -l '[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | awk -F. -v s="${{ steps.version.outputs.semver }}" '$1"."$2"."$3 != s' | head -n 1)
-                  if [ -z "$LAST_TAG" ]; then
-                      echo "::error::No prior production tag found to use as the changelog baseline."
-                      exit 1
-                  fi
-                  echo "tag=$LAST_TAG" >> $GITHUB_OUTPUT
-                  echo "Changelog baseline: $LAST_TAG"
-            - name: Generate changelog
-              id: changelog
-              uses: requarks/changelog-action@v1
-              with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  fromTag: ${{ github.ref_name }}
-                  toTag: ${{ steps.last_tag.outputs.tag }}
-                  excludeTypes: ''
-                  writeToFile: false
             - name: Create draft production release
               uses: softprops/action-gh-release@v2
               with:
@@ -755,6 +760,15 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
                       release-artifacts/*.pbiviz
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Keep the built packages retrievable even when a later step
+            # fails, so a broken run can be diagnosed and hand-published
+            # without a rebuild.
+            - name: Upload artifacts for diagnosis
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-artifacts
+                  path: release-artifacts/*.pbiviz
 ```
 
 - [ ] **Step 2: Verify the YAML parses**
@@ -768,6 +782,21 @@ Expected: `YAML-OK`
 git add .github/workflows/release.yml
 git commit -m "ci: add draft production release workflow job"
 ```
+
+**Note (execution deviation record):** Task 3's review round hardened the shared
+parts of this workflow beyond the original plan text: a workflow-level
+`concurrency` block (group `release-${{ github.ref_name }}`,
+`cancel-in-progress: false`) — Task 4 must NOT add another; `Fetch all tags`
+runs right after checkout in both jobs; artifact staging is its own
+`mkdir -p release-artifacts` step; the secure edition is asserted with
+`scripts/check-no-sanitizer.mjs --expect-sanitizer` (inverse mode added in
+Task 3's hardening commit); destructive release deletion sits immediately
+before the create; artifacts upload with `if: always()`. The Task 4 YAML above
+already reflects all of this. The prerelease job's `Upload artifacts for
+diagnosis` step uses artifact name `release-artifacts`; the release job must
+use a distinct name (`release-artifacts-production`) only if both jobs could
+ever run in one workflow run — they cannot (disjoint tag gates), so the same
+name is fine.
 
 ---
 
