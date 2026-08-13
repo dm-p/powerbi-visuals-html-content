@@ -67,6 +67,7 @@ typings/
 .api/
 .tmp/
 dist/
+release-artifacts/
 webpack.statistics.*.html
 webpack.statistics.html
 

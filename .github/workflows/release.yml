@@ -9,6 +9,10 @@ name: release
 #       git push -f origin alpha
 #   -> the rolling "Alpha Channel" prerelease is replaced with this build.
 #
+#   Always move the bare 'alpha'/'beta' tags. A suffixed moving tag (e.g.
+#   'alpha-2') creates a SEPARATE rolling release keyed to that tag name
+#   instead of replacing the 'alpha' one.
+#
 #   Production release:
 #       git tag 2.0.0.0 <commit>
 #       git push origin 2.0.0.0
@@ -106,17 +110,19 @@ jobs:
             # fails the job on zero or multiple matches).
             - name: Package regular edition (channel build)
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standard ${{ steps.channel.outputs.name }}
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-channel-identity.mjs ${{ steps.channel.outputs.prefix }}
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version_tag.outputs.tag }}.pbiviz"
             - name: Package secure edition (channel build)
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs certified ${{ steps.channel.outputs.name }}
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-channel-identity.mjs ${{ steps.channel.outputs.prefix }}
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version_tag.outputs.tag }}.pbiviz"
             # Only pure 4-part numeric tags (e.g. 1.6.2.0) are production
             # releases. Positively match that shape so channel tags can never
@@ -137,7 +143,7 @@ jobs:
               uses: requarks/changelog-action@v1
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  fromTag: ${{ github.ref_name }}
+                  fromTag: ${{ steps.version_tag.outputs.tag }}
                   toTag: ${{ steps.last_tag.outputs.tag }}
                   excludeTypes: ''
                   writeToFile: false
@@ -261,21 +267,21 @@ jobs:
             # which the next package run overwrites).
             - name: Package regular edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standard
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
                   mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package secure edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs certified
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs --expect-sanitizer
                   mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
             - name: Package standalone edition
               run: |
-                  rm -rf dist
+                  rm -rf dist .tmp/drop
                   node scripts/select-edition.mjs standalone
                   npx pbiviz package
                   node scripts/check-no-sanitizer.mjs
@@ -324,7 +330,7 @@ jobs:
                       echo "::error::A newer build tag ($NEWEST) exists for release $SEMVER; this run is stale and will not touch the release."
                       exit 1
                   fi
-                  MATCH=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" '[.[] | select(.name == $n)]')
+                  MATCH=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" -s 'add | map(select(.name == $n))')
                   COUNT=$(echo "$MATCH" | jq 'length')
                   if [ "$COUNT" = "0" ]; then
                       echo "No existing release named '${{ steps.version.outputs.semver }}'."

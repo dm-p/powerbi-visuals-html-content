@@ -4,7 +4,7 @@ Minimal orientation for AI coding agents working in this repo.
 
 ## What this is
 
-A Power BI custom visual (`htmlContent`, displayName "HTML Content Secure") that renders column or measure values as sanitized HTML inside a Power BI report. The lite edition does not load remote content and allows a smaller subset of HTML tags. Build/package via `pbiviz` (powerbi-visuals-tools).
+A Power BI custom visual (`htmlContent`, displayName "HTML Content Secure") that renders column or measure values as sanitized HTML inside a Power BI report. The secure edition does not load remote content and allows a smaller subset of HTML tags. Build/package via `pbiviz` (powerbi-visuals-tools).
 
 - Entry point: [src/visual.ts](src/visual.ts)
 - Visual config: [pbiviz.json](pbiviz.json), [capabilities.json](capabilities.json)
