@@ -601,6 +601,10 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
 
 ```yaml
     release:
+        # Negative gate: every ref admitted by on.push.tags that is NOT a
+        # moving channel tag lands in this job. Adding a new trigger glob
+        # above silently enrolls it here — the exact-shape validation step
+        # below is what rejects strays loudly.
         if: ${{ !startsWith(github.ref, 'refs/tags/alpha') && !startsWith(github.ref, 'refs/tags/beta') }}
         runs-on: ubuntu-latest
         permissions:
@@ -616,6 +620,9 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
             # pbiviz.json's visual.version (fail fast on drift). The release
             # is named with the 3-part semantic version (tag minus the 4th
             # part). $GITHUB_REF_NAME env-var form: see prerelease job note.
+            # Runs before setup-node on purpose (fail fast, before the
+            # expensive gate): the `node -p` below uses the runner image's
+            # preinstalled Node, which is fine for JSON.parse/readFileSync.
             - name: Validate production tag
               id: version
               run: |
@@ -715,6 +722,16 @@ Add under `jobs:` (sibling of `prerelease`, same indentation):
             # x.y.z release deleted-but-not-recreated.
             - name: Supersede in-flight draft release
               run: |
+                  set -o pipefail
+                  # Staleness guard: if a newer build tag already exists for
+                  # this x.y.z, this run is out of date and must not be
+                  # allowed to supersede the newer build's draft.
+                  SEMVER="${{ steps.version.outputs.semver }}"
+                  NEWEST=$(git tag -l | grep -E "^${SEMVER//./\\.}\.[0-9]+$" | sort -V | tail -n 1)
+                  if [ "$NEWEST" != "$GITHUB_REF_NAME" ]; then
+                      echo "::error::A newer build tag ($NEWEST) exists for release $SEMVER; this run is stale and will not touch the release."
+                      exit 1
+                  fi
                   MATCH=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg n "${{ steps.version.outputs.semver }}" '[.[] | select(.name == $n)]')
                   COUNT=$(echo "$MATCH" | jq 'length')
                   if [ "$COUNT" = "0" ]; then
