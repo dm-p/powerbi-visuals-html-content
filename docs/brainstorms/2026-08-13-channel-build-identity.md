@@ -33,9 +33,12 @@ Round-trip testing of the publication process surfaced two gaps in channel
 ### 1. Version stamping
 
 - `scripts/select-edition.mjs`, when invoked with a channel, computes:
-  `STAMP = <base x.y.z>.<YYYYMMDD UTC>#<git rev-parse --short=8 HEAD>`
+  `STAMP = <base x.y.z>.<YYYYMMDD>#<git rev-parse --short=8 HEAD>`
   (e.g. `2.0.0.20260813#b044cfdc`; `<base x.y.z>` is the committed
-  `pbiviz.json` version minus its 4th part).
+  `pbiviz.json` version minus its 4th part). **Amended during execution:**
+  the date is the HEAD **commit** date (UTC), not the wall clock — the stamp
+  is then a pure function of HEAD, so workflow re-runs and the release job's
+  two per-edition builds can never carry different stamps for one drop.
 - The stamp is passed to `resolveEditionConfig(base, edition, channel,
   versionOverride)` as a new optional 4th argument. The resolver applies it
   as `visual.version` **only inside the channel branch**; passing an override

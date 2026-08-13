@@ -574,6 +574,26 @@ Do NOT push or open a PR yet. Report to the user: the beta `.pbiviz` from Step 1
 
 ---
 
+## Execution deviations (approved during review rounds)
+
+- `buildStamp()` derives the date from the HEAD **commit** (UTC), not the
+  wall clock — same `YYYYMMDD#hash` format, but the stamp is a pure function
+  of HEAD (no re-run drift; no cross-edition drift when the release job's two
+  `select-edition` calls straddle midnight UTC). Both git calls share one
+  try/catch with a clean one-line error + exit 1, stderr suppressed
+  (`stdio: ['ignore', 'pipe', 'ignore']`), and the `x.y.z` half is
+  shape-guarded before interpolation into the generated single-quoted
+  literal.
+- Task 4 additionally: adds a stamp back-pointer comment in
+  `scripts/assert-channel-identity.mjs` (the regex is the only consumer that
+  would catch a format change) and fixes AGENTS.md's stale "two git-ignored
+  files" description of `select-edition.mjs` (it generates four).
+- Task 5 note: quote any `dist/*.pbiviz` path containing `#` in shell
+  commands and UAT instructions; go into Desktop UAT expecting the
+  digits-only fallback may fire (powerbi-visuals-tools' certification-audit
+  surface validates `^\d+\.\d+\.\d+(\.\d+)?$`, though the packaging path
+  itself has no such check).
+
 ## Self-review notes (already applied)
 
 - Spec coverage: stamping (Tasks 1-2), badge + localization (Task 3), workflow/assert updates (Task 4), local verification + Desktop UAT gate + fallback (Task 5). Out-of-scope items untouched (no production-job changes, no diagnostics-dialog changes).
