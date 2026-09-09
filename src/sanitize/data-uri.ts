@@ -92,5 +92,34 @@ export const getSanitizedDataUri = (dataUri: string): string => {
         return blocked;
     }
 
-    return dataUri;
+    return mimeType === 'image/svg+xml'
+        ? encodeSvgPayloadAngleBrackets(dataUri)
+        : dataUri;
+};
+
+/**
+ * Percent-encode `<` and `>` in the payload of a text-form
+ * `data:image/svg+xml` URI (issue #192).
+ *
+ * DOMPurify's SAFE_FOR_XML guard removes any attribute whose value
+ * contains `]>`, `-->`, `--!>` or a `</style`-style closer, and it runs
+ * that check on the value our hook hands back. SVG-as-IMG measures that
+ * wrap labels in `<![CDATA[...]]>` therefore lost their whole `src`.
+ * Encoding the angle brackets means no literal closer survives into the
+ * attribute (the guard's intent holds), while browsers decode the
+ * escapes when loading the image, so the rendered SVG is unchanged.
+ * Runs after `hasDangerousSvgPayload`, which decodes before scanning.
+ * Base64 payloads contain neither character and pass through untouched.
+ */
+const encodeSvgPayloadAngleBrackets = (dataUri: string): string => {
+    const comma = dataUri.indexOf(',');
+    if (comma === -1) {
+        return dataUri;
+    }
+    return (
+        dataUri.slice(0, comma + 1) +
+        dataUri
+            .slice(comma + 1)
+            .replace(/[<>]/g, (c) => (c === '<' ? '%3C' : '%3E'))
+    );
 };
