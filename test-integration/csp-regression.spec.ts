@@ -91,6 +91,14 @@ test.describe('CSP regression — clean baselines', () => {
 
             const result = await harness.render(sanitized);
             expectClean(payload.id, result);
+            // Surviving sanitization is not the same as rendering: a
+            // rewritten data: URI can be unrenderable without tripping
+            // any CSP/console/network signal. Every image in a clean
+            // baseline must actually decode.
+            expect(
+                await harness.brokenImages(),
+                `payload ${payload.id} has images the browser could not decode`
+            ).toEqual([]);
         });
     }
 });
