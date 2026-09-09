@@ -103,6 +103,32 @@ export async function createHarness(page: Page, context: BrowserContext) {
                 pageErrors: [...pageErrors],
                 networkRequests: [...networkRequests]
             };
+        },
+
+        /**
+         * Return the `src` (truncated) of every <img> in the rendered
+         * payload that the browser could not decode. A URI can survive
+         * sanitization yet be unrenderable (e.g. a rewrite that breaks
+         * percent-encoding), which no CSP/console/network signal
+         * reports — `img.decode()` rejects in that case.
+         */
+        async brokenImages(): Promise<string[]> {
+            return page.evaluate(async () => {
+                const imgs = Array.from(
+                    document.querySelectorAll<HTMLImageElement>('#root img')
+                );
+                const broken: string[] = [];
+                for (const img of imgs) {
+                    try {
+                        await img.decode();
+                    } catch {
+                        broken.push(
+                            img.getAttribute('src')?.slice(0, 80) ?? '(no src)'
+                        );
+                    }
+                }
+                return broken;
+            });
         }
     };
 }

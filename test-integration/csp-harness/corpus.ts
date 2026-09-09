@@ -2122,5 +2122,31 @@ export const CLEAN_PAYLOADS: Payload[] = [
         cspCategory: 'none',
         source: 'MS cert report 2026-05 — hyperlinks toggle on (positive path)',
         sanitizeOptions: { allowHyperlinks: true }
+    },
+    // ─────────────────────────────────────────────────────────────────
+    // Issue #192: SVG-as-IMG data URI whose <text> labels are wrapped in
+    // CDATA. The `]]>` closers tripped DOMPurify's SAFE_FOR_XML attribute
+    // guard and the whole src was dropped. The sanitizer now
+    // percent-encodes `<`/`>` in text-form svg+xml payloads so the
+    // attribute survives and the browser renders the decoded SVG.
+    // In Desktop, expect four coloured outlined quadrants with a label
+    // in each corner. Negative rect sizes from the original report were
+    // replaced with positive ones so the boxes are actually visible.
+    // ─────────────────────────────────────────────────────────────────
+    {
+        id: 'clean-svg-data-uri-cdata-labels',
+        description:
+            'Issue #192 reproduction: data:image/svg+xml;utf8 <img> whose <text> ' +
+            'labels are wrapped in <![CDATA[...]]>. The `]]>` closer previously ' +
+            'caused DOMPurify to drop the src attribute entirely. Must render as ' +
+            'four outlined quadrants with a label in each corner.',
+        input: "<img src=\"data:image/svg+xml;utf8,<svg viewBox='-1 -1 361 267' xmlns='http://www.w3.org/2000/svg'><rect x='0' y='0' width='360' height='130' style='stroke: %23F29107;fill-opacity: 0;'></rect><text x='8' y='12' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23F29107'><![CDATA[Category 1]]></text><rect x='180' y='0' width='180' height='130' style='stroke: %234FB722;fill-opacity: 0;'></rect><text x='351' y='12' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%234FB722'><![CDATA[Category 2]]></text><rect x='180' y='130' width='180' height='135' style='stroke: %23ffd81d;fill-opacity: 0;'></rect><text x='351' y='255' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%23ffd81d'><![CDATA[Category 3]]></text><rect x='0' y='130' width='360' height='135' style='stroke: %23FF0000;fill-opacity: 0;'></rect><text x='8' y='255' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23FF0000'><![CDATA[Category 4]]></text></svg>\" />",
+        expectedSanitized: {
+            contains: ['data:image/svg+xml;utf8,', 'CDATA[Category 1]]%3E'],
+            notContains: [']]>']
+        },
+        category: 'clean-baseline',
+        cspCategory: 'none',
+        source: 'GitHub issue #192'
     }
 ];

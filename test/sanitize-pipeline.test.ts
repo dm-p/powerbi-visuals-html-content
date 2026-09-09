@@ -232,6 +232,25 @@ describe('sanitize-pipeline end-to-end', () => {
             expect(out).toContain("rect width='10'");
         });
 
+        // Issue #192: DOMPurify's SAFE_FOR_XML guard drops any attribute
+        // whose value contains `]>`, `-->`, `--!>` or `</style`-style
+        // closers. SVG-as-IMG measures that wrap labels in CDATA carry
+        // `]]>` and lost their whole src. The sanitizer percent-encodes
+        // `<` and `>` in text-form svg+xml payloads so no literal closer
+        // survives into the attribute; browsers decode the escapes when
+        // loading the image, so the rendered SVG is unchanged.
+        it('keeps data:image/svg+xml src whose payload contains CDATA (issue #192)', () => {
+            const svg =
+                "<svg xmlns='http://www.w3.org/2000/svg'><text><![CDATA[Category 1]]></text></svg>";
+            const out = getSanitizedHtmlForTesting(
+                `<img src="data:image/svg+xml;utf8,${svg}">`,
+                'html'
+            );
+            expect(out).toContain('data:image/svg+xml;utf8,');
+            expect(out).toContain('CDATA[Category 1]]%3E');
+            expect(out).not.toContain(']]>');
+        });
+
         it('preserves data:image/svg+xml;base64 in <img src>', () => {
             const out = getSanitizedHtmlForTesting(
                 '<img src="data:image/svg+xml;base64,PHN2Zy8+" alt="x">',

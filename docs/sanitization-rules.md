@@ -2258,7 +2258,7 @@ Legitimate content that must continue to render unchanged.
 **Output:**
 
 ```html
-<img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><circle cx='4' cy='4' r='3' fill='red'/></svg>">
+<img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Ccircle cx='4' cy='4' r='3' fill='red'/%3E%3C/svg%3E">
 ```
 
 #### SMIL animation targeting opacity (a safe presentation attribute). attributeName="opacity" is not on the denylist, so the animation survives intact and renders the fade-in effect at runtime (issue #145 HomeTetris pattern).
@@ -2343,6 +2343,20 @@ Legitimate content that must continue to render unchanged.
 
 ```html
 <a href="https://example.com">visit example</a>
+```
+
+#### Issue #192 reproduction: data:image/svg+xml;utf8 <img> whose <text> labels are wrapped in <![CDATA[...]]>. The `]]>` closer previously caused DOMPurify to drop the src attribute entirely. Must render as four outlined quadrants with a label in each corner.
+
+**Input:**
+
+```html
+<img src="data:image/svg+xml;utf8,<svg viewBox='-1 -1 361 267' xmlns='http://www.w3.org/2000/svg'><rect x='0' y='0' width='360' height='130' style='stroke: %23F29107;fill-opacity: 0;'></rect><text x='8' y='12' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23F29107'><![CDATA[Category 1]]></text><rect x='180' y='0' width='180' height='130' style='stroke: %234FB722;fill-opacity: 0;'></rect><text x='351' y='12' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%234FB722'><![CDATA[Category 2]]></text><rect x='180' y='130' width='180' height='135' style='stroke: %23ffd81d;fill-opacity: 0;'></rect><text x='351' y='255' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%23ffd81d'><![CDATA[Category 3]]></text><rect x='0' y='130' width='360' height='135' style='stroke: %23FF0000;fill-opacity: 0;'></rect><text x='8' y='255' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23FF0000'><![CDATA[Category 4]]></text></svg>" />
+```
+
+**Output:**
+
+```html
+<img src="data:image/svg+xml;utf8,%3Csvg viewBox='-1 -1 361 267' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='360' height='130' style='stroke: %23F29107;fill-opacity: 0;'%3E%3C/rect%3E%3Ctext x='8' y='12' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23F29107'%3E%3C![CDATA[Category 1]]%3E%3C/text%3E%3Crect x='180' y='0' width='180' height='130' style='stroke: %234FB722;fill-opacity: 0;'%3E%3C/rect%3E%3Ctext x='351' y='12' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%234FB722'%3E%3C![CDATA[Category 2]]%3E%3C/text%3E%3Crect x='180' y='130' width='180' height='135' style='stroke: %23ffd81d;fill-opacity: 0;'%3E%3C/rect%3E%3Ctext x='351' y='255' font-size='8px' font-family='Arial' text-anchor='end' dominant-baseline='middle' fill='%23ffd81d'%3E%3C![CDATA[Category 3]]%3E%3C/text%3E%3Crect x='0' y='130' width='360' height='135' style='stroke: %23FF0000;fill-opacity: 0;'%3E%3C/rect%3E%3Ctext x='8' y='255' font-size='8px' font-family='Arial' text-anchor='start' dominant-baseline='middle' fill='%23FF0000'%3E%3C![CDATA[Category 4]]%3E%3C/text%3E%3C/svg%3E">
 ```
 
 <!-- WORKED_EXAMPLES_END -->
