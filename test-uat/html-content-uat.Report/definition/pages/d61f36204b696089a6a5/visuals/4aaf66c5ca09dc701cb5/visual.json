@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
   "name": "4aaf66c5ca09dc701cb5",
   "position": {
     "x": 336,
@@ -62,7 +62,7 @@
                     "Column": {
                       "Expression": {
                         "SourceRef": {
-                          "Entity": "lorem"
+                          "Entity": "corpus"
                         }
                       },
                       "Property": "description"
@@ -71,7 +71,7 @@
                   "Function": 3
                 }
               },
-              "queryRef": "Min(lorem.description)",
+              "queryRef": "Min(corpus.description)",
               "nativeQueryRef": "Description",
               "displayName": "Description"
             },
