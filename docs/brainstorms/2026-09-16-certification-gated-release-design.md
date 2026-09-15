@@ -58,7 +58,9 @@ so history follows; `test.yml` is deleted.
   `[0-9]*.[0-9]*.[0-9]*.[0-9]*`); `pull_request`.
 - **Permissions:** `contents: read` at the workflow level; jobs that publish
   elevate themselves.
-- **Concurrency:** one run per ref. `cancel-in-progress` is the expression
+- **Concurrency:** one run per ref, grouped on the full `github.ref` (so a
+  branch and a same-named tag can never share a group and disagree on the
+  cancel policy). `cancel-in-progress` is the expression
   `!startsWith(github.ref, 'refs/tags/')`: branch/PR runs supersede freely
   (a cancelled `test` run strands nothing, and `test.yml` had no
   serialization before), while tag runs never cancel (a half-finished
@@ -81,8 +83,10 @@ so history follows; `test.yml` is deleted.
      `HTML-Content-Standalone.<tag>.pbiviz`.
   4. `actions/upload-artifact@v4`: name `HTML-Content.<tag>`, path
      `release-artifacts/*.pbiviz`, `retention-days: 90`,
-     `if-no-files-found: error`. This artifact is what gets downloaded and
-     submitted to Partner Center (regular + Secure).
+     `if-no-files-found: error`, `overwrite: true` (a "re-run all jobs" on a
+     run that already uploaded would otherwise 409 at the last step). This
+     artifact is what gets downloaded and submitted to Partner Center
+     (regular + Secure).
 
 ### `release.yml`
 

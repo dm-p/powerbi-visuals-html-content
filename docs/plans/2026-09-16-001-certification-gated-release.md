@@ -188,9 +188,11 @@ Replace the `concurrency` comment and block near the top of `ci.yml` with:
 # test run strands nothing. Tag runs never cancel: a half-finished prerelease
 # is exactly the state that strands a deleted release.
 concurrency:
-    group: ci-${{ github.ref_name }}
+    group: ci-${{ github.ref }}
     cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 ```
+
+(Group on the full `github.ref`, not `ref_name`, so a branch and a same-named tag can never share a group while disagreeing on the cancel policy.)
 
 - [ ] **Step 1: Replace the `release` job**
 
@@ -293,6 +295,9 @@ Delete from the line `        # Negative gate: every ref admitted by on.push.tag
                   path: release-artifacts/*.pbiviz
                   retention-days: 90
                   if-no-files-found: error
+                  # A "re-run all jobs" on a run that already uploaded would
+                  # otherwise 409 at the last step, after the full gate.
+                  overwrite: true
 ```
 
 - [ ] **Step 2: Parse-check and assert the old release machinery is gone**
