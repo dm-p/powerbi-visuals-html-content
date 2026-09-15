@@ -177,7 +177,20 @@ git commit -m "ci: fold test.yml into ci.yml (renamed from release.yml), Node 24
 ### Task 2: Convert the `release` job into `submission`
 
 **Files:**
-- Modify: `.github/workflows/ci.yml` — the whole `    release:` job (from the comment `# Negative gate:` above it to the end of the file)
+- Modify: `.github/workflows/ci.yml` — the `concurrency` block, and the whole `    release:` job (from the comment `# Negative gate:` above it to the end of the file)
+
+- [ ] **Step 0: Let branch/PR runs cancel in-progress runs** (added after the Task 1 quality review: folding `test.yml` in gave PR runs a no-cancel serialization they never had)
+
+Replace the `concurrency` comment and block near the top of `ci.yml` with:
+
+```yaml
+# One run per ref at a time. Branch/PR runs supersede freely — a cancelled
+# test run strands nothing. Tag runs never cancel: a half-finished prerelease
+# is exactly the state that strands a deleted release.
+concurrency:
+    group: ci-${{ github.ref_name }}
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+```
 
 - [ ] **Step 1: Replace the `release` job**
 

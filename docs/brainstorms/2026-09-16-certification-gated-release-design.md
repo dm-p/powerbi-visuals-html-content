@@ -58,7 +58,11 @@ so history follows; `test.yml` is deleted.
   `[0-9]*.[0-9]*.[0-9]*.[0-9]*`); `pull_request`.
 - **Permissions:** `contents: read` at the workflow level; jobs that publish
   elevate themselves.
-- **Concurrency:** one run per ref, `cancel-in-progress: false` (unchanged).
+- **Concurrency:** one run per ref. `cancel-in-progress` is the expression
+  `!startsWith(github.ref, 'refs/tags/')`: branch/PR runs supersede freely
+  (a cancelled `test` run strands nothing, and `test.yml` had no
+  serialization before), while tag runs never cancel (a half-finished
+  prerelease is exactly the state that strands a deleted release).
 - **Node:** every `setup-node` step in both files uses `node-version: '24'`
   (the only change to `prerelease`).
 - **Job `test`** — `if: !startsWith(github.ref, 'refs/tags/')`. The current
