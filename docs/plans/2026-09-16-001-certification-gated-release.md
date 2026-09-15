@@ -564,6 +564,18 @@ git add .github/workflows/release.yml
 git commit -m "ci: dispatch-only release workflow publishes an approved submission tag as a draft" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
+- [ ] **Step 4: Post-review fixes** (applied after the Task 3 code-quality review; the committed `release.yml` supersedes the Step 1 block on these points)
+
+1. Guard fails closed: on `gh api` exit 0, anything other than a literal `true` is an error (`[ "$OUTPUT" != "true" ]`). Comment rewritten: `GET /releases/tags/<tag>` only returns published releases (drafts 404); the real hazard is overwriting a live release's name/body/assets, not "flipping it to draft".
+2. Shallow checkout: `fetch-depth: 0` removed. The pinned changelog action uses `compareCommitsWithBasehead` over REST and has no git/child-process usage (verified at SHA `1fabc7b`).
+3. `Generate changelog` moved above `setup-node` so an empty range fails before three builds; comment notes `fromTag` is the newer end.
+4. Package steps take `env: SEMVER: ${{ steps.version.outputs.semver }}` and use `${SEMVER}` in `mv`, so no `${{ }}` appears in any `run:` block.
+5. Gate comment no longer claims tags are immutable; it points at a tag-protection ruleset instead.
+6. `fail_on_unmatched_files: true` on the release step.
+7. Header documents that a re-run replaces assets but keeps the draft's name/body.
+
+Verification: `PARSE OK`; the awk hygiene check now flags any `${{` inside `run:` blocks and reports `HYGIENE OK`; `grep -c fetch-depth` → 0; step order baseline < changelog < setup-node < package < create.
+
 ---
 
 ### Task 4: Whole-branch verification and PR

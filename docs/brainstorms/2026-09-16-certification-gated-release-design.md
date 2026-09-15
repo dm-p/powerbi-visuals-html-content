@@ -29,7 +29,7 @@ attached to the draft.
 | What a 4-part tag push does | Full quality gate + package **all three** editions with production GUIDs, uploaded as a single workflow artifact. No release object. |
 | Changelog baseline | Latest **published** GitHub release (`releases/latest`), which excludes drafts and prereleases by definition. For 2.0.0 this is `1.6.0.0` (1.6.1/1.6.2 were tagged but never released). |
 | File layout | Full Deneb layout: `test.yml` + tag jobs fold into `ci.yml`; the dispatch workflow is `release.yml`. |
-| Test gate on publish | None. The tag is immutable and was gated at submission; publish rebuilds with `npm ci` and keeps only the cheap post-package assertions. |
+| Test gate on publish | None. The tag was gated at submission (and should be protected from force-moves by a repo ruleset — see Edge cases); publish rebuilds with `npm ci` and keeps only the cheap post-package assertions. |
 | Remedial builds | The by-tag guard replaces the x.y.z supersede-and-delete logic: a published release for the tag fails closed; an existing draft is updated in place. |
 | Runner Node version | Bump every `setup-node` step from 20 to **24** (Actions warns that Node 20 is deprecated). `powerbi-visuals-tools` 7.2.1 requires only `>=20.19.0`; local development is already on 24. |
 
@@ -103,27 +103,36 @@ conventions (Node 24, SHA-pinned third-party actions, edition scripts).
   blocks may use the expression form.
 - **Steps:**
   1. Checkout `ref: refs/tags/<tag>` (fully qualified; fails outright if the
-     tag doesn't exist), `fetch-depth: 0`.
+     tag doesn't exist). Shallow: the changelog action compares the two tags
+     via the REST API (verified against the pinned source — no git usage),
+     and nothing else reads history.
   2. Validate tag shape and `pbiviz.json` match; emit `semver` (tag minus the
      4th part) as the release title.
-  3. Guard: `gh api repos/.../releases/tags/<tag> --jq .draft`. `false` →
-     error (never flip a live release back to draft); `true` → continue (the
-     draft is updated in place); HTTP 404 → continue; anything else → error.
+  3. Guard: `gh api repos/.../releases/tags/<tag> --jq .draft`. That endpoint
+     only returns **published** releases (drafts 404), so: HTTP 404 →
+     continue (an existing draft, if any, is updated in place); exit 0 with
+     anything other than a literal `true` → error (a published release, or
+     unexpected output — fails closed; never overwrite a live release's
+     name/body/assets); any other API failure → error.
   4. Baseline: `gh api repos/.../releases/latest --jq .tag_name`; empty →
      error.
-  5. `setup-node` 24, `npm ci`.
-  6. Package the three editions exactly as `submission` does, but named with
+  5. Changelog via `requarks/changelog-action` (repo's pinned SHA),
+     `fromTag: <tag>` (the newer end — the action's naming is inverted),
+     `toTag: <baseline>`. Runs **before** the builds so an empty range fails
+     fast.
+  6. `setup-node` 24, `npm ci`.
+  7. Package the three editions exactly as `submission` does, but named with
      the **3-part semver** (existing release-asset convention):
      `HTML-Content.<semver>.pbiviz`, `HTML-Content-Secure.<semver>.pbiviz`,
-     `HTML-Content-Standalone.<semver>.pbiviz`.
-  7. Changelog via `requarks/changelog-action` (repo's pinned SHA),
-     `fromTag: <tag>`, `toTag: <baseline>`.
+     `HTML-Content-Standalone.<semver>.pbiviz`. The semver reaches the shell
+     via a step `env: SEMVER`, keeping the "no `${{ }}` inside `run:`"
+     invariant absolute.
   8. `softprops/action-gh-release` (repo's pinned SHA): `draft: true`,
-     `tag_name: <tag>`, `name: <semver>`, `files: release-artifacts/*.pbiviz`.
-     Body = the existing three-package table and organizational-visual note,
-     reworded to state that the release is as published to AppSource, followed
-     by "Changes since <baseline>", the generated changelog and a
-     `compare/<baseline>...<tag>` link.
+     `tag_name: <tag>`, `name: <semver>`, `files: release-artifacts/*.pbiviz`,
+     `fail_on_unmatched_files: true`. Body = the existing three-package table
+     and organizational-visual note, reworded to state that the release is as
+     published to AppSource, followed by "Changes since <baseline>", the
+     generated changelog and a `compare/<baseline>...<tag>` link.
   9. Diagnostic `upload-artifact` (`if: always()`, `continue-on-error`,
      `overwrite: true`) so a failed create still leaves the packages
      retrievable.
@@ -135,7 +144,14 @@ conventions (Node 24, SHA-pinned third-party actions, edition scripts).
   a second draft named `2.0.0` would be created. Delete the stale draft by hand
   first. The runbook says so.
 - **Re-dispatch after a fix to the workflow itself:** allowed while the
-  release is a draft; assets with the same name are replaced.
+  release is a draft; assets with the same name are replaced, but the
+  draft's existing name and body are kept (the action updates in place). To
+  regenerate the notes, delete the draft and dispatch again.
+- **Tag force-moves:** the publish workflow skips the test gate on the
+  strength of the submission run, which only holds if 4-part tags cannot be
+  moved afterwards. Add a repository ruleset protecting
+  `[0-9]*.[0-9]*.[0-9]*.[0-9]*` tags from update/delete (a settings change,
+  outside this branch).
 - **No published release yet** (fresh repo): the baseline step fails loudly
   rather than generating an unbounded changelog.
 
