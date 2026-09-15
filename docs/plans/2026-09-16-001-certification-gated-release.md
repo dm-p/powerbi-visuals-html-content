@@ -606,7 +606,7 @@ and four `node-version: '24'` lines (three in ci.yml, one in release.yml), zero 
 - [ ] **Step 2: Confirm the branch history is clean and the unrelated tmdl change is not staged**
 
 Run: `git log --oneline main..HEAD && git status --short`
-Expected: five commits (spec, spec Node bump, Task 1, Task 2, Task 3) and status showing only ` M test-uat/.../expressions.tmdl` and `?? .claude/`.
+Expected: only spec/plan commits and the Task 1–3 commits (including the post-review fix commits recorded in Task 2 Step 0 and Task 3 Step 4), and status showing only ` M test-uat/.../expressions.tmdl` and `?? .claude/`.
 
 - [ ] **Step 3: Push and open the PR**
 
@@ -629,6 +629,10 @@ Spec: `docs/brainstorms/2026-09-16-certification-gated-release-design.md`. Plan:
 - This PR's own run exercises the merged `test` job.
 - Live fire is deferred to the real `2.0.0.0` push (submission) and a pre-approval dispatch of `release` against it (inspect the draft, then delete it; the guard permits a later re-dispatch).
 
+## Before the first submission tag
+
+Add a tag ruleset protecting `[0-9]*.[0-9]*.[0-9]*.[0-9]*` from update/delete: the publish workflow skips the test gate on the strength of the submission run, which only holds if 4-part tags cannot be force-moved.
+
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 ```
@@ -641,6 +645,7 @@ Expected: the `test` job from `ci.yml` (job id `test`) reports success. No `prer
 - [ ] **Step 5: Live-fire notes for the maintainer (not automated)**
 
 When ready to submit 2.0.0:
+0. Once, before the first submission tag: add a repository ruleset (Settings → Rules → Rulesets → New tag ruleset) targeting `[0-9]*.[0-9]*.[0-9]*.[0-9]*` that blocks update and deletion. The publish workflow skips the test gate on the strength of the submission run, which only holds if 4-part tags cannot be force-moved afterwards.
 1. Ensure `pbiviz.json` `visual.version` is `2.0.0.0` on the commit to submit; `git tag 2.0.0.0 <commit> && git push origin 2.0.0.0`.
 2. Confirm the `submission` run uploads artifact `HTML-Content.2.0.0.0` containing three `.pbiviz` files; submit regular + Secure to Partner Center.
 3. Optionally dispatch `release` with tag `2.0.0.0` now to inspect the draft body and assets, then delete the draft from the Releases page.
