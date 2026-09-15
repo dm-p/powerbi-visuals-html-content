@@ -17,6 +17,10 @@ name: release
 # x.y.z exists from an earlier tag (e.g. 2.0.0.0 was dispatched by mistake
 # and 2.0.0.1 is the approved one), delete that draft by hand first, or you
 # will end up with two drafts named 2.0.0.
+#
+# Re-running against an existing draft replaces its assets but keeps the
+# draft's existing name and body (action-gh-release updates in place). To
+# regenerate the notes, delete the draft and dispatch again.
 permissions:
     contents: read
 
@@ -53,9 +57,8 @@ jobs:
                   # resolved instead of the tag — checkout fails outright if
                   # the tag doesn't exist.
                   ref: refs/tags/${{ inputs.tag }}
-                  # Full history + tags: the changelog action walks commits
-                  # between the baseline tag and this tag.
-                  fetch-depth: 0
+                  # Shallow is fine: the changelog action compares the two
+                  # tags via the REST API, and nothing here reads git history.
             # Runs before setup-node on purpose (fail fast): the `node -p`
             # uses the runner image's preinstalled Node, which is fine for
             # JSON.parse/readFileSync. The release is named with the 3-part
@@ -74,23 +77,25 @@ jobs:
                   fi
                   echo "semver=${RELEASE_TAG%.*}" >> $GITHUB_OUTPUT
             # Re-dispatching against a tag whose release is already published
-            # would flip that live release back to draft (action-gh-release
-            # updates an existing release for the tag in place). Fail fast
-            # instead; an existing DRAFT for the tag is fine to update on a
-            # re-run. This must fail closed: only a confirmed 404 (no release
-            # for the tag) may proceed. A published release fails the guard,
-            # and any other API failure (5xx, auth, rate limit) fails loudly
-            # too rather than being swallowed and treated as "no release".
+            # would overwrite the live release's name, body and same-named
+            # assets (action-gh-release updates an existing release for the
+            # tag in place). Fail fast instead. GET /releases/tags/<tag> only
+            # returns PUBLISHED releases — drafts 404 — so a confirmed 404 is
+            # the only state that may proceed (an existing draft, if any, is
+            # then updated in place). Fails closed: exit 0 with anything other
+            # than a literal `true` (a published release, or unexpected
+            # output) is an error, and any other API failure (5xx, auth, rate
+            # limit) fails loudly rather than being treated as "no release".
             - name: Guard against already-published release
               run: |
                   if OUTPUT=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft 2>&1); then
-                      if [ "$OUTPUT" = "false" ]; then
-                          echo "::error::A published release already exists for tag '$RELEASE_TAG'. Refusing to modify it."
+                      if [ "$OUTPUT" != "true" ]; then
+                          echo "::error::A release already exists for tag '$RELEASE_TAG' (draft=$OUTPUT). Refusing to modify it."
                           exit 1
                       fi
                       echo "Existing draft release found for '$RELEASE_TAG'; it will be updated."
                   elif echo "$OUTPUT" | grep -q "HTTP 404"; then
-                      echo "No existing release for '$RELEASE_TAG'."
+                      echo "No published release for '$RELEASE_TAG'."
                   else
                       echo "::error::Could not determine release state for '$RELEASE_TAG': $OUTPUT"
                       exit 1
@@ -113,46 +118,9 @@ jobs:
                   echo "Baseline release tag: $BASELINE"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: '24'
-                  cache: 'npm'
-            - run: npm ci
-            - name: Prepare artifact staging
-              run: mkdir -p release-artifacts
-            # Production packages: all three editions with their committed
-            # (production) GUIDs — no channel overlay — named with the 3-part
-            # semver (release-asset convention). No test gate here: the tag
-            # was gated by the submission job and is immutable. dist/ is
-            # cleared before each package so the mv glob can only match the
-            # single fresh artifact (mv fails the job on zero or multiple
-            # matches). The non-secure editions are checked for sanitizer
-            # leakage immediately after packaging (the check reads the
-            # webpack drop, which the next package run overwrites).
-            - name: Package regular edition
-              run: |
-                  rm -rf dist .tmp/drop
-                  node scripts/select-edition.mjs standard
-                  npx pbiviz package
-                  node scripts/check-no-sanitizer.mjs
-                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
-                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
-            - name: Package secure edition
-              run: |
-                  rm -rf dist .tmp/drop
-                  node scripts/select-edition.mjs certified
-                  npx pbiviz package
-                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
-                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
-                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
-            - name: Package standalone edition
-              run: |
-                  rm -rf dist .tmp/drop
-                  node scripts/select-edition.mjs standalone
-                  npx pbiviz package
-                  node scripts/check-no-sanitizer.mjs
-                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
-                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
+            # Runs before the builds so an empty range (tag on the same commit
+            # as the baseline, or older than it) fails fast. fromTag is the
+            # NEWER end — the action's input naming is inverted.
             - name: Generate changelog
               id: changelog
               # Third-party actions in this workflow run with a write-scoped
@@ -165,6 +133,53 @@ jobs:
                   toTag: ${{ steps.baseline.outputs.tag }}
                   excludeTypes: ''
                   writeToFile: false
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+            - run: npm ci
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
+            # Production packages: all three editions with their committed
+            # (production) GUIDs — no channel overlay — named with the 3-part
+            # semver (release-asset convention). No test gate here: the tag
+            # was gated by the submission job (protect 4-part tags from
+            # force-moves in the repo rulesets so that stays true). dist/ is
+            # cleared before each package so the mv glob can only match the
+            # single fresh artifact (mv fails the job on zero or multiple
+            # matches). The non-secure editions are checked for sanitizer
+            # leakage immediately after packaging (the check reads the
+            # webpack drop, which the next package run overwrites).
+            - name: Package regular edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standard
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${SEMVER}.pbiviz"
+              env:
+                  SEMVER: ${{ steps.version.outputs.semver }}
+            - name: Package secure edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs certified
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${SEMVER}.pbiviz"
+              env:
+                  SEMVER: ${{ steps.version.outputs.semver }}
+            - name: Package standalone edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standalone
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${SEMVER}.pbiviz"
+              env:
+                  SEMVER: ${{ steps.version.outputs.semver }}
             - name: Create draft release
               uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
               with:
@@ -193,6 +208,7 @@ jobs:
                       **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.baseline.outputs.tag }}...${{ inputs.tag }}
                   files: |
                       release-artifacts/*.pbiviz
+                  fail_on_unmatched_files: true
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             # Keep the built packages retrievable even when the create step
