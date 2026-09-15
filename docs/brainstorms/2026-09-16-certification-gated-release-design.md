@@ -31,6 +31,7 @@ attached to the draft.
 | File layout | Full Deneb layout: `test.yml` + tag jobs fold into `ci.yml`; the dispatch workflow is `release.yml`. |
 | Test gate on publish | None. The tag is immutable and was gated at submission; publish rebuilds with `npm ci` and keeps only the cheap post-package assertions. |
 | Remedial builds | The by-tag guard replaces the x.y.z supersede-and-delete logic: a published release for the tag fails closed; an existing draft is updated in place. |
+| Runner Node version | Bump every `setup-node` step from 20 to **24** (Actions warns that Node 20 is deprecated). `powerbi-visuals-tools` 7.2.1 requires only `>=20.19.0`; local development is already on 24. |
 
 ## Design
 
@@ -58,10 +59,12 @@ so history follows; `test.yml` is deleted.
 - **Permissions:** `contents: read` at the workflow level; jobs that publish
   elevate themselves.
 - **Concurrency:** one run per ref, `cancel-in-progress: false` (unchanged).
+- **Node:** every `setup-node` step in both files uses `node-version: '24'`
+  (the only change to `prerelease`).
 - **Job `test`** — `if: !startsWith(github.ref, 'refs/tags/')`. The current
-  `test.yml` steps verbatim (checkout, Node 20, `npm ci`, Playwright cache and
-  install, lint, unit, docs drift, integration).
-- **Job `prerelease`** — unchanged.
+  `test.yml` steps verbatim (checkout, `npm ci`, Playwright cache and install,
+  lint, unit, docs drift, integration).
+- **Job `prerelease`** — unchanged apart from the Node bump.
 - **Job `submission`** — the current `release` job with the changelog,
   supersede and create-release steps removed:
   1. Validate the tag: exact `^\d+\.\d+\.\d+\.\d+$` and equal to
@@ -80,7 +83,7 @@ so history follows; `test.yml` is deleted.
 ### `release.yml`
 
 New file mirroring Deneb's, adapted to three editions and this repo's
-conventions (Node 20, SHA-pinned third-party actions, edition scripts).
+conventions (Node 24, SHA-pinned third-party actions, edition scripts).
 
 - **Trigger:** `workflow_dispatch` with a required string input `tag`
   (e.g. `2.0.0.1`). Dispatch from `main`; the input selects the code, not the
@@ -100,7 +103,7 @@ conventions (Node 20, SHA-pinned third-party actions, edition scripts).
      draft is updated in place); HTTP 404 → continue; anything else → error.
   4. Baseline: `gh api repos/.../releases/latest --jq .tag_name`; empty →
      error.
-  5. `setup-node` 20, `npm ci`.
+  5. `setup-node` 24, `npm ci`.
   6. Package the three editions exactly as `submission` does, but named with
      the **3-part semver** (existing release-asset convention):
      `HTML-Content.<semver>.pbiviz`, `HTML-Content-Secure.<semver>.pbiviz`,
