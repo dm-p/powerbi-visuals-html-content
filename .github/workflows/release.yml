@@ -1,0 +1,210 @@
+name: release
+
+# Publishes an APPROVED certification submission tag as a draft GitHub
+# release for maintainer review. Flow:
+#   1. Submission tags (2.0.0.N) are built by the `submission` job in
+#      ci.yml as workflow artifacts only (no releases).
+#   2. When Microsoft approves a submission, dispatch this workflow with
+#      that tag. It rebuilds all three editions at the tag and creates a
+#      DRAFT release titled with the 3-part version (e.g. 2.0.0).
+#   3. The maintainer reviews/edits the draft body in the GitHub UI and
+#      publishes it manually.
+#
+# When dispatching, leave the "Use workflow from" selector on main — the
+# input tag only selects the code that gets built, not the workflow logic.
+#
+# The guard below is keyed by TAG. If a stale draft named with the same
+# x.y.z exists from an earlier tag (e.g. 2.0.0.0 was dispatched by mistake
+# and 2.0.0.1 is the approved one), delete that draft by hand first, or you
+# will end up with two drafts named 2.0.0.
+permissions:
+    contents: read
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: 'Approved submission tag to publish (e.g. 2.0.0.1)'
+                required: true
+                type: string
+
+# Serialize runs per tag so overlapping dispatches cannot race on the same
+# draft release.
+concurrency:
+    group: release-${{ inputs.tag }}
+    cancel-in-progress: false
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        env:
+            # Shell steps read the tag from env, never via ${{ }}
+            # interpolation inside `run:` — expression interpolation pastes
+            # the value into the script as shell source. `with:` blocks may
+            # use the expression form safely.
+            RELEASE_TAG: ${{ inputs.tag }}
+        steps:
+            - name: Check out approved tag
+              uses: actions/checkout@v4
+              with:
+                  # Fully qualified so a same-named branch can never be
+                  # resolved instead of the tag — checkout fails outright if
+                  # the tag doesn't exist.
+                  ref: refs/tags/${{ inputs.tag }}
+                  # Full history + tags: the changelog action walks commits
+                  # between the baseline tag and this tag.
+                  fetch-depth: 0
+            # Runs before setup-node on purpose (fail fast): the `node -p`
+            # uses the runner image's preinstalled Node, which is fine for
+            # JSON.parse/readFileSync. The release is named with the 3-part
+            # semantic version (tag minus the 4th part).
+            - name: Validate tag against pbiviz.json and derive title
+              id: version
+              run: |
+                  if ! echo "$RELEASE_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                      echo "::error::'$RELEASE_TAG' is not a 4-part numeric submission tag (e.g. 2.0.0.1)."
+                      exit 1
+                  fi
+                  PBIVIZ_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('pbiviz.json','utf8')).visual.version")
+                  if [ "$RELEASE_TAG" != "$PBIVIZ_VERSION" ]; then
+                      echo "::error::Tag '$RELEASE_TAG' does not match pbiviz.json visual.version '$PBIVIZ_VERSION' at that commit."
+                      exit 1
+                  fi
+                  echo "semver=${RELEASE_TAG%.*}" >> $GITHUB_OUTPUT
+            # Re-dispatching against a tag whose release is already published
+            # would flip that live release back to draft (action-gh-release
+            # updates an existing release for the tag in place). Fail fast
+            # instead; an existing DRAFT for the tag is fine to update on a
+            # re-run. This must fail closed: only a confirmed 404 (no release
+            # for the tag) may proceed. A published release fails the guard,
+            # and any other API failure (5xx, auth, rate limit) fails loudly
+            # too rather than being swallowed and treated as "no release".
+            - name: Guard against already-published release
+              run: |
+                  if OUTPUT=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft 2>&1); then
+                      if [ "$OUTPUT" = "false" ]; then
+                          echo "::error::A published release already exists for tag '$RELEASE_TAG'. Refusing to modify it."
+                          exit 1
+                      fi
+                      echo "Existing draft release found for '$RELEASE_TAG'; it will be updated."
+                  elif echo "$OUTPUT" | grep -q "HTTP 404"; then
+                      echo "No existing release for '$RELEASE_TAG'."
+                  else
+                      echo "::error::Could not determine release state for '$RELEASE_TAG': $OUTPUT"
+                      exit 1
+                  fi
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Changelog baseline = latest PUBLISHED release. The
+            # /releases/latest endpoint excludes drafts and prereleases by
+            # definition, so rejected submission tags and channel prereleases
+            # can never become the baseline.
+            - name: Resolve changelog baseline
+              id: baseline
+              run: |
+                  BASELINE=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+                  if [ -z "$BASELINE" ]; then
+                      echo "::error::Could not resolve the latest published release."
+                      exit 1
+                  fi
+                  echo "tag=$BASELINE" >> $GITHUB_OUTPUT
+                  echo "Baseline release tag: $BASELINE"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+            - run: npm ci
+            - name: Prepare artifact staging
+              run: mkdir -p release-artifacts
+            # Production packages: all three editions with their committed
+            # (production) GUIDs — no channel overlay — named with the 3-part
+            # semver (release-asset convention). No test gate here: the tag
+            # was gated by the submission job and is immutable. dist/ is
+            # cleared before each package so the mv glob can only match the
+            # single fresh artifact (mv fails the job on zero or multiple
+            # matches). The non-secure editions are checked for sanitizer
+            # leakage immediately after packaging (the check reads the
+            # webpack drop, which the next package run overwrites).
+            - name: Package regular edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standard
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content.${{ steps.version.outputs.semver }}.pbiviz"
+            - name: Package secure edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs certified
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs --expect-sanitizer
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz"
+            - name: Package standalone edition
+              run: |
+                  rm -rf dist .tmp/drop
+                  node scripts/select-edition.mjs standalone
+                  npx pbiviz package
+                  node scripts/check-no-sanitizer.mjs
+                  node scripts/assert-production-version.mjs "$RELEASE_TAG"
+                  mv dist/*.pbiviz "release-artifacts/HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz"
+            - name: Generate changelog
+              id: changelog
+              # Third-party actions in this workflow run with a write-scoped
+              # token, so they are pinned to reviewed commit SHAs rather than
+              # mutable tags (supply-chain hardening).
+              uses: requarks/changelog-action@1fabc7b0c6581d93c398246a856f084fb17cd9eb # v1.9.0
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fromTag: ${{ inputs.tag }}
+                  toTag: ${{ steps.baseline.outputs.tag }}
+                  excludeTypes: ''
+                  writeToFile: false
+            - name: Create draft release
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+              with:
+                  draft: true
+                  tag_name: ${{ inputs.tag }}
+                  name: ${{ steps.version.outputs.semver }}
+                  body: |
+                      This is version ${{ steps.version.outputs.semver }} of HTML Content, as published to AppSource. Details for this release are available [in the changelog](https://html-content.com/docs/change-log) on the documentation site.
+
+                      Three packages are attached, one per edition:
+
+                      | Package | Edition | Distribution |
+                      | --- | --- | --- |
+                      | `HTML-Content.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content** | AppSource (production visual ID) |
+                      | `HTML-Content-Secure.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content Secure** | AppSource, certified (production visual ID) |
+                      | `HTML-Content-Standalone.${{ steps.version.outputs.semver }}.pbiviz` | **HTML Content — Standalone** | Side-load only (independent visual ID) |
+
+                      > **Note:** the regular and Secure packages use the **production AppSource visual IDs**. To use them directly you will need to deploy them as [organizational visuals](https://learn.microsoft.com/power-bi/developer/visuals/power-bi-custom-visuals-organization) — otherwise, simply wait for AppSource publication to catch up with this release. The Standalone package has its own visual ID and can be side-loaded into any report, but is independent of AppSource and will not auto-update.
+
+                      ---
+
+                      ## Changes since ${{ steps.baseline.outputs.tag }}
+
+                      ${{ steps.changelog.outputs.changes }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.baseline.outputs.tag }}...${{ inputs.tag }}
+                  files: |
+                      release-artifacts/*.pbiviz
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Keep the built packages retrievable even when the create step
+            # fails, so a broken run can be diagnosed and hand-published
+            # without a rebuild. Purely diagnostic: must never affect job
+            # status (continue-on-error), must survive re-runs (overwrite).
+            - name: Upload artifacts for diagnosis
+              if: always()
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-artifacts
+                  path: release-artifacts/*.pbiviz
+                  if-no-files-found: warn
+                  overwrite: true
