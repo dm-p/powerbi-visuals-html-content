@@ -573,6 +573,7 @@ git commit -m "ci: dispatch-only release workflow publishes an approved submissi
 5. Gate comment no longer claims tags are immutable; it points at a tag-protection ruleset instead.
 6. `fail_on_unmatched_files: true` on the release step.
 7. Header documents that a re-run replaces assets but keeps the draft's name/body.
+8. (Greptile P1 on the PR) Submission-gate check step after tag validation: `gh api .../actions/workflows/ci.yml/runs?event=push&status=success&head_sha=<HEAD>` filtered to `head_branch == env.RELEASE_TAG`; zero → error. Job gains `actions: read`.
 
 Verification: `PARSE OK`; the awk hygiene check now flags any `${{` inside `run:` blocks and reports `HYGIENE OK`; `grep -c fetch-depth` → 0; step order baseline < changelog < setup-node < package < create.
 

@@ -108,32 +108,38 @@ conventions (Node 24, SHA-pinned third-party actions, edition scripts).
      and nothing else reads history.
   2. Validate tag shape and `pbiviz.json` match; emit `semver` (tag minus the
      4th part) as the release title.
-  3. Guard: `gh api repos/.../releases/tags/<tag> --jq .draft`. That endpoint
+  3. Submission-gate check: the publish path runs no tests of its own, so
+     require a successful `ci.yml` run (`event=push`, `status=success`,
+     `head_sha` = the checked-out commit, `head_branch` = the tag) via the
+     Actions API; none → error. Tag pushes run only the `submission` job, so
+     a successful run is that gate. Also catches a tag moved after its run.
+     Needs `actions: read` on the job.
+  4. Guard: `gh api repos/.../releases/tags/<tag> --jq .draft`. That endpoint
      only returns **published** releases (drafts 404), so: HTTP 404 →
      continue (an existing draft, if any, is updated in place); exit 0 with
      anything other than a literal `true` → error (a published release, or
      unexpected output — fails closed; never overwrite a live release's
      name/body/assets); any other API failure → error.
-  4. Baseline: `gh api repos/.../releases/latest --jq .tag_name`; empty →
+  5. Baseline: `gh api repos/.../releases/latest --jq .tag_name`; empty →
      error.
-  5. Changelog via `requarks/changelog-action` (repo's pinned SHA),
+  6. Changelog via `requarks/changelog-action` (repo's pinned SHA),
      `fromTag: <tag>` (the newer end — the action's naming is inverted),
      `toTag: <baseline>`. Runs **before** the builds so an empty range fails
      fast.
-  6. `setup-node` 24, `npm ci`.
-  7. Package the three editions exactly as `submission` does, but named with
+  7. `setup-node` 24, `npm ci`.
+  8. Package the three editions exactly as `submission` does, but named with
      the **3-part semver** (existing release-asset convention):
      `HTML-Content.<semver>.pbiviz`, `HTML-Content-Secure.<semver>.pbiviz`,
      `HTML-Content-Standalone.<semver>.pbiviz`. The semver reaches the shell
      via a step `env: SEMVER`, keeping the "no `${{ }}` inside `run:`"
      invariant absolute.
-  8. `softprops/action-gh-release` (repo's pinned SHA): `draft: true`,
+  9. `softprops/action-gh-release` (repo's pinned SHA): `draft: true`,
      `tag_name: <tag>`, `name: <semver>`, `files: release-artifacts/*.pbiviz`,
      `fail_on_unmatched_files: true`. Body = the existing three-package table
      and organizational-visual note, reworded to state that the release is as
      published to AppSource, followed by "Changes since <baseline>", the
      generated changelog and a `compare/<baseline>...<tag>` link.
-  9. Diagnostic `upload-artifact` (`if: always()`, `continue-on-error`,
+  10. Diagnostic `upload-artifact` (`if: always()`, `continue-on-error`,
      `overwrite: true`) so a failed create still leaves the packages
      retrievable.
 

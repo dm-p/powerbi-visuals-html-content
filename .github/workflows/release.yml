@@ -43,6 +43,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+            # Read workflow runs for the submission-gate check below.
+            actions: read
         env:
             # Shell steps read the tag from env, never via ${{ }}
             # interpolation inside `run:` — expression interpolation pastes
@@ -76,6 +78,25 @@ jobs:
                       exit 1
                   fi
                   echo "semver=${RELEASE_TAG%.*}" >> $GITHUB_OUTPUT
+            # The publish path runs no test gate of its own (see the package
+            # comment below), so require that the `submission` job in ci.yml
+            # succeeded for this exact commit. Tag pushes run only that job
+            # (test/prerelease are skipped), so a successful ci.yml push run
+            # whose head_branch is the tag and whose head_sha is HEAD is that
+            # gate. Also catches a tag that was moved after its run. The tag
+            # reaches jq via env, not string interpolation.
+            - name: Require a successful submission run for this commit
+              run: |
+                  HEAD_SHA=$(git rev-parse HEAD)
+                  COUNT=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&status=success&head_sha=$HEAD_SHA&per_page=100" \
+                      --jq '[.workflow_runs[] | select(.head_branch == env.RELEASE_TAG)] | length')
+                  if [ "$COUNT" = "0" ]; then
+                      echo "::error::No successful ci.yml submission run found for tag '$RELEASE_TAG' at $HEAD_SHA. Push the tag (or re-run its failed submission run) and wait for it to succeed before dispatching."
+                      exit 1
+                  fi
+                  echo "Found $COUNT successful submission run(s) for '$RELEASE_TAG' at $HEAD_SHA."
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             # Re-dispatching against a tag whose release is already published
             # would overwrite the live release's name, body and same-named
             # assets (action-gh-release updates an existing release for the
