@@ -82,8 +82,13 @@ import type {
 import { LOREM_PAYLOADS } from '../test/fixtures/lorem';
 import { HYPERLINKS_PAYLOADS } from '../test/fixtures/hyperlinks';
 import { STYLESHEET_PAYLOADS } from '../test/fixtures/stylesheet-scenarios';
-import { getSanitizedHtmlForTesting } from '../src/sanitize/backend.certified';
-import { getSanitizedCss } from '../src/sanitize';
+// Pin both HTML and CSS to the certified backend: the `../src/sanitize` seam
+// follows the active edition, so a leftover `standard` selection would write
+// unsanitized CSS into stylesheet.csv.
+import {
+    getSanitizedHtmlForTesting,
+    sanitizeCssString
+} from '../src/sanitize/backend.certified';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,7 +193,7 @@ function writeStylesheetCsv(): void {
                 scenario.htmlInput,
                 getSanitizedHtmlForTesting(scenario.htmlInput, 'html'),
                 scenario.cssInput,
-                getSanitizedCss(scenario.cssInput)
+                sanitizeCssString(scenario.cssInput)
             ]
                 .map(csvField)
                 .join(',')
