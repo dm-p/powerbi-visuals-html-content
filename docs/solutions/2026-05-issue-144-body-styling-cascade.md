@@ -33,7 +33,7 @@ The sanitizer is doing the right thing — those inline styles are safe HTML (no
 
 Two-part stylesheet-only intervention scoped to `#htmlContent` descendants:
 
-1. **`src/domain-utils.ts`** — `resolveStyling` toggles a class on the body container (`uses-default-body-styling`) when the user is in default-body mode (no custom stylesheet). The class is removed when the user supplies a custom stylesheet, so the override mechanism stays out of their way.
+1. **`src/domain-utils.ts`** — `resolveStyling` toggles a class on the body container (`uses-default-body-styling`) when the user is in default-body mode (no custom stylesheet) **and** has enabled the "Override inline styling" toggle. The toggle defaults OFF (added in `4dc75cb`, after the initial fix) so inline styles render as authored unless the author opts in. The class is also removed when the user supplies a custom stylesheet, so the override mechanism stays out of their way.
 
 2. **`style/visual.less`** — adds a single rule:
 

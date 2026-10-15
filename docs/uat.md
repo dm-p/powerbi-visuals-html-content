@@ -171,9 +171,11 @@ Verify:
    numbered swatches falling back to the foreground color (the `var(…, fg)`
    chain), confirming we emit only the colors the host actually provides.
 3. **High contrast** — enable Windows high contrast. The "HIGH CONTRAST ACTIVE"
-   banner appears (the `.pbi-theme-hc` class is set on the document root) and the
-   named `fg`/`bg`/`fg-selected`/`hyperlink` swatches take their HC values. Values
-   are pass-through: the author decides how to adapt via `.pbi-theme-hc` in CSS.
+   banner appears (the `.pbi-theme-hc` class is set on `#htmlContent`, the
+   ancestor of all rendered content — so `.pbi-theme-hc .foo` matches but
+   `:root.pbi-theme-hc` / `html.pbi-theme-hc` do not) and the named
+   `fg`/`bg`/`fg-selected`/`hyperlink` swatches take their HC values. Values are
+   pass-through: the author decides how to adapt via `.pbi-theme-hc` in CSS.
 
 **Known limitation:** inline `srcdoc` iframes in author content are separate
 documents — neither the `:root` variables nor `.pbi-theme-hc` cascade into them.

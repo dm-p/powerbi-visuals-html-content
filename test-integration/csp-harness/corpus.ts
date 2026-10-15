@@ -1757,14 +1757,16 @@ export const CLEAN_PAYLOADS: Payload[] = [
             'An inline style attribute using only safe properties (color and ' +
             'font-weight) with no external resource references. Sanitizer ' +
             'preserves both declarations verbatim. UAT visual expectation: ' +
-            'when no Custom stylesheet is supplied, the issue #144 cascade ' +
-            'override forces `color: inherit !important` on every descendant ' +
-            'with an inline style, so the rendered text appears in the ' +
-            'visual\'s Default body color (typically black) rather than red ' +
-            '— this is by design (see ' +
+            'with default settings the text renders red and bold, as ' +
+            'authored. The issue #144 cascade override (`color: inherit ' +
+            '!important` on every descendant with an inline style) applies ' +
+            'only when the "Override inline styling" toggle is ON (default ' +
+            'OFF) and no Custom stylesheet is supplied; the text then ' +
+            "appears in the visual's Default body color (typically black) " +
+            'rather than red (see ' +
             'docs/solutions/2026-05-issue-144-body-styling-cascade.md). ' +
             '`font-weight: bold` is not on the override list and renders as ' +
-            'authored. To preserve the inline red, supply a Custom stylesheet.',
+            'authored either way.',
         input: '<p style="color: red; font-weight: bold">red bold</p>',
         expectedSanitized: {
             // postcss normalizes whitespace around the colon, so the
